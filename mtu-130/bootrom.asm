@@ -90,7 +90,7 @@ CPYLOOP:    LDA     CMDSTR-1, X     ;  from PROM
 
             ; Set the drive in known status
             ;
-INIT:       LDX     #SPECIFY        ; Stablish disk operating parameters
+INIT:       LDX     #SPECIFY        ; Establish disk operating parameters
             JSR     CMDEXEC
             LDX     #RECAL          ; Retract head of drive 0 to track 0
             JSR     CMDEXEC
@@ -216,6 +216,9 @@ READDATR:   LDA     DATR            ; Read status register
             INX                     ; Next byte
             LDA     $FFA5           ; OK, this is weird. At $FFA5 it is opcode BPL ($10)
                                     ; which is exactly what we need but... Why not LDA #$10?
+                                    ; Probably because LDA # takes 2 cycles and abbsolute takes 4
+                                    ; so that gives a little time to the uPD765 to put the data
+                                    ; into the Data Register
             AND     MSTR            ; More data available from the data register?
             BNE     READDATR        ; Yes, continue reading
             RTS                     ; No, return
