@@ -75,6 +75,8 @@ typedef struct {
     dir_entry_t dir_entry[(CODOS_SECTOR_SIZE/sizeof(dir_entry_t))*16];
     BAT_t bat2;
 
+    BAT_t *active_bat;
+
 } disk_t;
 
 #define ATTR_RW 0x80

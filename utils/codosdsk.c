@@ -27,6 +27,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
+#include <getopt.h>
 #include <libgen.h>
 #include <errno.h>
 
@@ -42,7 +43,11 @@ typedef struct {
 
 static void usage( char *myname )
 {
-    fprintf( stderr, "\nUsage: %s <image> <command>\n\nCommands:\n", myname);
+    fprintf( stderr, "\nUsage: %s [--help] [--bat2] <image> <command>\n\n", myname );
+    fputs( "Options:\n", stderr );
+    fputs( "    --help|-h    Print this help\n", stderr );
+    fputs( "    --bat2|-2    Use second copy of the disk BAT\n\n", stderr );
+    fputs( "Commands:\n", stderr );
     fputs( "    dir [<pattern>]\n", stderr );
     fputs( "    extract [<pattern>]\n", stderr );
 }
@@ -89,8 +94,36 @@ int main( int argc, char **argv )
     disk_t disk = {0};
     uint8_t buffer[DS_BLOCK_SIZE];
     int ret;
-
+    int opt, opt_index = 0;
     char *myname = basename( argv[0] );
+
+    static const struct option long_opts[] = {
+        {"help", no_argument, 0, 'h' },
+        {"bat2", no_argument, 0, '2' },
+        {0,      0,           0,  0  }
+    };
+
+    disk.active_bat = &disk.bat;
+
+    optind = 0;
+
+    while (( opt = getopt_long( argc, argv, "h2", long_opts, &opt_index)) != -1 )
+    {
+        switch( opt )
+        {
+            case '2':
+                disk.active_bat = &disk.bat2;
+                break;
+
+            case 'h':
+            default:
+                usage( myname );
+                return -1;
+        }
+    }
+
+    argc -= optind-1;
+    argv += optind-1;
 
     // Open image name
 

@@ -134,7 +134,7 @@ static long get_free_space( disk_t *disk )
 
     for ( int i = 1; i < NUM_BLOCKS+1; ++i )
     {
-        if ( !disk->bat.blocks[i] )
+        if ( !disk->active_bat->blocks[i] )
         {
             free_space += disk->sectors_block * CODOS_SECTOR_SIZE;
         }
@@ -179,7 +179,7 @@ static int extract_file( disk_t *disk, uint8_t *buffer, char *fname, dir_entry_t
 
         size -= towrite;
 
-        block = disk->bat.blocks[block];
+        block = disk->active_bat->blocks[block];
      
         if ( (size && (block == BLOCK_FREE || block > NUM_BLOCKS )) || (!size && block != BLOCK_LAST) )
         {
