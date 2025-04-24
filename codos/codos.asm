@@ -29,13 +29,13 @@
     SVCEND          = 11            ; ENCODE BINARY TO ASCII DECIMAL
     SVCDFB          = 12            ; ESTABLISH DEFAULT BUFFER ADDRESS
     SVCMON          = 13            ; EXECUTE CODOS MONITOR COMMAND
-    SVCQCA          = 14            ; QUERRY CHANNEL ASSIGNMENT
+    SVCQCA          = 14            ; QUERY CHANNEL ASSIGNMENT
     SVCINR          = 15            ; READ RECORD FROM FILE
     SVCOUR          = 16            ; WRITE RECORD TO FILE
     SVCBOF          = 17            ; POSITION TO BEGINNING OF FILE
     SVCEOF          = 18            ; POSITION FILE TO END OF FILE
     SVCPSF          = 19            ; POSITION FILE TO ARBUTRARY LOCATION
-    SVCQFP          = 20            ; QUERRY FILE POSITION
+    SVCQFP          = 20            ; QUERY FILE POSITION
     SVCASS          = 21            ; ASSIGN CHANNEL TO FILE OR DEVICE
     SVCFRE          = 22            ; FREE CHANNEL
     SVCTNC          = 23            ; TRUNCATE FILE AT PRESENT POSITION
@@ -43,9 +43,9 @@
     SVCUER          = 25            ; DEFINE USER ERROR RECOVERY
     SVCCER          = 26            ; RESTORE CODOS ERROR RECOVERY
     SVCP16          = 27            ; ENTER 16 BIT PSEUDO PROCESSOR
-    SVCQVN          = 28            ; QUERRY CODOS VERSION
-    SVCFLS          = 29            ; QUERRY FILE STATUS
-    SVCDAT          = 30            ; QUERRY CURRENT DATE
+    SVCQVN          = 28            ; QUERY CODOS VERSION
+    SVCFLS          = 29            ; QUERY FILE STATUS
+    SVCDAT          = 30            ; QUERY CURRENT DATE
 
     BANKSW          = $0100
 
