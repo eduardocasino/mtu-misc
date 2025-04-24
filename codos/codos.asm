@@ -224,35 +224,44 @@ JTSTKEY:    jmp     TSTKEY
 LE615:      jmp     LDD23
 JERROR37:   jmp     ERROR37         ; Jump to " Required software package not loaded" error message
 JINLINE:    jmp     INLINE
-            jmp     LFDB8
-LE621:      jmp     LFDCF           ; Jump to console-character-out routine with CTRL-S/Q (XON/XOFF)
-            jmp     JERROR37
-            jmp     JERROR37
+            jmp     CIN
+LE621:      jmp     COUT            ; Jump to console-character-out routine with CTRL-S/Q (XON/XOFF)
+            jmp     JERROR37        ; Required software package not loaded in memory
+            jmp     JERROR37        ; Required software package not loaded in memory
 
-LE62A:      .byte   "NCPY", $00, $00, $00, $00
-LE632:      .word   LF21C
-LE634:      .word   LFDB8
-            .word   ERROR33
-            .word   ERROR33
-            .word   ERROR33
-            .word   ERROR33
-            .word   ERROR33
-            .word   ERROR33
+            ; Device name table
 
-LE642:      .word   LF21F
-LE644:      .word   LFDCF
-            .byte   $80
-            .byte   $D2
-            .byte   $7D
-            .byte   $D2
-            .byte   $D3
-            .byte   $E9
-            .byte   $D3
-            .byte   $E9
-            .byte   $D3
-            .byte   $E9
-            .byte   $D3
-            .byte   $E9
+DNT:        .byte   "N"             ; Null device driver
+            .byte   "C"             ; Console device
+            .byte   "P"             ; Printer device
+            .byte   "Y"             ; ???
+            .byte   $00             ; Reserved for custom devices
+            .byte   $00             ;
+            .byte   $00             ;
+            .byte   $00             ;
+
+            ; Device driver dispatch table for input
+
+DDTI:       .word   NULDRV          ; Null driver device (DTI=$80)
+CINP:       .word   CIN             ; Console input routine (DTI=$82)
+            .word   ERROR33         ; Input from output-only device, or visa-versa
+            .word   ERROR33         ; Input from output-only device, or visa-versa
+            .word   ERROR33         ; Input from output-only device, or visa-versa
+            .word   ERROR33         ; Input from output-only device, or visa-versa
+            .word   ERROR33         ; Input from output-only device, or visa-versa
+            .word   ERROR33         ; Input from output-only device, or visa-versa
+
+            ; Device driver dispatch table for output
+
+DDTO:       .word   NULDRVO         ; Null driver device (DTI=$80)
+COUTP:      .word   COUT            ; Console output routine (DTI = $82)
+            .word   $D280           ; Printer output routine (DTI = $84)
+            .word   $D27D           ; ??????? output routine (DTI = $86)
+            .word   ERROR33         ; Input from output-only device, or visa-versa
+            .word   ERROR33         ; Input from output-only device, or visa-versa
+            .word   ERROR33         ; Input from output-only device, or visa-versa
+            .word   ERROR33         ; Input from output-only device, or visa-versa
+
 LE652:      .byte   $00
 LE653:      .byte   $82
 LE654:      .byte   $82
@@ -1885,9 +1894,9 @@ LF19F:  lda     DEFBNK
 
 LF1AB:  and     #$7F
         tax
-        lda     LE632,x
+        lda     DDTI,x
         sta     LE7CF
-        lda     LE632+1,x
+        lda     DDTI+1,x
         sta     LE7D0
         jsr     LF24F
         jsr     LF246
@@ -1943,9 +1952,9 @@ LF217:  sec
 
 LF219:  jmp     (LE7CF)
 
-LF21C:  lda     LE78B
-LF21F:  sec
-        rts
+NULDRV:     lda     LE78B
+NULDRVO:    sec
+            rts
 
 LF221:  jsr     LF24F
         jsr     LF081
@@ -2121,9 +2130,9 @@ LF382:  jmp     LF2C2
 
 LF385:  and     #$7F
         tax
-        lda     LE642,x
+        lda     DDTO,x
         sta     LE7CF
-        lda     LE642+1,x
+        lda     DDTO+1,x
         sta     LE7D0
         jsr     LF28C
         lda     #$00
@@ -2346,7 +2355,7 @@ LF567:  jsr     LEEF4
         rts
 
 LF574:  ldy     #$08
-LF576:  lda     LE62A,y
+LF576:  lda     DNT,y
         cmp     LE6DC
         beq     LF584
         dey
@@ -2533,7 +2542,7 @@ LF6E0:  jsr     LEEE3
         bcc     LF711
         txa
         ldx     #$07
-LF705:  cmp     LE62A,x
+LF705:  cmp     DNT,x
         beq     LF70F
         dex
         bpl     LF705
@@ -2971,7 +2980,7 @@ LFA42:  ldy     $028B
         plp
         rts
 
-LFA4D:  jmp     (LE634)
+LFA4D:  jmp     (CINP)              ; Jump to console input routine
 
 
 ; Print string immediately following the JSR call
@@ -3034,7 +3043,7 @@ LFAA7:  stx     $028A               ; Save X
         sta     $C4
         rts
 
-LFABE:  jmp     (LE644)
+LFABE:  jmp     (COUTP)             ; Jump to console output routine
 
         stx     $028C
         lda     #$00
@@ -3418,7 +3427,9 @@ LFDA4:  lda     LE652,x
         sta     LE65C,x
 LFDB7:  rts
 
-LFDB8:  jsr     JGETKEY
+; Console Input Routine
+;
+CIN:    jsr     JGETKEY
         cmp     LE789
         beq     LFDDC
         cmp     LE78B
@@ -3429,7 +3440,9 @@ LFDB8:  jsr     JGETKEY
 LFDCD:  clc
 LFDCE:  rts
 
-LFDCF:  sta     $0299
+; Console Output Routine
+;
+COUT:   sta     $0299
         jsr     JTSTKEY
         bcc     LFDE9
 LFDD7:  cmp     LE789
