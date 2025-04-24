@@ -6,237 +6,381 @@
 ; Input file: codos.bin
 ; Page:       1
 
+    ; Possible values: 11, 14, 15, 17
+    ; If none is specified, 15 is assumed
 
+.ifndef CODOS2_VER
+    CODOS2_VER  = 15
+.endif
 
-    L0020           = $0020
-    L0023           = $0023
-    L0028           = $0028
-    L00D2           = $00D2
-    ACCSAVE         = $00EC             ; Accumulator save during SVC or IRQ processing.
-    ERRNUM          = $00ED             ; Error number for user-defined error recovery.
-    SVCENB          = $00EE             ; SVC Enable Flag
+    ;*****  CODOS SVC EQUATES
+
+    SVCRET          = 0             ; RETURN WITH REGISTER PRINT
+    SVCRTS          = 1             ; RETURN WITHOUT REGISTER PRINT
+    SVCOUM          = 2             ; OUTPUT INLINE MESSAGE SVC
+    SVCINB          = 3             ; INPUT BYTE SVC
+    SVCOUB          = 4             ; OUTPUT BYTE SVC
+    SVCINL  		= 5             ; INPUT LINE SVC
+    SVCOUL  		= 6             ; OUTPUT LINE SVC
+    SVCOUS  		= 7             ; OUTPUT STRING SVC
+    SVCDCX  		= 8             ; DECODE ASCII HEX TO BINARY
+    SVCDCD  		= 9             ; DECODE ASCII DECIMAL TO BINARY
+    SVCENX  		= 10            ; ENCODE BINARY TO ASCII HEX
+    SVCEND  		= 11            ; ENCODE BINARY TO ASCII DECIMAL
+    SVCDFB  		= 12            ; ESTABLISH DEFAULT BUFFER ADDRESS
+    SVCMON  		= 13            ; EXECUTE CODOS MONITOR COMMAND
+    SVCQCA  		= 14            ; QUERRY CHANNEL ASSIGNMENT
+    SVCINR  		= 15            ; READ RECORD FROM FILE
+    SVCOUR  		= 16            ; WRITE RECORD TO FILE
+    SVCBOF  		= 17            ; POSITION TO BEGINNING OF FILE
+    SVCEOF  		= 18            ; POSITION FILE TO END OF FILE
+    SVCPSF  		= 19            ; POSITION FILE TO ARBUTRARY LOCATION
+    SVCQFP  		= 20            ; QUERRY FILE POSITION
+    SVCASS  		= 21            ; ASSIGN CHANNEL TO FILE OR DEVICE
+    SVCFRE  		= 22            ; FREE CHANNEL
+    SVCTNC  		= 23            ; TRUNCATE FILE AT PRESENT POSITION
+    SVCSPI  		= 24            ; DEFINE USER INTERRUPT SERVICE ROUTINE
+    SVCUER  		= 25            ; DEFINE USER ERROR RECOVERY
+    SVCCER  		= 26            ; RESTORE CODOS ERROR RECOVERY
+    SVCP16  		= 27            ; ENTER 16 BIT PSEUDO PROCESSOR
+    SVCQVN          = 28            ; QUERRY CODOS VERSION
+    SVCFLS          = 29            ; QUERRY FILE STATUS
+    SVCDAT          = 30            ; QUERRY CURRENT DATE
+
     BANKSW          = $0100
-    
-    NMIPRC          = $02FA             ; Jump to NMI processor
-    IRQBRK          = $02FD             ; Jump to IQR and BRK processor
-    WARMRS          = $0300             ; Jump to operating system warm reset entry
-    CNTRLC          = $0303             ; Jump executed when CNTRL-C is entered from console.
 
-    L1920           = $1920
-    L2020           = $2020
-    L5245           = $5245
-    L9000           = $9000
-    LD800           = $D800
-    LD846           = $D846
-    LD9FE           = $D9FE
-    LDD20           = $DD20
+    COL             = $0200         ; Current column location of text cursor, 1 - 80.
+    LINE            = $0201         ; Current line number of text cursor, 1 - NLINET.
+    NLINET          = $021E         ; Number of text lines in the text window. 
+    YTDOWN          = $021F         ; 255-(Y coordinate of top of the text window).
+    CURDLA          = $0222         ; Determines cursor blink speed, 0=no blink.
+    NOLFCR          = $0210         ; If bit 7=1 then no automatic line feed after CR.
+    NOSCRL          = $0211         ; If bit 7=1 then instead of scrolling, the text window is
+                                    ; cleared and the cursor is homed when text goes beyond the
+                                    ; bottom line.
+    NOCLIK          = $0213         ; BIT 7=1=NO KEY CLICK
+
+    UNDRLN          = $0212         ; If bit then all characters underlined when drawn. 
+    NOBELL          = $0214         ; If bit then BEL character is ignored. 
+    RVIDEO          = $0215         ; If bit 7=1 then characters are drawn in reverse video.
+    SHODEL          = $0216         ; If bit 7 then display DEL (RUBOUT) as a character shape.
+    SHOUL           = $0217         ; If bit 7=1 then character cell is erased before the
+                                    ; underline character is drawn.
+    EXCCP           = $0218         ; If bit 7=1 then call user control character processor.
+    EXTHI           = $0219         ; If bit 7=1 then call user routine to process all characters
+                                    ; with bit 7 set.
+    EXFONT          = $021A         ; If bit 7=1 then use external font table.
+
+    BELPER          = $0227         ; Bell sound waveform period in units of 200 microseconds.
+    BELVOL          = $0228         ; Bell sound volume, $00 = minimum, $7F = maximum.
+    BELCY           = $0229         ; Bell sound duration in units of complete waveform cycles.
+    QEXCC           = $022F         ; Address of external control character processor if used.
+    QEXFNT          = $0231         ; Address of external font table if used.
+    QEXHI7          = $0233         ; Address of external processor for characters with bit 7=1.
+    EXFTBK          = $0237         ; Memory bank number containing external font table.
+    YLNLIM          = $0238         ; Line size limit for INLINE and EDLINE entry points.
+    KEYSTR          = $0400         ; (256 bytes) Function key substitution string table. Contains 8 groups
+                                    ; of 32 characters which represent the the character
+                                    ; strings to be substituted for the associated function keys
+                                    ; when using the input-line or edit-line functions. See
+                                    ; INLINE entry point for details. 
+    LEGTBL          = $05C0         ; (64 bytes) Function key legend table. Contains 8 groups of 8 characters which are the displayed legends for the 8 function
+                                    ; keys. The label for the f1 key is first. See DRWLEG entry
+                                    ; point for details. 
+    TABTBL          = $06E0         ; (32 bytes) Tab stop table. A tab stop is located at the column number
+                                    ; specified by cach non-zero byte. See OUTCH entry point for
+                                    ; details. 
+
+    SEEIO           = $02F9         ; I-O space enable semaphore
+
+    NMIPRC          = $02FA         ; Jump to NMI processor
+    IRQBRK          = $02FD         ; Jump to IQR and BRK processor
+    WARMRS          = $0300         ; Jump to operating system warm reset entry
+    CNTRLC          = $0303         ; Jump executed when CNTRL-C is entered from console.
+
+    ; RELEVANT KEYBOARD AND TEXT DISPLAY DRIVER ENTRY POINTS
+    ;
+    GETKEY          = $0306         ; Wait until a keyboard key is struck and return character in A
+    OUTCH           = $0309         ; Display printable character or interpret control character.
+    TSTKEY          = $030C         ; Test if a key is pressed
+    INITIO          = $030F         ; Clear screen and set default values of display parameters.
+    CLRDSP          = $0312         ; Clear the entire 480 by 256 screen.
+    DRWLEG          = $0315         ; Draw the function key legend boxes and their labels. 
+    INLINE          = $031E         ; Input an entire line from the keyboard
+    INITTW          = $0363         ; Initialize the text window to 24 lines and clear the text window 
+    DEFTW           = $0366         ; Set the position and size of the text window. 
+    CLRHTW          = $0369         ; Clear the text window and home the cursor. 
+    HOMETW          = $036C         ; Place the cursor in the home position (COL=1, LINE=1) 
+    
+
+    SVIA1PORT       = $BFE0         ; System 1 6522 System control port data register
+    SVIA1DIR        = $BFE2         ; System 1 6522 System control port direction register
+    BNKCTL          = SVIA1PORT     ; System 1 6522 (Bank control data register)
+
+    SVCPROC         = $DD20         ; SVC processor
     LDD23           = $DD23
 
-
-            ; RELEVANT KEYBOARD DRIVER PARAMETER LOCATIONS
-            ;
-            YLNLIM  =   $0238       ; Line size limit for INLINE and EDLINE entry points.
-
-            ; RELEVANT KEYBOARD DRIVER ENTRY POINTS
-            ;
-            GETKEY  =   $0306       ; Wait until a keyboard key is struck and return character in A
-            TSTKEY  =   $030C       ; Test if a key is pressed
-            INLINE  =   $031E       ; Input an entire line from the keyboard
-
-            ; RELEVANT TEXT DISPLAY DRIVER ENTRY POINTS
-            ;
-            OUTCH   =   $0309       ; Display printable character or interpret control character.
-            INITIO  =   $030F       ; Clear screen and set default values of display parameters.
-
+    IOENABLE        = $FFFE         ; Enable I/O space from $BE00 to $BFFF
+    IODISABLE       = $FFFF         ; Disable I/O space (enable RAM) from $BE00 to $BFFF
 
             ;   Relevant scratch RAM addresses
             ;
-    SAVEDY  =       $0285           ; Use to preserve Y register during disk operations
+    SAVEDY  		= $0285         ; Use to preserve Y register during disk operations
 
             ;   Disk Controller Registers
             ;
-    HSRCW   =       $FFE8           ; Read  - Hardware Status Read
+    HSRCW   		= $FFE8         ; Read  - Hardware Status Read
                                     ; Write - Hardware Control Write
-    ADMA    =       $FFEA           ; Write - Set DMA Address Register
+    ADMA    		= $FFEA         ; Write - Set DMA Address Register
 
             ;   uPD765 Registers
             ;
-    MSTR    =       $FFEE           ; Read  - uPD765 Main Status Register
-    DATR    =       $FFEF           ; R/W   - uPD765 Data Register
+    MSTR    		= $FFEE         ; Read  - uPD765 Main Status Register
+    DATR    		= $FFEF         ; R/W   - uPD765 Data Register
 
              ; uPD765 command index
-    SPECIFY  =      $00
-    RECALIBRATE =   $04
-    SEEK =          $07
-    SENSEINT =      $0B
-    READWRITE =     $0D
-    FORMAT =        $17
-    SENSEDRV =      $1E
+    SPECIFY  		= $00
+    RECALIBRATE     = $04
+    SEEK 		    = $07
+    SENSEINT 		= $0B
+    READWRITE       = $0D
+    FORMAT 		    = $17
+    SENSEDRV 		= $1E
 
-            .org    $E600
+            .segment "header"
+
+    .byte "MTU-130 CODOS 2.0", $0D
+    .byte "COPYRIGHT (C) 1981, MICRO TECHNOLOGY UNLIMIMITED", $0D
+    .byte "PO BOX 12106, 2806 HILLSBOROUGH ST.", $0D
+    .byte "RALEIGH, NC 27605 USA", $0D
+    .byte "Written by Bruce D. Carbrey", $0D
+    .byte "ASM 1/18/82 patch 6/14/82", $0D, $0D, $0D, $20
+
+            .segment "zp" : zeropage
+
+    ; $B0 - $C0 Pseudo registers
+
+    U0:         .res 2              ; $B0
+    U1:         .res 2              ; $B2
+    U2:         .res 2              ; $B4
+    U3:         .res 2              ; $B6
+    U4:         .res 2              ; $B8
+    U5:         .res 2              ; $BA  Input buffer pointer
+    U6:         .res 2              ; $BC  Output buffer pointer
+    U7:         .res 3              ; $BE  File position (3 bytes)
+
+    ; $C1 - $EC : Seratch RAM used by CODOS nucleus, SVC Processor and Command Proc. 
+
+    CODOSSCRT:  .res $2b            ; $C1 - $EB
+    
+    L00D2           = $00D2         ; TODO
+
+    INTSVA:     .res 1              ; $EC  Accumulator save during SVC or IRQ processing.
+
+    ; $ED - $EF : Global RAM used by CODOS 
+
+    ERRNUM:     .res 1              ; $ED  Error number for user-defined error recovery.
+    SVCENB:     .res 1              ; $EE  ADDRESS OF SVC ENABLE FLAG
+    SAVEACC:    .res 1              ; $EF  TODO: Unknown
+
+    ; $F0 - $FF : Scratch RAM for console I-0. 
+ 
+    UNKNWN2:    .res 1              ; $F0
+    UNKNWN3:    .res 1              ; $F1
+    UNKNWN4:    .res 1              ; $F2
+    UNKNWN5:    .res 1              ; $F3
+    UNKNWN6:    .res 1              ; $F4
+    UNKNWN7:    .res 1              ; $F5
+    UNKNWN8:    .res 1              ; $F6
+    UNKNWN9:    .res 1              ; $F7
+    UNKNWN10:   .res 1              ; $F8
+    UNKNWN11:   .res 1              ; $F9
+    UNKNWN12:   .res 1              ; $FA
+    UNKNWN13:   .res 1              ; $FB
+    UNKNWN14:   .res 1              ; $FC
+    UNKNWN15:   .res 1              ; $FD
+    UNKNWN16:   .res 1              ; $FE
+    UNKNWN17:   .res 1              ; $FF
+    
+            .segment "cmdproc"
+
+CMDPROC:
+
+    LD846           = $D846
+    LD9FE           = $D9FE
+
+            .segment "codos"
             
             ; Jump table (page 179)
             ;
             jmp     COLDST
-LE603:      jmp     WARMST
-LE606:      jmp     GETKEY
-LE609:      jmp     OUTCH
-LE60C:      jmp     TSTKEY
-            jmp     LE886
-            jmp     LE894
-LE615       jmp     LDD23           ; Jump to "REQUIRED SOFTWARE NOT LOADED" error message.
-LE618:      jmp     LE9CB
-LE61B:      jmp     INLINE
+JWARMST:    jmp     WARMST
+JGETKEY:    jmp     GETKEY
+JOUTCH:     jmp     OUTCH
+JTSTKEY:    jmp     TSTKEY
+            jmp     NMIPROC
+            jmp     IRQPROC
+LE615:      jmp     LDD23
+JERROR37:   jmp     ERROR37         ; Jump to " Required software package not loaded" error message
+JINLINE:    jmp     INLINE
             jmp     LFDB8
 LE621:      jmp     LFDCF           ; Jump to console-character-out routine with CTRL-S/Q (XON/XOFF)
-            jmp     LE618
-            jmp     LE618
+            jmp     JERROR37
+            jmp     JERROR37
 
-LE62A:  lsr     $5043
-        eor     $00,y
-        brk
-        brk
-LE632:  .byte   $1C
-LE633:  .byte   $F2
-LE634:  clv
-        sbc     LE9D3,x
-        .byte   $D3
-        sbc     #$D3
-        sbc     #$D3
-        sbc     #$D3
-        sbc     #$D3
-        .byte   $E9
-LE642:  .byte   $1F
-LE643:  .byte   $F2
-LE644:  .byte   $CF
-        sbc     $D280,x
-        adc     $D3D2,x
-        sbc     #$D3
-        sbc     #$D3
-        sbc     #$D3
-        .byte   $E9
-LE652:  brk
-LE653:  .byte   $82
-LE654:  .byte   $82
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-LE65C:  .byte   $06
-LE65D:  brk
-LE65E:  brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        .byte   $E2
-        dey
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        sbc     ($84,x)
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        cpx     #$80
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        .byte   $D7
-        .byte   $5C
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        dec     $58,x
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        cmp     $54,x
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        .byte   $D4
-        bvc     LE6B8
-LE6B8:  brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        .byte   $D3
-        .byte   $4C
-        brk
-LE6C5:  bcc     LE653
-        dey
-        .byte   $84
-LE6C9:  .byte   $FF
-LE6CA:  .byte   $04
-LE6CB:  brk
-LE6CC:  brk
-LE6CD:  brk
+LE62A:      .byte   "NCPY", $00, $00, $00, $00
+LE632:      .word   LF21C
+LE634:      .word   LFDB8
+            .word   ERROR33
+            .word   ERROR33
+            .word   ERROR33
+            .word   ERROR33
+            .word   ERROR33
+            .word   ERROR33
 
-LE6CE:      .BYTE   $00             ; Some variables
-LE6CF:      .BYTE   $00
-LE6D0:      .BYTE   $00
+LE642:      .word   LF21F
+LE644:      .word   LFDCF
+            .byte   $80
+            .byte   $D2
+            .byte   $7D
+            .byte   $D2
+            .byte   $D3
+            .byte   $E9
+            .byte   $D3
+            .byte   $E9
+            .byte   $D3
+            .byte   $E9
+            .byte   $D3
+            .byte   $E9
+LE652:      .byte   $00
+LE653:      .byte   $82
+LE654:      .byte   $82
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+LE65C:      .byte   $06
+LE65D:      .byte   $00
+LE65E:      .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $E2
+            .byte   $88
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $E1
+            .byte   $84
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $E0
+            .byte   $80
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $D7
+            .byte   $5C
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $D6
+            .byte   $58
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $D5
+            .byte   $54
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $D4
+            .byte   $50
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $D3
+            .byte   $4C
+            .byte   $00
+LE6C5:      .byte   $90   
+            .byte   $8C
+            .byte   $88
+            .byte   $84
+
+STACKP:     .byte   $FF             ; Stack pointer
+PROCST:     .byte   $04             ; Processor Status
+YREG:       .byte   $00             ; Y
+XREG:       .byte   $00             ; X
+ACCUM:      .byte   $00             ; Accumulator
+
+PRGBANK:    .BYTE   $00             ; Current program bank
+DATBANK:    .BYTE   $00             ; Current data bank
+BNKCFG:     .BYTE   $00             ; Current bank configuration
 LE6D1:      .BYTE   $00
 LE6D2:      .BYTE   $00
 
@@ -245,64 +389,72 @@ LE6D4:      .byte   $00
 LE6D5:      .byte   $00
 LE6D6:      .byte   $00
 LE6D7:      .byte   $00
-LE6D8:      .byte   $7F
+DEFBNK:     .byte   $7F             ; Default bank configuration
 LE6D9:      .byte   $00
 LE6DA:      .byte   $00
 
 LE6DB:      .byte   $00
 
-LE6DC:      .byte   $00                 ; Another variable
+LE6DC:      .byte   $00             ; Another variable RETRIES?
 
 LE6DD:      .byte   $01
 
-FNAMBUF:    .text   "NONAME.Z  ", $00, $00, $2E, $00
+FNAMBUF:    .byte   "NONAME.Z  ", $00, $00, $2E, $00
 
-LE6EC:  .byte   $00
-        .byte   $80
-        rti
+LE6EC:      .byte   $00
+            .byte   $80
+            .byte   $40
+            .byte   $00
+            .byte   $00
+LE6F1:      .byte   $00
+LE6F2:      .byte   $00
 
-        brk
-        brk
-LE6F1:  .byte   $00
-LE6F2:  .byte   $00
-
-LE6F3:
-        rol     a
-        eor     $4E,x
-        .byte   $44
-        eor     ($54,x)
-        eor     $44
-        rol     a
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        jsr     L2020
-        jsr     L2020
-        jsr     L2020
-        jsr     L2020
-        jsr     L2020
-        jsr     L2020
-        jsr     L1920
-        tya
-        .byte   $FF
-        .byte   $E5
-LE71D:  cli
-LE71E:  brk
-LE71F:  brk
-LE720:  brk
-LE721:  brk
-        brk
-        brk
-        brk
-        brk
-        brk
-
+TDATE:      .byte   "*UNDATED*"     ; Today's date
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $20
+            .byte   $20
+            .byte   $20
+            .byte   $20
+            .byte   $20
+            .byte   $20
+            .byte   $20
+            .byte   $20
+            .byte   $20
+            .byte   $20
+            .byte   $20
+            .byte   $20
+            .byte   $20
+            .byte   $20
+            .byte   $20
+            .byte   $20
+            .byte   $20
+            .byte   $20
+            .byte   $20
+            .byte   $20
+            .byte   $19
+            .byte   $98
+            .byte   $FF
+            .byte   $E5
+    
+; E71D
+SAVEDMAGIC: .byte   $58             ; Magic number for loadable (SAVEd) files
+LE71E:      .byte   $00
+LE71F:      .byte   $00
+LE720:      .byte   $00
+LE721:      .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
 
         ; uPD765 Command Table
         ;
@@ -315,187 +467,196 @@ LE721:  brk
         ; $1E   SENSE DRIVE STATUS
         ;
 
-CMDTBL: .byte   $03                     ; Command length 3
-        .byte   $03                     ; Specify
-        .byte   $DF                     ; Stepping Rate Time $D (3ms), Head Unload Time $F (240ms)
-        .byte   $26                     ; Head Load Time $26 (38ms)
+CMDTBL:     .byte   $03             ; Command length 3
+            .byte   $03             ; Specify
+.if CODOS2_VER = 14
+            .byte   $AF             ; Stepping Rate Time $A (6ms), Head Unload Time $F (240ms)
+            .byte   $30             ; Head Load Time $30 (48ms)
+.else
+            .byte   $DF             ; Stepping Rate Time $D (3ms), Head Unload Time $F (240ms)
+            .byte   $26             ; Head Load Time $26 (38ms)
+.endif
+            .byte   $02             ; Command length 2
+            .byte   $07             ; Recalibrate
+LE72D:      .byte   $00             ; Drive and head:
+                                    ;   XXXXX 0 00
+                                    ;         | ||
+                                    ;         | ++-> Drive (0-3)
+                                    ;         +----> Head
 
-        .byte   $02                     ; Command length 2
-        .byte   $07                     ; Recalibrate
-LE72D:  .byte   $00                     ; Drive and head:
-                                        ;   XXXXX 0 00
-                                        ;         | ||
-                                        ;         | ++-> Drive (0-3)
-                                        ;         +----> Head
+            .byte   $03             ; Command length 3
+            .byte   $0F             ; Seek
+LE730:      .byte   $00             ; Drive and head (see above)
+LE731:      .byte   $00
 
-        .byte   $03                     ; Command length 3
-        .byte   $0F                     ; Seek
-LE730:  .byte   $00                     ; Drive and head (see above)
-LE731:  .byte   $00
+            .byte   $01             ; Command length 1
+            .byte   $08             ; Sense interrupt status
 
-        .byte   $01                     ; Command length 1
-        .byte   $08                     ; Sense interrupt status
+            .byte   $09             ; Command length 9
+                                    ; Read command. Same sequence is used for write,
+RDWRD:      .byte   $46             ; storing $45 at this location
+                                    ; MFM, no MT, no skip
+LE736:      .byte   $00             ; Disk and Header info
+LE737:      .byte   $00             ; C- Cylinder
+LE738:      .byte   $00             ; H - Head
+LE739:      .byte   $00             ; R - Sector
+            .byte   $01             ; N - 256 bytes/sector
+LE73B:      .byte   $00             ; EOT
+            .byte   $0E             ; GPL
+            .byte   $FF             ; DTL (ignored as N != 0)
 
-        .byte   $09                     ; Command length 9
-                                        ; Read command. Same sequence is used for write,
-RDWRD:  .byte   $46                     ; storing $45 at this location
-                                        ; MFM, no MT, no skip
-LE736:  .byte   $00                     ; Disk and Header info
-LE737:  .byte   $00                     ; C- Cylinder
-LE738:  .byte   $00                     ; H - Head
-LE739:  .byte   $00                     ; R - Sector
-        .byte   $01                     ; N - 256 bytes/sector
-LE73B:  .byte   $00                     ; EOT
-        .byte   $0E                     ; GPL
-        .byte   $FF                     ; DTL (ignored as N != 0)
+            .byte   $06             ; Command length 6
+            .byte   $4D             ; Format command (MFM)
+            .byte   $00             ; HD = 0, Drive = 0
+            .byte   $01             ; 256 bytes sectors
+            .byte   $1A             ; 26 sectors/track
+            .byte   $34             ; Gap 3
+            .byte   $00             ; Filler byte
 
-        .byte   $06                     ; Command length 6
-        .byte   $4D                     ; Format command (MFM)
-        .byte   $00                     ; HD = 0, Drive = 0
-        .byte   $01                     ; 256 bytes sectors
-        .byte   $1A                     ; 26 sectors/track
-        .byte   $34                     ; Gap 3
-        .byte   $00                     ; Filler byte
+            .byte   $02             ; Command length 2
+            .byte   $04             ; Sense drive status command   
+DRVNUM:     .byte   $00
 
-        .byte   $02                     ; Command length 2
-        .byte   $04                     ; Sense drive status command   
-DRVNUM: .byte   $00
+DSKSTAT:    .byte   $00
+ST1:        .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+NDRIVES:    .byte   $02             ; Number of disk drives in system, 1 to 4
+DRVNFO:     .byte   $00             ; Drive info table (one byte per drive)
+            .byte   $00             ; 0b10000000 : Two sides
+            .byte   $00
+            .byte   $00
 
-DSKSTAT:.byte   $00
-ST1:    .byte   $00
-        .byte   $00
-        .byte   $00
-        .byte   $00
-        .byte   $00
-        .byte   $00
-NDRIVES:  .byte   $02                     ; Number of disk drives in system, 1 to 4
-DRVNFO: .byte   $00                     ; Drive info table (one byte per drive)
-        .byte   $00                     ; 0b10000000 : Two sides
-        .byte   $00
-        .byte   $00
+LE754:      .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+LE758:      .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
 
-LE754:  .byte   $00
-        .byte   $00
-        .byte   $00
-        .byte   $00
-LE758:  .byte   $00
-        .byte   $00
-        .byte   $00
-        .byte   $00
-LE75C:  .word   $0000                   ; Address+1 where last error was detected by CODOS.
+            ; Error recovery
 
-LE75E:  .byte   $00
-LE75F:  .byte   $00
-LE760:  .byte   $00
-LE761:  .byte   $00
-LE762:  .byte   $00
-LE763:  .byte   $00             ; Cumulative count of soft disk read errors.
-LE764:  .byte   $00             ; Cumulative count of soft disk write errors.
-LE765:  .byte   $00             ; Cumulative count of recalibrate commands issued to disk controller
-                                ; during read/write error recoveries.
-LE766:  .byte   $FF             ; Sector number for last disk error causing a recalibrate.
-LE767:  .byte   $FF             ; Track number for last disk error causing a recalibrate.
-
-LE768:  .byte   $00
-LE769:  .byte   $00             ; uPD765 error count???
-CMDIDX:  .byte   $01            ; uPD765 command index
-LE76B:  .byte   $FF
-LE76C:  .byte   $00
-LE76D:  .byte   $00
-LE76E:  .byte   $00
-LE76F:  .byte   $00
-LE770:  .byte   $00
-LE771:  .byte   $00
-LE772:  .byte   $00
-LE773:  .byte   $07
-LE774:  .byte   $00
-LE775:  .byte   $00
-LE776:  .byte   $00                     ; DMA Direction?
-LE777:  .byte   $00
-LE778:  .byte   $00
-LE779:  .byte   $00             ; Flag. If bit 7 = 1 then system will ignore (continue after)
-                                ; irrecoverable disk read errors (use a last resort only).
-LE77A:  .byte   $00             ; Flag. If bit 7 = 1 then permits save command to overwrite an
-                                ; existing file with the same name.
-LE77B:  .byte   $00
-LE77C:  .byte   $00
-LE77D:  .byte   $00
-LE77E:  .byte   $00
-LE77F:  .byte   $00
-LE780:  .byte   $00             ; Flag. If bit 7 = 1 then program executing was invoked by SVC #13.
-LE781:  .byte   $00
-LE782:  .byte   $00
-LE783:  .byte   $00
-LE784:  .byte   $00
-LE785:  .byte   $00
-LE786:  .byte   $00
-LE787:  .byte   $00
-LE788:  .byte   $00             ; Keyboard echo flag for CODOS. Set to $80 to enable echo.
-LE789:  .byte   $03
-LE78A:  .byte   $13
-LE78B:  .byte   $1A
-LE78C:  .byte   $5F
-LE78D:  .byte   $3B
-LE78E:  .byte   $2E
-LE78F:  .byte   $24
-LE790:  .byte   $3A
-        .byte   $5E
-        .byte   $22
-LE793:  .byte   $43             ; Current ASCII default file extension character ("C").
-LE794:  .byte   $11
-LE795:  .byte   $00
-LE796:  .byte   $00             ; Current default drive number (Set by DRIVE command).
-LE797:  .byte   $4F
-LE798:  .byte   $05             ; Number of file names per line for FILES command (5 or less).
-LE799:  .byte   $10             ; Number of bytes to dump per display line.
-        .byte   $02
-LE79B:  .byte   $2B             ; "+"   (List of forbiden chars in file name????)
-        .byte   $2D             ; "-"
-        .byte   $2A             ; "*"
-        .byte   $2F             ; "/"
-LE79F:  .byte   $5C             ; ASCII character to be used in lieu of Backslash.
-LE7A0:  .text   "SYSERRMSG.Z"
-LE7AB:  .text   "COMDPROC.Z"
-LE7B5:  .text   "STARTUP.J"
-LE7BE:  .word   $0500           ; Pointer to start of system input line buffer.
-LE7C0:  .word   $0600           ; Pointer to start of system output line buffer
-LE7C2:  .word   $A000           ; Pointer to large transient buffer for COPYF, ETC.
-LE7C4:  .word   $1400           ; Size (NOT. final address) of large transient buffer.
-LE7C6:  .word   LE8A1           ; Pointer to user-defined interrupt service routine.
-LE7C8:  .word   LEA18           ; Pointer to user-defined error recovery routine.     
-LE7CA:  .byte   $1A
-        .byte   $00
-        .byte   $00
-        .byte   $00
-        .byte   $00
-LE7CF:  .byte   $00
-LE7D0:  .byte   $00
-LE7D1:  .byte   $00
-LE7D2:  .byte   $FF
-        .byte   $FF
-        .byte   $FF
-LE7D5:  .byte   $00
-        .byte   $00
-        .byte   $00
-LE7D8:  .byte   $00
-        .byte   $00
-        .byte   $00
-LE7DB:  .byte   $00
-        .byte   $00
-        .byte   $00
-
-            ; Jump table
-            ;
-JMPTBL:     jmp     LE886           ; Jump to NMI processor               
-            jmp     LE894           ; Jump to IRQ and BRK processor
-            jmp     LE859           ; Jump to OS warm reset entry
-            jmp     LE603           ; Jump to CNTRL/C processor
+ERRADDR:
+            .word   $0000           ; Address+1 where last error was detected by CODOS.
+ERRORS:     .byte   $00             ; Stack pointer at error
+ERRORP:     .byte   $00             ; Processor status at error
+ERRORY:     .byte   $00             ; Y at error
+ERRORX:     .byte   $00             ; X at error
+ERRORA:     .byte   $00             ; A at error
 
 
-COLDST:     CLD                     ; Clear decimal mode
-            LDX     #$FF            ; Set stack pointer
-            TXS                     ;
-            JSR     LE819           ; Init variables and jump tables
+RDERRCNT:   .byte   $00             ; Cumulative count of soft disk read errors.
+WRERRCNT:   .byte   $00             ; Cumulative count of soft disk write errors.
+RCERRCNT:   .byte   $00             ; Cumulative count of recalibrate commands issued to disk controller
+                                    ; during read/write error recoveries.
+SECERRNUM:  .byte   $FF             ; Sector number for last disk error causing a recalibrate.
+TRKERRNUM:  .byte   $FF             ; Track number for last disk error causing a recalibrate.
+
+LE768:      .byte   $00
+LE769:      .byte   $00             ; uPD765 error count???
+CMDIDX:     .byte   $01             ; uPD765 command index
+LE76B:      .byte   $FF
+LE76C:      .byte   $00
+LE76D:      .byte   $00
+LE76E:      .byte   $00
+LE76F:      .byte   $00
+LE770:      .byte   $00
+LE771:      .byte   $00
+LE772:      .byte   $00
+LE773:      .byte   $07
+LE774:      .byte   $00
+LE775:      .byte   $00
+LE776:      .byte   $00             ; DMA Direction?
+LE777:      .byte   $00
+LE778:      .byte   $00
+IGNORERR:   .byte   $00             ; Flag. If bit 7 = 1 then system will ignore (continue after)
+                                    ; irrecoverable disk read errors (use a last resort only).
+SAVEOVERWR: .byte   $00             ; Flag. If bit 7 = 1 then permits save command to overwrite an
+                                    ; existing file with the same name.
+LE77B:      .byte   $00
+LE77C:      .byte   $00
+LE77D:      .byte   $00
+LE77E:      .byte   $00
+LE77F:      .byte   $00
+SVC13FLG:   .byte   $00             ; Flag. If bit 7 = 1 then program executing was invoked by SVC #13.
+LE781:      .byte   $00
+LE782:      .byte   $00
+LE783:  	.byte   $00
+LE784:  	.byte   $00
+LE785:  	.byte   $00
+LE786:  	.byte   $00
+LE787:  	.byte   $00
+KBDECHO:  	.byte   $00             ; Keyboard echo flag for CODOS. Set to $80 to enable echo.
+LE789:  	.byte   $03
+LE78A:  	.byte   $13
+LE78B:  	.byte   $1A
+LE78C:  	.byte   $5F             ; _
+LE78D:  	.byte   $3B             ; ;
+LE78E:  	.byte   $2E             ; .
+LE78F:  	.byte   $24             ; $
+LE790:  	.byte   $3A             ; :
+        	.byte   $5E             ; ^
+        	.byte   $22             ; "
+DEFAULTEXT: .byte   "C"             ; Current ASCII default file extension character ("C").
+LE794:  	.byte   $11
+LE795:  	.byte   $00
+DEFDRV: 	.byte   $00             ; Current default drive number (Set by DRIVE command).
+LE797:  	.byte   $4F
+LE798:  	.byte   $05             ; Number of file names per line for FILES command (5 or less).
+LE799:  	.byte   $10             ; Number of	.byte s to dump per display line.
+        	.byte   $02
+LE79B:  	.byte   $2B             ; "+"   (List of forbiden chars in file name????)
+        	.byte   $2D             ; "-"
+        	.byte   $2A             ; "*"
+        	.byte   $2F             ; "/"
+LE79F:  	.byte   $5C             ; ASCII character to be used in lieu of Backslash "\"
+SYSERRMNAM: .byte   "SYSERRMSG.Z"
+CMDPROCNAM: .byte   "COMDPROC.Z"
+STARTUPNAM: .byte   "STARTUP.J"
+LE7BE:      .word   $0500           ; Pointer to start of system input line buffer.
+LE7C0:      .word   $0600           ; Pointer to start of system output line buffer
+LE7C2:      .word   $A000           ; Pointer to large transient buffer for COPYF, ETC.
+LE7C4:      .word   $1400           ; Size (NOT. final address) of large transient buffer.
+INTSRVP:    .word   INTSRV          ; Pointer to user-defined interrupt service routine.
+ERRRCVRYP:  .word   ERRRCVRY        ; Pointer to user-defined error recovery routine.     
+LE7CA:  	.byte   $1A
+        	.byte   $00
+        	.byte   $00
+        	.byte   $00
+        	.byte   $00
+LE7CF:  	.byte   $00
+LE7D0:  	.byte   $00
+LE7D1:  	.byte   $00
+LE7D2:  	.byte   $FF
+        	.byte   $FF
+        	.byte   $FF
+LE7D5:  	.byte   $00
+        	.byte   $00
+        	.byte   $00
+LE7D8:  	.byte   $00
+        	.byte   $00
+        	.byte   $00
+LE7DB:  	.byte   $00
+        	.byte   $00
+        	.byte   $00
+
+; Jump table
+;
+JMPTBL:     jmp     NMIPROC         ; Jump to NMI processor               
+            jmp     IRQPROC         ; Jump to IRQ and BRK processor
+            jmp     LE859           ; Jump to CNTRL/C processor
+            jmp     JWARMST         ; Jump to OS warm reset entry
+
+
+COLDST:     cld                     ; Clear decimal mode
+            ldx     #$FF            ; Set stack pointer
+            txs                     ;
+            jsr     SYSINIT         ; Init variables, pointers and jump tables
             lda     #$BF            ; Set maximum record length for input line
             sta     YLNLIM          ;
             jsr     LF409
@@ -504,7 +665,7 @@ COLDST:     CLD                     ; Clear decimal mode
             ; Load STARTUP.J
             ;
             ldx     #$08            ; Copy file name to buffer 
-LE7FE:      lda     LE7B5,x         ;
+LE7FE:      lda     STARTUPNAM,x    ;
             sta     FNAMBUF,x       ;
             dex                     ;
             bpl     LE7FE           ;
@@ -516,134 +677,133 @@ LE7FE:      lda     LE7B5,x         ;
             jsr     LF594
 LE816:      jmp     WARMST
 
-
-LE819:      ldx     #$00            ; Set DMA direction bit to read
+; Init system variables, pointers and jump tables
+;
+SYSINIT:    ldx     #$00            ; Set DMA direction bit to read
             stx     HSRCW           ;
-            stx     LE6CE           ; Init some variables
-            stx     LE6CF
-            stx     $ED
-            stx     LFE00
-            stx     LE796
-            lda     #$7F
-            sta     LE6D8
+            stx     PRGBANK         ; Init current program bank
+            stx     DATBANK         ; Init current data bank
+            stx     ERRNUM          ; Init error number
+            stx     OVLORG          ; Init overlays
+            stx     DEFDRV          ; Init default drive
+            lda     #$7F            ; Bank 0, write disable $8000 to $BFFF 
+            sta     DEFBNK          ; 
             jsr     LEBF5
-            lda     #$EA
+
+            lda     #$EA            ; Init $EAFA to $EAFC with NOPs
             ldx     #$02
-LE838:      sta     LEAFA,x
+@LOOP1:     sta     LEAFA,x
             dex
-            bpl     LE838
+            bpl     @LOOP1
 
             ; Copy jump table 
             ;
             ldx     #$0B            ; Table size - 1 
-LE840:      lda     JMPTBL,x            ;
-            sta     NMIPRC,x            ;
-            dex                         ;
-            bpl     LE840               ;
+@LOOP2:     lda     JMPTBL,x        ;
+            sta     NMIPRC,x        ;
+            dex                     ;
+            bpl     @LOOP2          ;
 
-            lda     #$43
-            sta     LE793
-            lda     #$18
-            sta     LE7C8
-            lda     #$EA
-            sta     LE7C9
+            lda     #'C'            ; Current ASCII default file extension character ("C")
+            sta     DEFAULTEXT
+            lda     #<ERRRCVRY      ; Set pointer to error recovery routine
+            sta     ERRRCVRYP       ;
+            lda     #>ERRRCVRY      ;
+            sta     ERRRCVRYP+1     ;
             rts
 
-LE859:  cld
-        ldx     #$FF
-        tsx
-        jsr     LE819
-        lda     #$00
-        ldy     NDRIVES
-        dey
-LE866:  tya
-        jsr     LF470
-        dey
-        bpl     LE866
-        jsr     LFD8D
-        jsr     INITIO
-        jsr     SENSE
-        jsr     LF409
-        jsr     LFA50
-        .byte   $52
-        eor     $53
-        eor     $54
-        rol     $4C00
-        .byte   $FD
-        nop
-LE886:  sta     $EC
-        lda     #$00
-        sta     HSRCW
-        sec
-        ror     LE784
-        jmp     LE8A9
+LE859:      cld
+            ldx     #$FF
+            tsx
+            jsr     SYSINIT
+            lda     #$00
+            ldy     NDRIVES
+            dey
+LE866:      tya
+            jsr     LF470
+            dey
+            bpl     LE866
+            jsr     LFD8D
+            jsr     INITIO
+            jsr     SENSE
+            jsr     LF409
+            jsr     PRNSTR
+            .byte   "RESET.", $00
+            jmp     WARMST
 
-LE894:  sta     $EC
-        pla
-        pha
-        and     #$10
-        bne     LE8B8
-        lda     $EC
-        jmp     (LE7C6)
+NMIPROC:    sta     INTSVA
+            lda     #$00
+            sta     HSRCW
+            sec
+            ror     LE784
+            jmp     LE8A9
+
+IRQPROC:    sta     INTSVA
+            pla
+            pha
+            and     #$10
+            bne     LE8B8
+            lda     INTSVA
+            jmp     (INTSRVP)       ; Jump to user-defined interrupt service routine
 
 
-        ; Interrupt service routine
-        ;
-LE8A1:  lda     #$00
-        sta     HSRCW
-        sta     LE784
-LE8A9:  sec
-        ror     LE783
-        pla
-        sta     LE6CA
-        pla
-        sta     $DA
-        pla
-        jmp     LE8CF
+; Interrupt service routine
+;
+INTSRV:     lda     #$00
+            sta     HSRCW
+            sta     LE784
+LE8A9:      sec
+            ror     LE783
+            pla
+            sta     PROCST
+            pla
+            sta     $DA
+            pla
+            jmp     LE8CF
 
-LE8B8:  lda     #$00
-        sta     HSRCW
-        sta     LE783
-        pla
-        and     #$EF
-        sta     LE6CA
-        pla
-        sec
-        sbc     #$02
-        sta     $DA
-        pla
-        sbc     #$00
+LE8B8:      lda     #$00
+            sta     HSRCW
+            sta     LE783
+            pla
+            and     #$EF
+            sta     PROCST
+            pla
+            sec
+            sbc     #$02
+            sta     $DA
+            pla
+            sbc     #$00
 
 LE8CF:  sta     $DB
-        stx     LE6CC
-        sty     LE6CB
+        stx     XREG
+        sty     YREG
         cld
         tsx
-        stx     LE6C9
-        lda     $BFE0
-        sta     LE6D0
+        stx     STACKP
+        lda     BNKCTL
+        sta     BNKCFG
         and     #$03
         eor     #$03
-        sta     LE6CF
-        lda     LE6D0
+        sta     DATBANK
+        lda     BNKCFG
         lsr     a
         lsr     a
         and     #$03
         eor     #$03
-        sta     LE6CE
-        lda     LE6D0
+        sta     PRGBANK
+        lda     BNKCFG
         ora     #$0F
-        sta     LE6D8
+        sta     DEFBNK
         jsr     LEBF5
-        lda     $EC
-        sta     LE6CD
+        lda     INTSVA
+        sta     ACCUM
         bit     LE783
         bmi     LE963
         sec
         ror     LE77F
         ldx     #$02
 LE910:  lda     LE7D2,x
-        cmp     LE6CE
+        cmp     PRGBANK
         bne     LE951
         lda     LE7D5,x
         cmp     $DA
@@ -652,122 +812,112 @@ LE910:  lda     LE7D2,x
         cmp     $DB
         bne     LE951
         ldy     #$00
-        lda     LE6CE
-        eor     LE6D8
-        sta     $BFE0
+        lda     PRGBANK
+        eor     DEFBNK
+        sta     BNKCTL
         lda     LE7DB,x
         sta     ($DA),y
-        lda     LE6D8
-        sta     $BFE0
+        lda     DEFBNK
+        sta     BNKCTL
         lda     #$FF
         sta     LE7D2,x
         jsr     LFD54
         jsr     LFD8D
-        jsr     LFA50
-        ora     $5042
-        brk
+        jsr     PRNSTR
+        .byte   $0d, "BP", $00
         jmp     LE9A1
 
 LE951:  dex
         bpl     LE910
-        lda     LE6CE
+        lda     PRGBANK
         bne     LE963
         lda     SVCENB
         sta     LE6D1
         bpl     LE963
-        jmp     LDD20
+        jmp     SVCPROC
 
 LE963:  jsr     LFD54
         jsr     LFD8D
         bit     LE783
         bpl     LE999
-        jsr     LFA50
-        ora     $4E49
-        .byte   $54
-        eor     $52
-        .byte   $52
-        eor     $50,x
-        .byte   $54
-        jsr     L0028
+        jsr     PRNSTR
+        .byte   $0D, "INTERRUPT (", $00
         bit     LE784
         bpl     LE98E
-        jsr     LFA50
-        lsr     $494D
-        and     #$00
+        jsr     PRNSTR
+        .byte   "NMI)", $00
         jmp     LE9A1
 
-LE98E:  jsr     LFA50
-        eor     #$52
-        eor     ($29),y
-        brk
+LE98E:  jsr     PRNSTR
+        .byte   "IRQ)", $00
         jmp     LE9A1
 
-LE999:  jsr     LFA50
-        ora     $5242
-        .byte   $4B
-        brk
-LE9A1:  jsr     LFA50
-        bit     a:L0020
+LE999:  jsr     PRNSTR
+        .byte   $0D, "BRK", $00
+
+LE9A1:  jsr     PRNSTR
+        .byte   ", ", $00
         jsr     LF94B
         jmp     WARMST
 
-        inc     $ED
-        inc     $ED
-LE9B1:  inc     $ED
-LE9B3:  inc     $ED
-LE9B5:  inc     $ED
-LE9B7:  inc     $ED
-LE9B9:  inc     $ED
-LE9BB:  inc     $ED
-LE9BD:  inc     $ED
-LE9BF:  inc     $ED
-LE9C1:  inc     $ED
-LE9C3:  inc     $ED
-LE9C5:  inc     $ED
-LE9C7:  inc     $ED
-LE9C9:  inc     $ED
-LE9CB:  inc     $ED
-LE9CD:  inc     $ED
-LE9CF:  inc     $ED
-        inc     $ED
-LE9D3:  inc     $ED
-        inc     $ED
-        inc     $ED
-LE9D9:  inc     $ED
-LE9DB:  inc     $ED
-        inc     $ED
-        inc     $ED
-        inc     $ED
-        inc     $ED
-        inc     $ED
-        inc     $ED
-        inc     $ED
-LE9EB:  inc     $ED
-        inc     $ED
-LE9EF:  inc     $ED
-LE9F1:  inc     $ED
-LE9F3:  inc     $ED
-LE9F5:  inc     $ED
-        inc     $ED
-        inc     $ED
-LE9FB:  inc     $ED
-        inc     $ED
-LE9FF:  inc     $ED
-LEA01:  inc     $ED
-LEA03:  inc     $ED
-LEA05:  inc     $ED
-LEA07:  inc     $ED
-LEA09:  inc     $ED
-LEA0B:  inc     $ED
-        inc     $ED
-LEA0F:  inc     $ED
-LEA11:  inc     $ED
-LEA13:  inc     $ED
-        jmp     (LE7C8)
+ERROR52:  inc     ERRNUM
+ERROR51:  inc     ERRNUM
+ERROR50:  inc     ERRNUM
+ERROR49:  inc     ERRNUM
+ERROR48:  inc     ERRNUM
+ERROR47:  inc     ERRNUM
+ERROR46:  inc     ERRNUM
+ERROR45:  inc     ERRNUM
+ERROR44:  inc     ERRNUM
+ERROR43:  inc     ERRNUM
+ERROR42:  inc     ERRNUM
+ERROR41:  inc     ERRNUM
+ERROR40:  inc     ERRNUM
+ERROR39:  inc     ERRNUM
+ERROR38:  inc     ERRNUM
+ERROR37:  inc     ERRNUM        ; Required software package not loaded in memory. 
+ERROR36:  inc     ERRNUM
+ERROR35:  inc     ERRNUM
+ERROR34:  inc     ERRNUM
+ERROR33:  inc     ERRNUM
+ERROR32:  inc     ERRNUM
+ERROR31:  inc     ERRNUM
+ERROR30:  inc     ERRNUM
+ERROR29:  inc     ERRNUM
+ERROR28:  inc     ERRNUM
+ERROR27:  inc     ERRNUM
+ERROR26:  inc     ERRNUM
+ERROR25:  inc     ERRNUM
+ERROR24:  inc     ERRNUM
+ERROR23:  inc     ERRNUM
+ERROR22:  inc     ERRNUM
+ERROR21:  inc     ERRNUM
+ERROR20:  inc     ERRNUM
+ERROR19:  inc     ERRNUM
+ERROR18:  inc     ERRNUM
+ERROR17:  inc     ERRNUM
+ERROR16:  inc     ERRNUM
+ERROR15:  inc     ERRNUM
+ERROR14:  inc     ERRNUM
+ERROR13:  inc     ERRNUM
+ERROR12:  inc     ERRNUM
+ERROR11:  inc     ERRNUM
+ERROR10:  inc     ERRNUM
+ERROR09:  inc     ERRNUM
+ERROR08:  inc     ERRNUM
+ERROR07:  inc     ERRNUM
+ERROR06:  inc     ERRNUM
+ERROR05:  inc     ERRNUM
+ERROR04:  inc     ERRNUM
+ERROR03:  inc     ERRNUM
+ERROR02:  inc     ERRNUM
+ERROR01:  inc     ERRNUM
+          jmp     (ERRRCVRYP)
 
         ; Error recovery routine
         ;
-LEA18:  pha
+ERRRCVRY:
+        pha
         lda     #$00
         sta     HSRCW
         cld
@@ -778,55 +928,47 @@ LEA18:  pha
         jmp     WARMST
 
 LEA2B:  pla
-        sta     LE762
-        stx     LE761
-        sty     LE760
+        sta     ERRORA
+        stx     ERRORX
+        sty     ERRORY
         tsx
-        stx     LE75E
+        stx     ERRORS
         php
         pla
-        sta     LE75F
+        sta     ERRORP
         pla
         sec
         sbc     #$02
-        sta     LE75C
+        sta     ERRADDR
         pla
         sbc     #$00
-        sta     LE75C+1
+        sta     ERRADDR+1
         lda     #$80
         sta     LE782
         jsr     LFD54
         jsr     LFD8D
-        jsr     LFA50
-        ora     $4F43
-        .byte   $44
-        .byte   $4F
-        .byte   $53
-        jsr     L5245
-        .byte   $52
-        .byte   $4F
-        .byte   $52
-        jsr     L0023
-        lda     $ED
-        jsr     LF8A2
+        jsr     PRNSTR
+        .byte   $0d, "CODOS ERROR #", $00
+        lda     ERRNUM
+        jsr     HEXBYTE
         jsr     LF9D1
         bit     LE77D
         bpl     LEA9B
 LEA75:  lda     ($CB),y
         cmp     #$0D
         beq     LEA81
-        jsr     LFA88
+        jsr     PRNCHAR
         iny
         bne     LEA75
 LEA81:  jsr     LF9D6
         ldy     $EB
         beq     LEA90
         lda     #$20
-LEA8A:  jsr     LFA88
+LEA8A:  jsr     PRNCHAR
         dey
         bne     LEA8A
 LEA90:  lda     #$5E
-        jsr     LFA88
+        jsr     PRNCHAR
         jsr     LF9D6
         jmp     LEABD
 
@@ -834,32 +976,32 @@ LEA9B:  bit     LE77F
         bmi     LEABA
         bit     LE781
         bmi     LEABD
-        lda     LE75C
+        lda     ERRADDR
         sta     $DA
-        lda     LE75C+1
+        lda     ERRADDR+1
         sta     $DB
         ldx     #$04
-LEAB1:  lda     LE75E,x
-        sta     LE6C9,x
+LEAB1:  lda     ERRORS,x            ; Copy registers at error
+        sta     STACKP,x
         dex
         bpl     LEAB1
 LEABA:  jsr     LF948
 LEABD:  bit     LE782
         bpl     WARMST
         ldx     #$0B
-LEAC4:  lda     LE7A0,x
-        sta     FNAMBUF,x
-        dex
-        bpl     LEAC4
-        inx
-        stx     LE6DC
+LEAC4:  lda     SYSERRMNAM,x        ; Get file with error messages
+        sta     FNAMBUF,x           ;
+        dex                         ;
+        bpl     LEAC4               ;
+        inx                         ; X == 0
+        stx     LE6DC               ; Init retries?
         jsr     LF77A
         bne     WARMST
         jsr     LF592
 LEAD9:  ldx     #$00
         jsr     LF9F1
         bcs     LEAF7
-        dec     $ED
+        dec     ERRNUM
         bne     LEAD9
         tay
         tax
@@ -873,14 +1015,17 @@ LEAE6:  lda     ($CB),y
         jsr     LF9D6
         jsr     LF9D1
 LEAF7:  jsr     LF5C3
-LEAFA:  nop
-        nop
-        nop
+
+LEAFA:  nop                     ; TODO: Probably room for inserting a subroutine
+        nop                     ; or a jump to a different WARMST sequence
+        nop                     ;
+
+; $EAFD
 WARMST: cld
         lda     #$00
         sta     HSRCW
         jsr     LEBC4
-        jmp     LD800
+        jmp     CMDPROC
 
         jsr     LEBC4
         jmp     LD846
@@ -889,61 +1034,65 @@ WARMST: cld
         bit     LE6D5
         bpl     LEB20
         lda     LE6D4
-        sta     LE6CE
-        sta     LE6CF
+        sta     PRGBANK
+        sta     DATBANK
 LEB20:  jmp     LEB41
 
         jsr     LD9FE
         lda     LE6D4
-        sta     LE6CE
-        sta     LE6CF
+        sta     PRGBANK
+        sta     DATBANK
         ldx     #$7F
-        stx     LE6D8
+        stx     DEFBNK
         ldx     LE785
         stx     LE6D1
         ldx     #$FF
-        bit     LE780
+        bit     SVC13FLG
         bpl     LEB47
 LEB41:  jsr     LEB72
         jmp     L00D2
 
-LEB47:  stx     LE6C9
+LEB47:  stx     STACKP
         jsr     LEB72
         jsr     BANKSW
         php
         cld
         lda     #$00
         sta     HSRCW
-        lda     $EC
-        sta     LE6CD
-        stx     LE6CC
-        sty     LE6CB
+.if  CODOS2_VER = 17
+        lda     SAVEACC
+.else
+        lda     INTSVA
+.endif
+        sta     ACCUM
+        stx     XREG
+        sty     YREG
         pla
-        sta     LE6CA
+        sta     PROCST
         tsx
-        stx     LE6C9
+        stx     STACKP
         lda     #$7F
-        sta     LE6D8
+        sta     DEFBNK
         jmp     WARMST
 
 LEB72:  pla
         tay
         pla
-        bit     LE780
+        bit     SVC13FLG
         bmi     LEB7E
-        ldx     LE6C9
+        ldx     STACKP
         txs
 LEB7E:  pha
         tya
         pha
-        lda     LE6CE
+        lda     PRGBANK
         asl     a
         asl     a
-        eor     LE6D8
-        eor     LE6CF
-        sta     LE6D0
+        eor     DEFBNK
+        eor     DATBANK
+        sta     BNKCFG
         lda     #$7F
-        sta     $BFE2
+        sta     SVIA1DIR
         jsr     LEC1E
         lda     #$00
         sta     LE77D
@@ -955,34 +1104,38 @@ LEB7E:  pha
 LEBA8:  sta     HSRCW                   ;
         lda     LE6D1
         sta     SVCENB
-        lda     LE6CD
-        sta     $EC
-        ldy     LE6CB
-        ldx     LE6CC
-        lda     LE6CA
+        lda     ACCUM
+.if  CODOS2_VER = 17
+        sta     SAVEACC
+.else
+        sta     INTSVA
+.endif
+        ldy     YREG
+        ldx     XREG
+        lda     PROCST
         pha
-        lda     LE6D0
+        lda     BNKCFG
         plp
         rts
 
-LEBC4:  lda     LD800
-        cmp     #$D8
-        bne     LEBCC
-        rts
+LEBC4:  lda     CMDPROC                 ; Check if Command Processor is loaded
+        cmp     #$D8                    ; First byte should be $D8 (CLD)
+        bne     LEBCC                   ; No, go ahead and load from disk
+        rts                             ; Yes, return
 
-LEBCC:  ldx     #$09
-LEBCE:  lda     LE7AB,x
-        sta     FNAMBUF,x
-        dex
-        bpl     LEBCE
+LEBCC:  ldx     #$09                    ; Get file name
+LEBCE:  lda     CMDPROCNAM,x            ;
+        sta     FNAMBUF,x               ;
+        dex                             ;
+        bpl     LEBCE                   ;
         ldx     #$00
-        stx     LE6DC
+        stx     LE6DC               ; Init retries?
         jsr     LF592
         ldx     #$00
         txa
         jsr     LFD05
         bcc     LEBEA
-        jsr     LE9FB
+        jsr     ERROR13             ; Not a loadable ("SAVEd") file. 
 LEBEA:  ldx     #$00
         txa
         jsr     LFD05
@@ -990,22 +1143,29 @@ LEBEA:  ldx     #$00
         jmp     LF5C3
 
 LEBF5:  sec
-        ror     $02F9
+        ror     SEEIO               ; Set I/O space enable semaphore
         lda     #$00
-        sta     LE6D2
-        lda     LE6D8
-        sta     $BFE0
-        lda     #$7F
-        sta     $BFE2
-        lda     #$EC
+        sta     LE6D2               ; TODO: Unknown variable
+        lda     DEFBNK              ; Set default bank config
+        sta     BNKCTL              ;
+        lda     #$7F                ;
+        sta     SVIA1DIR            ;
+
+        ; This clears the break flag by forcing an rti
+
+        lda     #>LEC11            ; Set return address to $EC11
         pha
-        lda     #$11
+        lda     #<LEC11
         pha
         php
         rti
 
-        rts
+LEC11:  rts
 
+
+; Copy bank switch/restore routine to $0100-$0112
+
+CPYBNKSW: 
         ldx     #$12
 LEC14:  lda     LEC32,x
         sta     BANKSW,x
@@ -1021,17 +1181,30 @@ LEC20:  lda     LEC2A,x
         rts
 
 LEC2A:  php
-        sta     $BFE0
-        lda     $EC
+        sta     BNKCTL
+.if  CODOS2_VER = 17
+        lda     SAVEACC
+.else
+        lda     INTSVA
+.endif
         plp
-        .byte   $4C
+        .byte   $4C                 ; JMP Absolute. As LEC2A is copied to $D2, it
+                                    ; means it jumps to address contained in
+                                    ; $DA-$DB
+
+        ; Bank switch/restore routine. Copied to 0100-0112
+
 LEC32:  jsr     L00D2
         php
-        sta     $EC
-        sta     $FFFE
-        lda     #$FF
-        sta     $BFE0
-        sta     $BFE2
+.if  CODOS2_VER = 17
+        sta     SAVEACC
+.else
+        sta     INTSVA
+.endif
+        sta     IOENABLE            ; Enable I/O space from $BE00 to $BFFF
+        lda     #$FF                ; Sets bank 0 and write enable $8000 to $BFFF
+        sta     BNKCTL              ;
+        sta     SVIA1DIR
         plp
         rts
 
@@ -1066,7 +1239,7 @@ LEC6E:  lda     MSTR            ; Read uPD765 Main Status Register
         bpl     LEC6E           ; Jump if bit 7 is 0 (Not ready)
         and     #$40            ; Check data direction
         beq     LEC7A           ; Jump if data register is to be written
-        jsr     LE9B5
+        jsr     ERROR48
 LEC7A:  lda     CMDTBL+1,x      ; Write command byte
         sta     DATR            ;
         inx                     ; next command byte
@@ -1075,7 +1248,8 @@ LEC7A:  lda     CMDTBL+1,x      ; Write command byte
         ldy     SAVEDY          ; Restore Y register
         rts                     ; And return
 
-LEC88:  stx     DRVNUM
+GETDRVST:
+        stx     DRVNUM
         ldx     #SENSEDRV
         bne     LEC91           ; Always jump
 SENSE:  ldx     #SENSEINT       ; Send Sense interrupt command to the disk controller
@@ -1085,7 +1259,7 @@ LEC96:  lda     MSTR
         bpl     LEC96
         and     #$40
         bne     LECA2
-        jsr     LE9B3
+        jsr     ERROR49
 LECA2:  lda     DATR
         sta     DSKSTAT,x
         nop
@@ -1121,14 +1295,18 @@ LECD5:  ldx     #SPECIFY
         beq     LECED           ; No error
         and     #$08            ; Fail: Check if ready
         bne     LECEA           ; Not ready
-        jsr     LE9C1           ; Any other error
-LECEA:  jsr     LEA09           ; Not ready error
+        jsr     ERROR42         ; Unformatted diskette or hardware drive fault
+LECEA:  jsr     ERROR06         ; Drive not ready error
 LECED:  lda     ST1             ; Get status register 1
         beq     LECF5           ; All clear
-        jsr     LE9C3           ; Error (Overrun?)
+        jsr     ERROR41         ; Unformatted diskette or irrecoverable seek error
 LECF5:  ldx     LE72D           ; Get drive
-        jsr     LEC88           ; Sense drive
-        ldx     LE72D           ; Get drive fain
+.if  CODOS2_VER = 17
+        jsr     GETDRVSTKLUDGE  ; Sense drive
+.else
+        jsr     GETDRVST        ; Sense drive
+.endif
+        ldx     LE72D           ; Get drive
         lda     DSKSTAT         ; Get status result
         and     #$08            ; Filter out except Two Sides flag
         beq     LED07           ; One side
@@ -1141,15 +1319,15 @@ LED0B:  jsr     LEF90
         bcs     LED58
         jsr     LECC4
         jsr     LED52
-        sta     LE767
+        sta     TRKERRNUM
         jsr     LED24
         bcs     LED58
-        jsr     LE9C3
+        jsr     ERROR41
 LED24:  stx     LE730
         stx     LE770
         cmp     #$4D
         bcc     LED31
-        jsr     LE9B7
+        jsr     ERROR47
 LED31:  sta     LE731
         lda     LE76F
         beq     LED41
@@ -1157,7 +1335,7 @@ LED31:  sta     LE731
         ora     LE730
         sta     LE730
 LED41:  jsr     LF45F
-        ldx     #$SEEK
+        ldx     #SEEK
         jsr     SNDCMDST
         bcs     LED59
         and     #$F8
@@ -1171,7 +1349,7 @@ LED58:  rts
 LED59:  and     #$03
         cmp     LE770
         bne     LED63
-        jsr     LEA09
+        jsr     ERROR06
 LED63:  jsr     LF470
         jmp     LED41
 
@@ -1180,7 +1358,7 @@ LED69:  lda     $E7             ; Set DMA register to
         lda     LE73B
         cmp     #$1A
         bcc     LED78
-        jsr     LE9BD
+        jsr     ERROR44
 LED78:  lda     LE776
         sta     HSRCW
         ldx     #READWRITE
@@ -1193,7 +1371,7 @@ LED83:  lda     HSRCW
         beq     LEDA4
         cmp     #$40
         beq     LED99
-        jsr     LE9C5
+        jsr     ERROR40
 LED99:  lda     ST1
         and     #$B7
         cmp     #$80
@@ -1220,7 +1398,7 @@ LEDBF:  sta     LE776
         inc     LE776
         cmp     LE776
         bne     LEDD2
-LEDCF:  jsr     LE9CD
+LEDCF:  jsr     ERROR36
 LEDD2:  sta     LE776
         sta     HSRCW                   ; Set DMA mode
         jsr     LEF90
@@ -1236,7 +1414,7 @@ LEDD2:  sta     LE776
         sta     LE739
         lda     DRVNFO,x                ; Check if one or two sides
         bmi     LEDFD                   ; Two sides
-        jsr     LE9BD                   : One side
+        jsr     ERROR44                 ; One side
 LEDFD:  lda     #$04
         ora     LE736
         sta     LE736
@@ -1255,33 +1433,33 @@ LEE1B:  ldx     LE771
 LEE22:  lda     RDWRD
         cmp     #$46                    ; Is it a read command?
         bne     LEE63
-        inc     LE763
+        inc     RDERRCNT
 LEE2C:  jsr     LED69
         bcc     LEE1B
-        inc     LE765
+        inc     RCERRCNT
         ldx     LE771
         jsr     LECC4
         lda     LE737
-        sta     LE767
+        sta     TRKERRNUM
         jsr     LED0B
         lda     LE73B
-        sta     LE766
+        sta     SECERRNUM
         lda     #$10
         sta     LE768
 LEE4E:  jsr     LED69
         bcc     LEE1B
         dec     LE768
         bne     LEE4E
-        bit     LE779
+        bit     IGNORERR
         bmi     LEE1B
-        jsr     LE9D9
+        jsr     ERROR30
         jmp     LEE1B
 
-LEE63:  inc     LE764
+LEE63:  inc     WRERRCNT
         lda     ST1
         and     #$02
         beq     LEE2C
-        jsr     LEA01
+        jsr     ERROR10
 LEE70:  jsr     LEEE3
         lda     $DD
         sta     LE6DC
@@ -1386,16 +1564,16 @@ LEF26:  lda     $E4
         sta     $DF
         rts
 
-        cmp     #$00
+LEF33:  cmp     #$00
         beq     LEF3C
-        cmp     LFE00
+        cmp     OVLORG
         bne     LEF3D
 LEF3C:  rts
 
 LEF3D:  stx     $029A
         cmp     LE794
         bcc     LEF48
-        jsr     LE9BF
+        jsr     ERROR43
 LEF48:  sta     LE795
         ldx     #$00
         stx     LE76F
@@ -1424,9 +1602,9 @@ LEF62:  txa
         sbc     #$1A
 LEF7E:  jsr     LEDB5
         lda     LE795
-        cmp     LFE00
+        cmp     OVLORG
         beq     LEF8C
-        jsr     LE9CF
+        jsr     ERROR35
 LEF8C:  ldx     $029A
         rts
 
@@ -1435,26 +1613,26 @@ LEF90:  jsr     LEF9F
         lda     LE754,x
         bmi     LEF9D
         pla
-        jsr     LEA0F
+        jsr     ERROR03
 LEF9D:  pla
         rts
 
 LEF9F:  cpx     NDRIVES
         bcc     LEFA7
-        jsr     LEA0B
+        jsr     ERROR05
 LEFA7:  rts
 
 LEFA8:  stx     LE6D9
         cpx     #$0A
         bcc     LEFB2
-        jsr     LEA05
+        jsr     ERROR08
 LEFB2:  lda     LE652,x
         sta     LE6DA
         rts
 
 LEFB9:  jsr     LEFA8
         bne     LEFC1
-        jsr     LEA03
+        jsr     ERROR09
 LEFC1:  tax
         rts
 
@@ -1462,7 +1640,7 @@ LEFC3:  jsr     LEE70
 LEFC6:  lda     $DC
         and     #$20
         beq     LEFCF
-        jsr     LEA07
+        jsr     ERROR07
 LEFCF:  rts
 
 LEFD0:  lda     #$00
@@ -1629,7 +1807,7 @@ LF104:  jsr     LF221
         sta     LF187
         sta     LF133
 LF123:  lda     LE6D3
-        sta     $BFE0
+        sta     BNKCTL
         lda     $D3
         beq     LF17D
         ldy     $E2
@@ -1672,8 +1850,8 @@ LF165:  dec     $D3
 LF167:  inc     $E3
         bne     LF16D
         inc     $E4
-LF16D:  lda     LE6D8
-        sta     $BFE0
+LF16D:  lda     DEFBNK
+        sta     BNKCTL
         ldx     #$00
         stx     $E2
         jsr     LEDB2
@@ -1699,8 +1877,8 @@ LF190:  dec     L00D2
 LF19A:  iny
         beq     LF167
         sty     $E2
-LF19F:  lda     LE6D8
-        sta     $BFE0
+LF19F:  lda     DEFBNK
+        sta     BNKCTL
         jsr     LEEF4
         jmp     LF1EB
 
@@ -1708,7 +1886,7 @@ LF1AB:  and     #$7F
         tax
         lda     LE632,x
         sta     LE7CF
-        lda     LE633,x
+        lda     LE632+1,x
         sta     LE7D0
         jsr     LF24F
         jsr     LF246
@@ -1742,11 +1920,11 @@ LF1EB:  ldx     LE6D9
         sec
 LF1F6:  rts
 
-LF1F7:  lda     LE6D8
-        sta     $BFE0
+LF1F7:  lda     DEFBNK
+        sta     BNKCTL
         jsr     LF219
         ldx     LE6D3
-        stx     $BFE0
+        stx     BNKCTL
         nop
         nop
         nop
@@ -1764,15 +1942,15 @@ LF217:  sec
 
 LF219:  jmp     (LE7CF)
 
-        lda     LE78B
-        sec
+LF21C:  lda     LE78B
+LF21F:  sec
         rts
 
 LF221:  jsr     LF24F
         jsr     LF081
         jsr     LEF12
         bcs     LF22F
-        jsr     LE9B9
+        jsr     ERROR46
 LF22F:  sec
         lda     $CF
         sbc     $C5
@@ -1803,25 +1981,25 @@ LF260:  cmp     #$02
         bcs     LF26C
 LF264:  bit     LE777
         bmi     LF26C
-        jsr     LE9F3
+        jsr     ERROR17
 LF26C:  lda     $C5
         clc
         adc     $C3
         lda     $C6
         adc     $C4
         bcc     LF27A
-        jsr     LE9F5
+        jsr     ERROR16
 LF27A:  cmp     #$E0
         bcc     LF28B
         lda     LE6D2
         bne     LF28B
         bit     LE777
         bmi     LF28B
-        jsr     LE9F3
+        jsr     ERROR17
 LF28B:  nop
 LF28C:  lda     LE6D2
         and     #$03
-        eor     LE6D8
+        eor     DEFBNK
         sta     LE6D3
         rts
 
@@ -1842,7 +2020,7 @@ LF2A0:  jsr     LF28C
         sta     LF2DD
         sta     LF342
 LF2C2:  lda     LE6D3
-        sta     $BFE0
+        sta     BNKCTL
         lda     $C6
         bne     LF2CF
         jmp     LF336
@@ -1880,8 +2058,8 @@ LF2FA:  lda     $E2
         sta     $C5
         bcs     LF307
 LF305:  dec     $C6
-LF307:  lda     LE6D8
-        sta     $BFE0
+LF307:  lda     DEFBNK
+        sta     BNKCTL
         jsr     LF088
         inc     $E3
         bne     LF316
@@ -1922,8 +2100,8 @@ LF353:  iny
         lda     $DC
         ora     #$40
         sta     $DC
-LF35E:  lda     LE6D8
-        sta     $BFE0
+LF35E:  lda     DEFBNK
+        sta     BNKCTL
         jsr     LEF05
         php
         bcc     LF36D
@@ -1944,7 +2122,7 @@ LF385:  and     #$7F
         tax
         lda     LE642,x
         sta     LE7CF
-        lda     LE643,x
+        lda     LE642+1,x
         sta     LE7D0
         jsr     LF28C
         lda     #$00
@@ -1965,13 +2143,13 @@ LF3B3:  sec
         ldx     LE6D9
         rts
 
-LF3B8:  ldx     LE6D8
-        stx     $BFE0
+LF3B8:  ldx     DEFBNK
+        stx     BNKCTL
         ldx     #$00
         lda     ($C3,x)
         jsr     LF219
         lda     LE6D3
-        sta     $BFE0
+        sta     BNKCTL
         inc     $C3
         bne     LF3D1
         inc     $C4
@@ -1998,7 +2176,7 @@ LF3F1:  dec     $E3
         dec     $E2
         jsr     LEF26
         jsr     LEEF4
-        jsr     LE9C9
+        jsr     ERROR38
 LF3FE:  lda     #$FC
         jsr     LEE85
         tya
@@ -2087,20 +2265,20 @@ LF4AD:  sec
 
 LF4B9:  lsr     LE786
         ldx     LE6DC
-        jsr     LEC88
+        jsr     GETDRVST
         bit     DSKSTAT
         bvc     LF4CA
-        jsr     LE9EB
+        jsr     ERROR21
 LF4CA:  ldy     #$FD
         lda     ($E9),y
         cmp     #$F8
         bcc     LF4D5
-        jsr     LE9C7
+        jsr     ERROR39
 LF4D5:  jsr     LF3D2
         sta     LE6EC
         jsr     LF6A5
         beq     LF4E3
-        jsr     LE9BB
+        jsr     ERROR45
 LF4E3:  jsr     LF812
         lda     LE6F2
         jsr     LEE9B
@@ -2172,7 +2350,7 @@ LF576:  lda     LE62A,y
         beq     LF584
         dey
         bpl     LF576
-        jsr     LE9FF
+        jsr     ERROR11
 LF584:  tya
         asl     a
         ora     #$80
@@ -2188,8 +2366,8 @@ LF594:  jsr     LF5AD
         beq     LF5AA
         bit     LE77E
         bpl     LF5A7
-        jsr     LEA13
-LF5A7:  jsr     LEA11
+        jsr     ERROR01         ; Command not found. 
+LF5A7:  jsr     ERROR02         ; File not found.
 LF5AA:  jmp     LF531
 
 LF5AD:  lda     LE6DC
@@ -2268,7 +2446,7 @@ LF64A:  lda     $E500,x
         beq     LF65C
         cmp     ($E5),y
         beq     LF658
-        jsr     LE9B1
+        jsr     ERROR50
 LF658:  iny
         inx
         bne     LF64A
@@ -2334,7 +2512,7 @@ LF6D2:  stx     LE6DA
 
 LF6D8:  ldx     LE6DA
         bne     LF6E0
-        jsr     LE9DB
+        jsr     ERROR29
 LF6E0:  jsr     LEEE3
         lda     LE6DC
         sta     $DD
@@ -2363,7 +2541,7 @@ LF70F:  sec
         rts
 
 LF711:  dey
-LF712:  lda     LE796
+LF712:  lda     DEFDRV
         sta     LE6DC
         lda     #$00
         sta     LE787
@@ -2387,7 +2565,7 @@ LF73E:  jsr     LFDEF
         lda     LE754,x
         bpl     LF76A
         sty     $02A1
-        jsr     LEC88
+        jsr     GETDRVST
         lda     DSKSTAT
         and     #$40
         lsr     a
@@ -2512,7 +2690,7 @@ LF83D:  cmp     #$2E
         bne     LF852
 LF84A:  lda     #$2E
         sta     FNAMBUF,x
-        lda     LE793
+        lda     DEFAULTEXT
 LF852:  sta     FNAMBUF+1,x
         lda     FNAMBUF
         jsr     LF882
@@ -2554,25 +2732,31 @@ LF892:  cmp     LE78C
         rts
 
         ldx     #$00
-LF89B:  lda     $C2,x
-        jsr     LF8A2
-        lda     $C1,x
-LF8A2:  pha
-        lsr     a
-        lsr     a
-        lsr     a
-        lsr     a
-        jsr     LF8AB
-        pla
-LF8AB:  and     #$0F
+
+        ; Converts word at $C1-$C2,x into its 4-char ascii hex representation
+        ; at  ($CD),y
+HEXWORD: 
+        lda     $C2,x           ; Gets most significant byte
+        jsr     HEXBYTE           ; Converts it
+        lda     $C1,x           ; Gets less significant byte
+HEXBYTE: 
+        pha                     ; Save byte
+        lsr     a               ; Get upper nibble
+        lsr     a               ;
+        lsr     a               ;
+        lsr     a               ;
+        jsr     HEXNIBBLE           ; Convert it
+        pla                     ; Recover byte
+HEXNIBBLE: 
+        and     #$0F            ; and get lower nibble
         clc
-        adc     #$30
-        cmp     #$3A
-        bmi     LF8B6
-        adc     #$06
-LF8B6:  sta     ($CD),y
-        iny
-        rts
+        adc     #$30            ; Adds "0"
+        cmp     #$3A            ; Is it "9" or lower?
+        bmi     LF8B6           ; Yes, goto store it
+        adc     #$06            ; Nope, add 7 (6 + carry) to get hex digit
+LF8B6:  sta     ($CD),y         ; And store it
+        iny                     ; Next position
+        rts                     ; and return
 
 LF8BA:  lda     #$0A
         jsr     LF915
@@ -2613,7 +2797,7 @@ LF8F1:  pha
         adc     #$00
         sta     $C2
         bcc     LF90B
-        jsr     LE9EF
+        jsr     ERROR19
 LF90B:  dec     $029F
         ldx     $0286
         iny
@@ -2650,47 +2834,46 @@ LF93F:  cmp     #$0D
 LF946:  sec
 LF947:  rts
 
-LF948:  jsr     LFD76
-LF94B:  jsr     LFA50
-        bvc     LF98D
-        brk
+LF948:  jsr     LFD76           ; Set output line buffer as destination
+LF94B:  jsr     PRNSTR
+        .byte   "P=", $0
         ldx     #$19
-        jsr     LF89B
-        lda     #$3A
+        jsr     HEXWORD
+        lda     #':'
         sta     ($CD),y
         iny
-        lda     LE6CE
+        lda     PRGBANK           ; Load Current Program Bank
         clc
-        adc     #$30
+        adc     #$30            ; Convert to ASCII
         sta     ($CD),y
         iny
-        lda     #$2F
+        lda     #'/'
         sta     ($CD),y
         iny
-        lda     LE6CF
+        lda     DATBANK           ; Load Current Data Bank
         clc
-        adc     #$30
+        adc     #$30            ; Convert to ASCII
         sta     ($CD),y
         iny
-        lda     #$20
+        lda     #' '
         sta     ($CD),y
         iny
-        lda     #$28
+        lda     #'('
         sta     ($CD),y
         iny
         jsr     LF9DB
         jsr     LF9BA
-        jsr     LF8A2
+        jsr     HEXBYTE
         dey
         jsr     LF9BA
         iny
-        jsr     LF8A2
+        jsr     HEXBYTE
 LF98D:  dey
         dey
         jsr     LF9BA
         iny
         iny
-        jsr     LF8A2
+        jsr     HEXBYTE
         lda     #$29
         sta     ($CD),y
         iny
@@ -2704,28 +2887,26 @@ LF99E:  lda     #$20
         lda     #$3D
         sta     ($CD),y
         iny
-        lda     LE6C9,x
-        jsr     LF8A2
+        lda     STACKP,x
+        jsr     HEXBYTE
         dex
         bpl     LF99E
         jmp     LF9DB
 
-LF9BA:  lda     LE6CE
-        eor     LE6D8
-        sta     $BFE0
+LF9BA:  lda     PRGBANK
+        eor     DEFBNK
+        sta     BNKCTL
         lda     ($DA),y
-        ldx     LE6D8
-        stx     $BFE0
+        ldx     DEFBNK
+        stx     BNKCTL
         rts
 
-LF9CC:  .byte   $53
-        lsr     $59
-        cli
-        .byte   $41
+LF9CC:  .byte   "SFYXA"
+
 LF9D1:  ldx     #$02
         jsr     LF9DD
 LF9D6:  lda     #$0D
-        jmp     LFA88
+        jmp     PRNCHAR
 
 LF9DB:  ldx     #$02
 LF9DD:  sty     $C5
@@ -2747,7 +2928,7 @@ LF9F1:  ldy     #$00
         sta     $F0
         lda     $CC
         sta     $F1
-        jmp     LE61B
+        jmp     JINLINE
 
 LFA05:  jsr     LFA22
         bcs     LFA17
@@ -2782,6 +2963,7 @@ LFA33:  jsr     LFAA4
         php
         clc
         rol     LE777
+
 LFA42:  ldy     $028B
         ldx     $028A
         lda     LE7D1
@@ -2790,35 +2972,41 @@ LFA42:  ldy     $028B
 
 LFA4D:  jmp     (LE634)
 
-LFA50:  stx     $0287
-        ldx     #$02
-        bne     LFA5A
-        stx     $0287
-LFA5A:  sta     $0288
-        sty     $0289
-        pla
-        sta     $D8
-        pla
-        sta     $D9
-LFA66:  inc     $D8
+
+; Print string immediately following the JSR call
+;
+PRNSTR: stx     $0287               ; Save X
+        ldx     #$02                ; X = 2
+        bne     LFA5A               ; Always jump
+        stx     $0287               ; Dead code?
+LFA5A:  sta     $0288               ; Save A
+        sty     $0289               ; Save Y
+        pla                         ; Get PC and save in $D8-$D9. PC points
+        sta     $D8                 ; to last opcode of instruction
+        pla                         ;
+        sta     $D9                 ;
+LFA66:  inc     $D8                 ; Increment PC
         bne     LFA6C
         inc     $D9
 LFA6C:  ldy     #$00
-        lda     ($D8),y
-        beq     LFA78
-        jsr     LFA88
-        jmp     LFA66
+        lda     ($D8),y             ; Get char
+        beq     LFA78               ; If null, end of string
+        jsr     PRNCHAR               ; Print char
+        jmp     LFA66               ; Loop
 
-LFA78:  lda     $D9
-        pha
-        lda     $D8
-        pha
-        ldy     $0289
-        lda     $0288
-        ldx     $0287
+LFA78:  lda     $D9                 ; Push new PC to the stack
+        pha                         ;
+        lda     $D8                 ;
+        pha                         ;
+        ldy     $0289               ; Restore indexes
+        lda     $0288               ;
+        ldx     $0287               ;
         rts
 
-LFA88:  sta     LE7D1
+; Print character in A
+; PRNCHAR
+PRNCHAR: 
+        sta     LE7D1
         lda     LE652,x
         cmp     #$82
         bne     LFA9A
@@ -2832,9 +3020,9 @@ LFA9A:  jsr     LFAA7
         php
         jmp     LFA42
 
-LFAA4:  sta     LE7D1
-LFAA7:  stx     $028A
-        sty     $028B
+LFAA4:  sta     LE7D1               ; Save char
+LFAA7:  stx     $028A               ; Save X
+        sty     $028B               ; Save Y
         lda     #$01
         sta     $C5
         lda     #$00
@@ -2879,13 +3067,14 @@ LFAFE:  clc
         iny
         rts
 
-LFB05:  asl     a
-LFB06:  brk
+LFB05:  .byte   $0A
+LFB06:  .byte   $00
         .byte   $64
-        brk
-        inx
+        .byte   $00
+        .byte   $E8
         .byte   $03
-        bpl     LFB34
+        bpl     LFB34       ; $10 $2F      ??
+
 LFB0D:  clc
         lda     $C1,x
         adc     $C1
@@ -2941,7 +3130,7 @@ LFB65:  ldx     $029C
 
 LFB69:  lda     $C2,x
         bne     LFB7B
-LFB6D:  jsr     LE9EF
+LFB6D:  jsr     ERROR19
 LFB70:  sty     $028E
         lda     $C1,x
         sta     $D4
@@ -3001,7 +3190,7 @@ LFBBC:  lda     $C2,x
         jsr     LFBE1
         lda     $D7
         beq     LFBDB
-        jsr     LE9F1
+        jsr     ERROR18
 LFBDB:  lda     $D6
         ldx     $0297
         rts
@@ -3074,7 +3263,7 @@ LFC61:  rts
         lda     LE6D7
 LFC75:  sta     LE71F
         lda     #$58
-        sta     LE71D
+        sta     SAVEDMAGIC
         lda     $C5
         sec
         sbc     $C3
@@ -3083,7 +3272,7 @@ LFC75:  sta     LE71F
         sbc     $C4
         sta     $C6
         bcs     LFC8F
-        jsr     LE9F5
+        jsr     ERROR16
 LFC8F:  inc     $C5
         bne     LFC95
         inc     $C6
@@ -3119,9 +3308,9 @@ LFCD9:  lda     #$0A
         sta     $C5
         lda     #$00
         sta     $C6
-        lda     #$1D
+        lda     #<SAVEDMAGIC
         sta     $C3
-        lda     #$E7
+        lda     #>SAVEDMAGIC
         sta     $C4
         rts
 
@@ -3143,12 +3332,12 @@ LFCF7:  lda     $C9,x
         bpl     LFCF7
         rts
 
-LFD05:  sta     $0294
+LFD05:  sta     $0294               ; Save A in temporary storage
         jsr     LFD35
-        bcs     LFD33
+        bcs     LFD33               ; Return with error
         lda     LE71E
         cmp     $0294
-        bne     LFD33
+        bne     LFD33               ; Return with error
         jsr     LFCEA
         lda     LE71F
         sta     LE6D2
@@ -3172,13 +3361,13 @@ LFD35:  jsr     LFCD9
         jsr     LF0FC
         bcs     LFD51
         rol     LE777
-        lda     LE71D
-        cmp     #$58
-        beq     LFD52
-        sec
+        lda     SAVEDMAGIC          ; Check that the magic number is correct
+        cmp     #$58                ;
+        beq     LFD52               ; Yes, jump to return OK
+        sec                         ; Return error
 LFD51:  rts
 
-LFD52:  clc
+LFD52:  clc                         ; Return OK
         rts
 
 LFD54:  lda     #$00
@@ -3190,6 +3379,7 @@ LFD54:  lda     #$00
         lda     #$82
         sta     LE653
 LFD69:  ldy     #$00
+        
         lda     LE7BE
         sta     $CB
         lda     LE7BE+1
@@ -3227,19 +3417,19 @@ LFDA4:  lda     LE652,x
         sta     LE65C,x
 LFDB7:  rts
 
-LFDB8:  jsr     LE606
+LFDB8:  jsr     JGETKEY
         cmp     LE789
         beq     LFDDC
         cmp     LE78B
         beq     LFDCE
-        bit     LE788
+        bit     KBDECHO
         bpl     LFDCD
-        jsr     LE609
+        jsr     JOUTCH
 LFDCD:  clc
 LFDCE:  rts
 
 LFDCF:  sta     $0299
-        jsr     LE60C
+        jsr     JTSTKEY
         bcc     LFDE9
 LFDD7:  cmp     LE789
         bne     LFDDF
@@ -3247,274 +3437,25 @@ LFDDC:  jmp     CNTRLC
 
 LFDDF:  cmp     LE78A
         bne     LFDE9
-        jsr     LE606
+        jsr     JGETKEY
         bpl     LFDD7
 LFDE9:  lda     $0299
-        jmp     LE609
+        jmp     JOUTCH
 
 LFDEF:  jsr     LF45F
         ldx     LE6DC
         rts
 
-        ora     ($B5,x)
-        cmp     #$48
-        lda     $C3,x
-        sta     $C9,x
-        pla
-        .byte   $95
-LFE00:  brk                             ; 256 zeroes
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
-        brk
+.if  CODOS2_VER = 17
+GETDRVSTKLUDGE:
+        jsr     GETDRVST
+@LOOP:  jsr     LF766
+        inx
+        bne     @LOOP
+        rts
+.endif
+        ; ORIGIN OF CODOS OVERLAYS
+
+        .segment "overlays"
+OVLORG:
+        .end
