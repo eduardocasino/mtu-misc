@@ -20,29 +20,29 @@
     SVCOUM          = 2             ; OUTPUT INLINE MESSAGE SVC
     SVCINB          = 3             ; INPUT BYTE SVC
     SVCOUB          = 4             ; OUTPUT BYTE SVC
-    SVCINL  		= 5             ; INPUT LINE SVC
-    SVCOUL  		= 6             ; OUTPUT LINE SVC
-    SVCOUS  		= 7             ; OUTPUT STRING SVC
-    SVCDCX  		= 8             ; DECODE ASCII HEX TO BINARY
-    SVCDCD  		= 9             ; DECODE ASCII DECIMAL TO BINARY
-    SVCENX  		= 10            ; ENCODE BINARY TO ASCII HEX
-    SVCEND  		= 11            ; ENCODE BINARY TO ASCII DECIMAL
-    SVCDFB  		= 12            ; ESTABLISH DEFAULT BUFFER ADDRESS
-    SVCMON  		= 13            ; EXECUTE CODOS MONITOR COMMAND
-    SVCQCA  		= 14            ; QUERRY CHANNEL ASSIGNMENT
-    SVCINR  		= 15            ; READ RECORD FROM FILE
-    SVCOUR  		= 16            ; WRITE RECORD TO FILE
-    SVCBOF  		= 17            ; POSITION TO BEGINNING OF FILE
-    SVCEOF  		= 18            ; POSITION FILE TO END OF FILE
-    SVCPSF  		= 19            ; POSITION FILE TO ARBUTRARY LOCATION
-    SVCQFP  		= 20            ; QUERRY FILE POSITION
-    SVCASS  		= 21            ; ASSIGN CHANNEL TO FILE OR DEVICE
-    SVCFRE  		= 22            ; FREE CHANNEL
-    SVCTNC  		= 23            ; TRUNCATE FILE AT PRESENT POSITION
-    SVCSPI  		= 24            ; DEFINE USER INTERRUPT SERVICE ROUTINE
-    SVCUER  		= 25            ; DEFINE USER ERROR RECOVERY
-    SVCCER  		= 26            ; RESTORE CODOS ERROR RECOVERY
-    SVCP16  		= 27            ; ENTER 16 BIT PSEUDO PROCESSOR
+    SVCINL          = 5             ; INPUT LINE SVC
+    SVCOUL          = 6             ; OUTPUT LINE SVC
+    SVCOUS          = 7             ; OUTPUT STRING SVC
+    SVCDCX          = 8             ; DECODE ASCII HEX TO BINARY
+    SVCDCD          = 9             ; DECODE ASCII DECIMAL TO BINARY
+    SVCENX          = 10            ; ENCODE BINARY TO ASCII HEX
+    SVCEND          = 11            ; ENCODE BINARY TO ASCII DECIMAL
+    SVCDFB          = 12            ; ESTABLISH DEFAULT BUFFER ADDRESS
+    SVCMON          = 13            ; EXECUTE CODOS MONITOR COMMAND
+    SVCQCA          = 14            ; QUERRY CHANNEL ASSIGNMENT
+    SVCINR          = 15            ; READ RECORD FROM FILE
+    SVCOUR          = 16            ; WRITE RECORD TO FILE
+    SVCBOF          = 17            ; POSITION TO BEGINNING OF FILE
+    SVCEOF          = 18            ; POSITION FILE TO END OF FILE
+    SVCPSF          = 19            ; POSITION FILE TO ARBUTRARY LOCATION
+    SVCQFP          = 20            ; QUERRY FILE POSITION
+    SVCASS          = 21            ; ASSIGN CHANNEL TO FILE OR DEVICE
+    SVCFRE          = 22            ; FREE CHANNEL
+    SVCTNC          = 23            ; TRUNCATE FILE AT PRESENT POSITION
+    SVCSPI          = 24            ; DEFINE USER INTERRUPT SERVICE ROUTINE
+    SVCUER          = 25            ; DEFINE USER ERROR RECOVERY
+    SVCCER          = 26            ; RESTORE CODOS ERROR RECOVERY
+    SVCP16          = 27            ; ENTER 16 BIT PSEUDO PROCESSOR
     SVCQVN          = 28            ; QUERRY CODOS VERSION
     SVCFLS          = 29            ; QUERRY FILE STATUS
     SVCDAT          = 30            ; QUERRY CURRENT DATE
@@ -125,82 +125,83 @@
 
             ;   Relevant scratch RAM addresses
             ;
-    SAVEDY  		= $0285         ; Use to preserve Y register during disk operations
+    SAVEDY          = $0285         ; Use to preserve Y register during disk operations
 
             ;   Disk Controller Registers
             ;
-    HSRCW   		= $FFE8         ; Read  - Hardware Status Read
+    HSRCW           = $FFE8         ; Read  - Hardware Status Read
                                     ; Write - Hardware Control Write
-    ADMA    		= $FFEA         ; Write - Set DMA Address Register
+    ADMA            = $FFEA         ; Write - Set DMA Address Register
 
             ;   uPD765 Registers
             ;
-    MSTR    		= $FFEE         ; Read  - uPD765 Main Status Register
-    DATR    		= $FFEF         ; R/W   - uPD765 Data Register
+    MSTR            = $FFEE         ; Read  - uPD765 Main Status Register
+    DATR            = $FFEF         ; R/W   - uPD765 Data Register
 
              ; uPD765 command index
-    SPECIFY  		= $00
+    SPECIFY         = $00
     RECALIBRATE     = $04
-    SEEK 		    = $07
-    SENSEINT 		= $0B
+    SEEK            = $07
+    SENSEINT        = $0B
     READWRITE       = $0D
-    FORMAT 		    = $17
-    SENSEDRV 		= $1E
+    FORMAT          = $17
+    SENSEDRV        = $1E
 
             .segment "header"
 
-    .byte "MTU-130 CODOS 2.0", $0D
-    .byte "COPYRIGHT (C) 1981, MICRO TECHNOLOGY UNLIMIMITED", $0D
-    .byte "PO BOX 12106, 2806 HILLSBOROUGH ST.", $0D
-    .byte "RALEIGH, NC 27605 USA", $0D
-    .byte "Written by Bruce D. Carbrey", $0D
-    .byte "ASM 1/18/82 patch 6/14/82", $0D, $0D, $0D, $20
+            .byte "MTU-130 CODOS 2.0", $0D
+            .byte "COPYRIGHT (C) 1981, MICRO TECHNOLOGY UNLIMIMITED", $0D
+            .byte "PO BOX 12106, 2806 HILLSBOROUGH ST.", $0D
+            .byte "RALEIGH, NC 27605 USA", $0D
+            .byte "Written by Bruce D. Carbrey", $0D
+            .byte "ASM 1/18/82 patch 6/14/82", $0D, $0D, $0D, $20
 
             .segment "zp" : zeropage
 
-    ; $B0 - $C0 Pseudo registers
+            ; $B0 - $C0 Pseudo registers
 
-    U0:         .res 2              ; $B0
-    U1:         .res 2              ; $B2
-    U2:         .res 2              ; $B4
-    U3:         .res 2              ; $B6
-    U4:         .res 2              ; $B8
-    U5:         .res 2              ; $BA  Input buffer pointer
-    U6:         .res 2              ; $BC  Output buffer pointer
-    U7:         .res 3              ; $BE  File position (3 bytes)
+U0:         .res 2                  ; $B0
+U1:         .res 2                  ; $B2
+U2:         .res 2                  ; $B4
+U3:         .res 2                  ; $B6
+U4:         .res 2                  ; $B8
+U5:         .res 2                  ; $BA  Input buffer pointer
+U6:         .res 2                  ; $BC  Output buffer pointer
+U7:         .res 3                  ; $BE  File position (3 bytes)
 
-    ; $C1 - $EC : Seratch RAM used by CODOS nucleus, SVC Processor and Command Proc. 
+            ; $C1 - $EC : Seratch RAM used by CODOS nucleus,
+            ; SVC Processor and Command Proc. 
 
-    CODOSSCRT:  .res $2b            ; $C1 - $EB
+CODOSSCRT:  .res $2b                ; $C1 - $EB
     
     L00D2           = $00D2         ; TODO
 
-    INTSVA:     .res 1              ; $EC  Accumulator save during SVC or IRQ processing.
+INTSVA:     .res 1                  ; $EC  Accumulator save during SVC or IRQ processing.
 
-    ; $ED - $EF : Global RAM used by CODOS 
+            ; $ED - $EF : Global RAM used by CODOS 
 
-    ERRNUM:     .res 1              ; $ED  Error number for user-defined error recovery.
-    SVCENB:     .res 1              ; $EE  ADDRESS OF SVC ENABLE FLAG
-    SAVEACC:    .res 1              ; $EF  TODO: Unknown
+ERRNUM:     .res 1                  ; $ED  Error number for user-defined error recovery.
+SVCENB:     .res 1                  ; $EE  ADDRESS OF SVC ENABLE FLAG
+SAVEACC:    .res 1                  ; $EF  TODO: Unknown
 
-    ; $F0 - $FF : Scratch RAM for console I-0. 
+            ; $F0 - $FF : Scratch RAM for console I-0. 
  
-    UNKNWN2:    .res 1              ; $F0
-    UNKNWN3:    .res 1              ; $F1
-    UNKNWN4:    .res 1              ; $F2
-    UNKNWN5:    .res 1              ; $F3
-    UNKNWN6:    .res 1              ; $F4
-    UNKNWN7:    .res 1              ; $F5
-    UNKNWN8:    .res 1              ; $F6
-    UNKNWN9:    .res 1              ; $F7
-    UNKNWN10:   .res 1              ; $F8
-    UNKNWN11:   .res 1              ; $F9
-    UNKNWN12:   .res 1              ; $FA
-    UNKNWN13:   .res 1              ; $FB
-    UNKNWN14:   .res 1              ; $FC
-    UNKNWN15:   .res 1              ; $FD
-    UNKNWN16:   .res 1              ; $FE
-    UNKNWN17:   .res 1              ; $FF
+UNKNWN2:    .res 1                  ; $F0
+UNKNWN3:    .res 1                  ; $F1
+UNKNWN4:    .res 1                  ; $F2
+UNKNWN5:    .res 1                  ; $F3
+UNKNWN6:    .res 1                  ; $F4
+UNKNWN7:    .res 1                  ; $F5
+UNKNWN8:    .res 1                  ; $F6
+UNKNWN9:    .res 1                  ; $F7
+UNKNWN10:   .res 1                  ; $F8
+UNKNWN11:   .res 1                  ; $F9
+UNKNWN12:   .res 1                  ; $FA
+UNKNWN13:   .res 1                  ; $FB
+UNKNWN14:   .res 1                  ; $FC
+UNKNWN15:   .res 1                  ; $FD
+UNKNWN16:   .res 1                  ; $FE
+UNKNWN17:   .res 1                  ; $FF
     
             .segment "cmdproc"
 
@@ -586,35 +587,35 @@ LE77F:      .byte   $00
 SVC13FLG:   .byte   $00             ; Flag. If bit 7 = 1 then program executing was invoked by SVC #13.
 LE781:      .byte   $00
 LE782:      .byte   $00
-LE783:  	.byte   $00
-LE784:  	.byte   $00
-LE785:  	.byte   $00
-LE786:  	.byte   $00
-LE787:  	.byte   $00
-KBDECHO:  	.byte   $00             ; Keyboard echo flag for CODOS. Set to $80 to enable echo.
-LE789:  	.byte   $03
-LE78A:  	.byte   $13
-LE78B:  	.byte   $1A
-LE78C:  	.byte   $5F             ; _
-LE78D:  	.byte   $3B             ; ;
-LE78E:  	.byte   $2E             ; .
-LE78F:  	.byte   $24             ; $
-LE790:  	.byte   $3A             ; :
-        	.byte   $5E             ; ^
-        	.byte   $22             ; "
+LE783:      .byte   $00
+LE784:      .byte   $00
+LE785:      .byte   $00
+LE786:      .byte   $00
+LE787:      .byte   $00
+KBDECHO:    .byte   $00             ; Keyboard echo flag for CODOS. Set to $80 to enable echo.
+LE789:      .byte   $03
+LE78A:      .byte   $13
+LE78B:      .byte   $1A
+LE78C:      .byte   $5F             ; _
+LE78D:      .byte   $3B             ; ;
+LE78E:      .byte   $2E             ; .
+LE78F:      .byte   $24             ; $
+LE790:      .byte   $3A             ; :
+            .byte   $5E             ; ^
+            .byte   $22             ; "
 DEFAULTEXT: .byte   "C"             ; Current ASCII default file extension character ("C").
-LE794:  	.byte   $11
-LE795:  	.byte   $00
-DEFDRV: 	.byte   $00             ; Current default drive number (Set by DRIVE command).
-LE797:  	.byte   $4F
-LE798:  	.byte   $05             ; Number of file names per line for FILES command (5 or less).
-LE799:  	.byte   $10             ; Number of	.byte s to dump per display line.
-        	.byte   $02
-LE79B:  	.byte   $2B             ; "+"   (List of forbiden chars in file name????)
-        	.byte   $2D             ; "-"
-        	.byte   $2A             ; "*"
-        	.byte   $2F             ; "/"
-LE79F:  	.byte   $5C             ; ASCII character to be used in lieu of Backslash "\"
+LE794:      .byte   $11
+LE795:      .byte   $00
+DEFDRV:     .byte   $00             ; Current default drive number (Set by DRIVE command).
+LE797:      .byte   $4F
+LE798:      .byte   $05             ; Number of file names per line for FILES command (5 or less).
+LE799:      .byte   $10             ; Number of    .byte s to dump per display line.
+            .byte   $02
+LE79B:      .byte   $2B             ; "+"   (List of forbiden chars in file name????)
+            .byte   $2D             ; "-"
+            .byte   $2A             ; "*"
+            .byte   $2F             ; "/"
+LE79F:      .byte   $5C             ; ASCII character to be used in lieu of Backslash "\"
 SYSERRMNAM: .byte   "SYSERRMSG.Z"
 CMDPROCNAM: .byte   "COMDPROC.Z"
 STARTUPNAM: .byte   "STARTUP.J"
@@ -624,26 +625,26 @@ LE7C2:      .word   $A000           ; Pointer to large transient buffer for COPY
 LE7C4:      .word   $1400           ; Size (NOT. final address) of large transient buffer.
 INTSRVP:    .word   INTSRV          ; Pointer to user-defined interrupt service routine.
 ERRRCVRYP:  .word   ERRRCVRY        ; Pointer to user-defined error recovery routine.     
-LE7CA:  	.byte   $1A
-        	.byte   $00
-        	.byte   $00
-        	.byte   $00
-        	.byte   $00
-LE7CF:  	.byte   $00
-LE7D0:  	.byte   $00
-LE7D1:  	.byte   $00
-LE7D2:  	.byte   $FF
-        	.byte   $FF
-        	.byte   $FF
-LE7D5:  	.byte   $00
-        	.byte   $00
-        	.byte   $00
-LE7D8:  	.byte   $00
-        	.byte   $00
-        	.byte   $00
-LE7DB:  	.byte   $00
-        	.byte   $00
-        	.byte   $00
+LE7CA:      .byte   $1A
+            .byte   $00
+            .byte   $00
+            .byte   $00
+            .byte   $00
+LE7CF:      .byte   $00
+LE7D0:      .byte   $00
+LE7D1:      .byte   $00
+LE7D2:      .byte   $FF
+            .byte   $FF
+            .byte   $FF
+LE7D5:      .byte   $00
+            .byte   $00
+            .byte   $00
+LE7D8:      .byte   $00
+            .byte   $00
+            .byte   $00
+LE7DB:      .byte   $00
+            .byte   $00
+            .byte   $00
 
 ; Jump table
 ;
