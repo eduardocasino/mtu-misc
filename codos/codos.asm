@@ -174,6 +174,9 @@ U7:         .res 3                  ; $BE  File position (3 bytes)
 
 CODOSSCRT:  .res $2b                ; $C1 - $EB
     
+    INPBUFP           = $CB           ; (word) Pointer to input buffer
+    OUTBUFP           = $CD           ; (word) Pointer to output buffer
+
     L00D2           = $00D2         ; TODO
 
 INTSVA:     .res 1                  ; $EC  Accumulator save during SVC or IRQ processing.
@@ -202,7 +205,12 @@ UNKNWN14:   .res 1                  ; $FC
 UNKNWN15:   .res 1                  ; $FD
 UNKNWN16:   .res 1                  ; $FE
 UNKNWN17:   .res 1                  ; $FF
-    
+
+    YOUT            = $D27D         ; "Y" output (console and printer) entry point
+                                    ; Must be set by hand at STARTUP.J with
+                                    ; SET D27D=20 21 E6 (jsr JCOUT)
+    PRTOUT          = $D280         ; Printer output entry point
+
             .segment "cmdproc"
 
 CMDPROC:
@@ -216,16 +224,16 @@ CMDPROC:
             ;
             jmp     COLDST
 JWARMST:    jmp     WARMST
-JGETKEY:    jmp     GETKEY
-JOUTCH:     jmp     OUTCH
-JTSTKEY:    jmp     TSTKEY
+JGETKEY:    jmp     GETKEY          ; Console character input
+JOUTCH:     jmp     OUTCH           ; Console character output
+JTSTKEY:    jmp     TSTKEY          ; Console Key-depressed test subroutine
             jmp     NMIPROC
             jmp     IRQPROC
 LE615:      jmp     LDD23
 JERROR37:   jmp     ERROR37         ; Jump to " Required software package not loaded" error message
 JINLINE:    jmp     INLINE
             jmp     CIN
-LE621:      jmp     COUT            ; Jump to console-character-out routine with CTRL-S/Q (XON/XOFF)
+JCOUT:      jmp     COUT            ; Jump to console-character-out routine with CTRL-S/Q (XON/XOFF)
             jmp     JERROR37        ; Required software package not loaded in memory
             jmp     JERROR37        ; Required software package not loaded in memory
 
@@ -234,7 +242,7 @@ LE621:      jmp     COUT            ; Jump to console-character-out routine with
 DNT:        .byte   "N"             ; Null device driver
             .byte   "C"             ; Console device
             .byte   "P"             ; Printer device
-            .byte   "Y"             ; ???
+            .byte   "Y"             ; "Y" device: outputs to console and printer at once
             .byte   $00             ; Reserved for custom devices
             .byte   $00             ;
             .byte   $00             ;
@@ -244,34 +252,37 @@ DNT:        .byte   "N"             ; Null device driver
 
 DDTI:       .word   NULDRV          ; Null driver device (DTI=$80)
 CINP:       .word   CIN             ; Console input routine (DTI=$82)
-            .word   ERROR33         ; Input from output-only device, or visa-versa
-            .word   ERROR33         ; Input from output-only device, or visa-versa
-            .word   ERROR33         ; Input from output-only device, or visa-versa
-            .word   ERROR33         ; Input from output-only device, or visa-versa
-            .word   ERROR33         ; Input from output-only device, or visa-versa
-            .word   ERROR33         ; Input from output-only device, or visa-versa
+            .word   ERROR33         ; Input from output-only device, or vice-versa
+            .word   ERROR33         ; Input from output-only device, or vice-versa
+            .word   ERROR33         ; Input from output-only device, or vice-versa
+            .word   ERROR33         ; Input from output-only device, or vice-versa
+            .word   ERROR33         ; Input from output-only device, or vice-versa
+            .word   ERROR33         ; Input from output-only device, or vice-versa
 
             ; Device driver dispatch table for output
 
 DDTO:       .word   NULDRVO         ; Null driver device (DTI=$80)
 COUTP:      .word   COUT            ; Console output routine (DTI = $82)
-            .word   $D280           ; Printer output routine (DTI = $84)
-            .word   $D27D           ; ??????? output routine (DTI = $86)
-            .word   ERROR33         ; Input from output-only device, or visa-versa
-            .word   ERROR33         ; Input from output-only device, or visa-versa
-            .word   ERROR33         ; Input from output-only device, or visa-versa
-            .word   ERROR33         ; Input from output-only device, or visa-versa
+            .word   PRTOUT          ; Printer output routine (DTI = $84)
+            .word   YOUT            ; "Y" output routine (DTI = $86)
+            .word   ERROR33         ; Input from output-only device, or vice-versa
+            .word   ERROR33         ; Input from output-only device, or vice-versa
+            .word   ERROR33         ; Input from output-only device, or vice-versa
+            .word   ERROR33         ; Input from output-only device, or vice-versa
 
-LE652:      .byte   $00
-LE653:      .byte   $82
-LE654:      .byte   $82
-            .byte   $00
-            .byte   $00
-            .byte   $00
-            .byte   $00
-            .byte   $00
-            .byte   $00
-            .byte   $00
+            ; I/O Channel Table
+
+IOCHTBL:    .byte   $00             ; Channel 0: reserved for internal CODOS operation
+CHANN1:     .byte   $82             ; Channel 1: Input commands to system monitor
+CHANN2:     .byte   $82             ; Channel 2: Output from system monitor
+            .byte   $00             ; Channel 3: Available (Input preferable)
+            .byte   $00             ; Channel 4: Available (Input preferable)
+            .byte   $00             ; Channel 5: Standard input for programs
+            .byte   $00             ; Channel 6: Standard output for programs
+            .byte   $00             ; Channel 7: Available
+            .byte   $00             ; Channel 8: Available (Output preferable)
+            .byte   $00             ; Channel 9: Available (Output preferable)
+
 LE65C:      .byte   $06
 LE65D:      .byte   $00
 LE65E:      .byte   $00
@@ -590,14 +601,16 @@ SAVEOVERWR: .byte   $00             ; Flag. If bit 7 = 1 then permits save comma
                                     ; existing file with the same name.
 LE77B:      .byte   $00
 LE77C:      .byte   $00
+
 LE77D:      .byte   $00
 LE77E:      .byte   $00
 LE77F:      .byte   $00
 SVC13FLG:   .byte   $00             ; Flag. If bit 7 = 1 then program executing was invoked by SVC #13.
 LE781:      .byte   $00
 LE782:      .byte   $00
-LE783:      .byte   $00
-LE784:      .byte   $00
+
+IRQFLAG:    .byte   $00             ; Flag. If bit 7 = 1, interrupt is IRQ (0 is BRK)
+NMIFLAG:    .byte   $00             ; Flag. If bit 7 = 1, interrupt is NMI
 LE785:      .byte   $00
 LE786:      .byte   $00
 LE787:      .byte   $00
@@ -628,15 +641,14 @@ LE79F:      .byte   $5C             ; ASCII character to be used in lieu of Back
 SYSERRMNAM: .byte   "SYSERRMSG.Z"
 CMDPROCNAM: .byte   "COMDPROC.Z"
 STARTUPNAM: .byte   "STARTUP.J"
-LE7BE:      .word   $0500           ; Pointer to start of system input line buffer.
-LE7C0:      .word   $0600           ; Pointer to start of system output line buffer
+INPLBUF:    .word   $0500           ; Pointer to start of system input line buffer.
+OUTLBUF:      .word   $0600           ; Pointer to start of system output line buffer
 LE7C2:      .word   $A000           ; Pointer to large transient buffer for COPYF, ETC.
 LE7C4:      .word   $1400           ; Size (NOT. final address) of large transient buffer.
 INTSRVP:    .word   INTSRV          ; Pointer to user-defined interrupt service routine.
 ERRRCVRYP:  .word   ERRRCVRY        ; Pointer to user-defined error recovery routine.     
 LE7CA:      .byte   $1A
-            .byte   $00
-            .byte   $00
+LE7CB:      .word   $0000
             .byte   $00
             .byte   $00
 LE7CF:      .byte   $00
@@ -698,7 +710,7 @@ SYSINIT:    ldx     #$00            ; Set DMA direction bit to read
             stx     DEFDRV          ; Init default drive
             lda     #$7F            ; Bank 0, write disable $8000 to $BFFF 
             sta     DEFBNK          ; 
-            jsr     LEBF5
+            jsr     INIMMAP
 
             lda     #$EA            ; Init $EAFA to $EAFC with NOPs
             ldx     #$02
@@ -744,16 +756,16 @@ LE866:      tya
 NMIPROC:    sta     INTSVA
             lda     #$00
             sta     HSRCW
-            sec
-            ror     LE784
-            jmp     LE8A9
+            sec                     ; Set NMI flag
+            ror     NMIFLAG         ;
+            jmp     INTPROC
 
-IRQPROC:    sta     INTSVA
-            pla
-            pha
-            and     #$10
-            bne     LE8B8
-            lda     INTSVA
+IRQPROC:    sta     INTSVA          ; Save accumulator on entry
+            pla                     ; Get and save back processor status register
+            pha                     ;
+            and     #$10            ; Check if BRK
+            bne     SVCINT          ; Yes, could be an SVC
+            lda     INTSVA          ; Recover accumulator
             jmp     (INTSRVP)       ; Jump to user-defined interrupt service routine
 
 
@@ -761,114 +773,116 @@ IRQPROC:    sta     INTSVA
 ;
 INTSRV:     lda     #$00
             sta     HSRCW
-            sta     LE784
-LE8A9:      sec
-            ror     LE783
-            pla
-            sta     PROCST
-            pla
-            sta     $DA
-            pla
-            jmp     LE8CF
+            sta     NMIFLAG         ; Clear NMI flag
+INTPROC:    sec                     ; Set IRQ flag
+            ror     IRQFLAG         ;
+            pla                     ; Get and save processor status register
+            sta     PROCST          ;
+            pla                     ; Get and save
+            sta     $DA             ; Program counter (low)
+            pla                     ; Program counter (high) in A
+            jmp     INTCONT
 
-LE8B8:      lda     #$00
+SVCINT:     lda     #$00
             sta     HSRCW
-            sta     LE783
-            pla
-            and     #$EF
-            sta     PROCST
-            pla
-            sec
-            sbc     #$02
-            sta     $DA
-            pla
-            sbc     #$00
+            sta     IRQFLAG         ; Clear IRQ flag
+            pla                     ; Get and save processor status register
+            and     #$EF            ; with N flag cleared
+            sta     PROCST          ;
+            pla                     ; Get and save address off SVC number (low)
+            sec                     ;
+            sbc     #$02            ;
+            sta     $DA             ; 
+            pla                     ; Get address of SVC number (high)
+            sbc     #$00            ;
 
-LE8CF:  sta     $DB
-        stx     XREG
-        sty     YREG
-        cld
-        tsx
-        stx     STACKP
-        lda     BNKCTL
-        sta     BNKCFG
-        and     #$03
-        eor     #$03
-        sta     DATBANK
-        lda     BNKCFG
-        lsr     a
-        lsr     a
-        and     #$03
-        eor     #$03
-        sta     PRGBANK
-        lda     BNKCFG
-        ora     #$0F
-        sta     DEFBNK
-        jsr     LEBF5
-        lda     INTSVA
-        sta     ACCUM
-        bit     LE783
-        bmi     LE963
-        sec
-        ror     LE77F
-        ldx     #$02
-LE910:  lda     LE7D2,x
-        cmp     PRGBANK
-        bne     LE951
-        lda     LE7D5,x
-        cmp     $DA
-        bne     LE951
-        lda     LE7D8,x
-        cmp     $DB
-        bne     LE951
-        ldy     #$00
-        lda     PRGBANK
-        eor     DEFBNK
-        sta     BNKCTL
-        lda     LE7DB,x
-        sta     ($DA),y
-        lda     DEFBNK
-        sta     BNKCTL
-        lda     #$FF
-        sta     LE7D2,x
-        jsr     LFD54
-        jsr     LFD8D
-        jsr     PRNSTR
-        .byte   $0d, "BP", $00
-        jmp     LE9A1
+; Interrupt service routine (continued)
 
-LE951:  dex
-        bpl     LE910
-        lda     PRGBANK
-        bne     LE963
-        lda     SVCENB
-        sta     LE6D1
-        bpl     LE963
-        jmp     SVCPROC
+INTCONT:    sta     $DB             ; Save program counter (high)
+            stx     XREG            ; Save registers on entry
+            sty     YREG            ;
+            cld
+            tsx                     ; Save stack pointer on entry
+            stx     STACKP          ;
+            lda     BNKCTL          ; Save current I/O and bank config
+            sta     BNKCFG          ;
+            and     #$03            ; Save current data bank
+            eor     #$03            ;
+            sta     DATBANK         ;
+            lda     BNKCFG          ; Save current program bank
+            lsr     a               ;
+            lsr     a               ;
+            and     #$03            ;
+            eor     #$03            ;
+            sta     PRGBANK         ;
+            lda     BNKCFG          ; TODO 
+            ora     #$0F            ;
+            sta     DEFBNK          ;
+            jsr     INIMMAP         ;
+            lda     INTSVA          ; 
+            sta     ACCUM
+            bit     IRQFLAG         ; Is it an IRQ?
+            bmi     LE963
+            sec                     ; No, set the ???? flag
+            ror     LE77F           ;
+            ldx     #$02
+LE910:      lda     LE7D2,x
+            cmp     PRGBANK
+            bne     LE951
+            lda     LE7D5,x
+            cmp     $DA
+            bne     LE951
+            lda     LE7D8,x
+            cmp     $DB
+            bne     LE951
+            ldy     #$00
+            lda     PRGBANK
+            eor     DEFBNK
+            sta     BNKCTL
+            lda     LE7DB,x
+            sta     ($DA),y
+            lda     DEFBNK
+            sta     BNKCTL
+            lda     #$FF
+            sta     LE7D2,x
+            jsr     LFD54
+            jsr     LFD8D
+            jsr     PRNSTR
+            .byte   $0d, "BP", $00
+            jmp     LE9A1
 
-LE963:  jsr     LFD54
-        jsr     LFD8D
-        bit     LE783
-        bpl     LE999
-        jsr     PRNSTR
-        .byte   $0D, "INTERRUPT (", $00
-        bit     LE784
-        bpl     LE98E
-        jsr     PRNSTR
-        .byte   "NMI)", $00
-        jmp     LE9A1
+LE951:      dex
+            bpl     LE910
+            lda     PRGBANK
+            bne     LE963
+            lda     SVCENB
+            sta     LE6D1
+            bpl     LE963
+            jmp     SVCPROC
 
-LE98E:  jsr     PRNSTR
-        .byte   "IRQ)", $00
-        jmp     LE9A1
+LE963:      jsr     LFD54
+            jsr     LFD8D
+            bit     IRQFLAG
+            bpl     LE999
+            jsr     PRNSTR
+            .byte   $0D, "INTERRUPT (", $00
+            bit     NMIFLAG
+            bpl     LE98E
+            jsr     PRNSTR
+            .byte   "NMI)", $00
+            jmp     LE9A1
 
-LE999:  jsr     PRNSTR
-        .byte   $0D, "BRK", $00
+LE98E:      jsr     PRNSTR
+            .byte   "IRQ)", $00
+            jmp     LE9A1
 
-LE9A1:  jsr     PRNSTR
-        .byte   ", ", $00
-        jsr     LF94B
-        jmp     WARMST
+LE999:      jsr     PRNSTR
+            .byte   $0D, "BRK", $00
+
+LE9A1:      jsr     PRNSTR
+            .byte   ", ", $00
+            jsr     LF94B
+            jmp     WARMST
 
 ERROR52:  inc     ERRNUM
 ERROR51:  inc     ERRNUM
@@ -931,7 +945,7 @@ ERRRCVRY:
         lda     #$00
         sta     HSRCW
         cld
-        jsr     LEBF5
+        jsr     INIMMAP
         bit     LE782
         bpl     LEA2B
         pla
@@ -964,7 +978,7 @@ LEA2B:  pla
         jsr     LF9D1
         bit     LE77D
         bpl     LEA9B
-LEA75:  lda     ($CB),y
+LEA75:  lda     (INPBUFP),y
         cmp     #$0D
         beq     LEA81
         jsr     PRNCHAR
@@ -1015,8 +1029,8 @@ LEAD9:  ldx     #$00
         bne     LEAD9
         tay
         tax
-LEAE6:  lda     ($CB),y
-        sta     ($CD),y
+LEAE6:  lda     (INPBUFP),y
+        sta     (OUTBUFP),y
         dey
         bpl     LEAE6
         txa
@@ -1152,25 +1166,26 @@ LEBEA:  ldx     #$00
         bcc     LEBEA
         jmp     LF5C3
 
-LEBF5:  sec
-        ror     SEEIO               ; Set I/O space enable semaphore
-        lda     #$00
-        sta     LE6D2               ; TODO: Unknown variable
-        lda     DEFBNK              ; Set default bank config
-        sta     BNKCTL              ;
-        lda     #$7F                ;
-        sta     SVIA1DIR            ;
+; Init memory map config
+;
+INIMMAP:    sec
+            ror     SEEIO               ; Set I/O space enable semaphore
+            lda     #$00
+            sta     LE6D2               ; TODO: Unknown variable
+            lda     DEFBNK              ; Set default bank config
+            sta     BNKCTL              ;
+            lda     #$7F                ;
+            sta     SVIA1DIR            ;
 
-        ; This clears the break flag by forcing an rti
+            ; This clears the break flag by forcing an rti
 
-        lda     #>LEC11            ; Set return address to $EC11
-        pha
-        lda     #<LEC11
-        pha
-        php
-        rti
-
-LEC11:  rts
+            lda     #>@RETURN           ; Set return address to $EC11
+            pha
+            lda     #<@RETURN
+            pha
+            php
+            rti
+@RETURN:    rts
 
 
 ; Copy bank switch/restore routine to $0100-$0112
@@ -1636,7 +1651,7 @@ LEFA8:  stx     LE6D9
         cpx     #$0A
         bcc     LEFB2
         jsr     ERROR08
-LEFB2:  lda     LE652,x
+LEFB2:  lda     IOCHTBL,x
         sta     LE6DA
         rts
 
@@ -2244,7 +2259,7 @@ LF470:  sty     $02A2
         and     #$03
         sta     LE76B
         ldy     #$09
-LF47A:  ldx     LE652,y
+LF47A:  ldx     IOCHTBL,y
         bmi     LF491
         beq     LF491
         lda     LE65D,x
@@ -2252,7 +2267,7 @@ LF47A:  ldx     LE652,y
         bne     LF491
         lda     #$00
         sta     LE65C,x
-        sta     LE652,y
+        sta     IOCHTBL,y
 LF491:  dey
         bpl     LF47A
         ldx     LE76B
@@ -2351,7 +2366,7 @@ LF560:  lda     $DC
 LF567:  jsr     LEEF4
         ldx     LE6D9
         lda     LE6DA
-        sta     LE652,x
+        sta     IOCHTBL,x
         rts
 
 LF574:  ldy     #$08
@@ -2365,7 +2380,7 @@ LF584:  tya
         asl     a
         ora     #$80
         ldx     LE6D9
-        sta     LE652,x
+        sta     IOCHTBL,x
         sta     LE6DA
         rts
 
@@ -2394,7 +2409,7 @@ LF5C3:  ldx     #$00
 LF5C5:  jsr     LEFA8
         beq     LF62C
         ldx     #$09
-LF5CC:  lda     LE652,x
+LF5CC:  lda     IOCHTBL,x
         cmp     LE6DA
         bne     LF5D9
         cpx     LE6D9
@@ -2436,7 +2451,7 @@ LF61C:  lda     #$00
         sta     LE65C,x
 LF624:  ldx     LE6D9
         lda     #$00
-        sta     LE652,x
+        sta     IOCHTBL,x
 LF62C:  rts
 
         jsr     LEF90
@@ -2475,11 +2490,11 @@ LF65C:  ldx     LE6DB
         ldx     LE6DA
         sta     LE65C,x
         ldx     #$09
-LF680:  lda     LE652,x
+LF680:  lda     IOCHTBL,x
         cmp     LE6DA
         bne     LF68D
         lda     #$00
-        sta     LE652,x
+        sta     IOCHTBL,x
 LF68D:  dex
         bpl     LF680
         rts
@@ -2744,10 +2759,10 @@ LF892:  cmp     LE78C
         ldx     #$00
 
         ; Converts word at $C1-$C2,x into its 4-char ascii hex representation
-        ; at  ($CD),y
+        ; at  (OUTBUFP),y
 HEXWORD: 
         lda     $C2,x           ; Gets most significant byte
-        jsr     HEXBYTE           ; Converts it
+        jsr     HEXBYTE         ; Converts it
         lda     $C1,x           ; Gets less significant byte
 HEXBYTE: 
         pha                     ; Save byte
@@ -2764,7 +2779,7 @@ HEXNIBBLE:
         cmp     #$3A            ; Is it "9" or lower?
         bmi     LF8B6           ; Yes, goto store it
         adc     #$06            ; Nope, add 7 (6 + carry) to get hex digit
-LF8B6:  sta     ($CD),y         ; And store it
+LF8B6:  sta     (OUTBUFP),y     ; And store it
         iny                     ; Next position
         rts                     ; and return
 
@@ -2811,7 +2826,7 @@ LF8F1:  pha
 LF90B:  dec     $029F
         ldx     $0286
         iny
-        lda     ($CB),y
+        lda     (INPBUFP),y
         rts
 
 LF915:  sta     $D8
@@ -2829,7 +2844,7 @@ LF925:  jsr     LF930
 LF92E:  rts
 
         iny
-LF930:  lda     ($CB),y
+LF930:  lda     (INPBUFP),y
         beq     LF947
         bcs     LF93F
         cmp     #$0D
@@ -2844,32 +2859,32 @@ LF93F:  cmp     #$0D
 LF946:  sec
 LF947:  rts
 
-LF948:  jsr     LFD76           ; Set output line buffer as destination
+LF948:  jsr     SETOUTB         ; Set output line buffer as destination
 LF94B:  jsr     PRNSTR
         .byte   "P=", $0
         ldx     #$19
         jsr     HEXWORD
         lda     #':'
-        sta     ($CD),y
+        sta     (OUTBUFP),y
         iny
-        lda     PRGBANK           ; Load Current Program Bank
+        lda     PRGBANK         ; Load Current Program Bank
         clc
         adc     #$30            ; Convert to ASCII
-        sta     ($CD),y
+        sta     (OUTBUFP),y
         iny
         lda     #'/'
-        sta     ($CD),y
+        sta     (OUTBUFP),y
         iny
-        lda     DATBANK           ; Load Current Data Bank
+        lda     DATBANK         ; Load Current Data Bank
         clc
         adc     #$30            ; Convert to ASCII
-        sta     ($CD),y
+        sta     (OUTBUFP),y
         iny
         lda     #' '
-        sta     ($CD),y
+        sta     (OUTBUFP),y
         iny
         lda     #'('
-        sta     ($CD),y
+        sta     (OUTBUFP),y
         iny
         jsr     LF9DB
         jsr     LF9BA
@@ -2885,17 +2900,17 @@ LF98D:  dey
         iny
         jsr     HEXBYTE
         lda     #$29
-        sta     ($CD),y
+        sta     (OUTBUFP),y
         iny
         ldx     #$04
 LF99E:  lda     #$20
-        sta     ($CD),y
+        sta     (OUTBUFP),y
         iny
         lda     LF9CC,x
-        sta     ($CD),y
+        sta     (OUTBUFP),y
         iny
         lda     #$3D
-        sta     ($CD),y
+        sta     (OUTBUFP),y
         iny
         lda     STACKP,x
         jsr     HEXBYTE
@@ -2922,21 +2937,21 @@ LF9DB:  ldx     #$02
 LF9DD:  sty     $C5
         lda     #$00
         sta     $C6
-        lda     $CD
+        lda     OUTBUFP
         sta     $C3
-        lda     $CE
+        lda     OUTBUFP+1
         sta     $C4
         jsr     LF298
         ldy     #$00
         rts
 
 LF9F1:  ldy     #$00
-        lda     LE652,x
+        lda     IOCHTBL,x
         cmp     #$82
         bne     LFA05
-        lda     $CB
+        lda     INPBUFP
         sta     $F0
-        lda     $CC
+        lda     INPBUFP+1
         sta     $F1
         jmp     JINLINE
 
@@ -2944,20 +2959,20 @@ LFA05:  jsr     LFA22
         bcs     LFA17
         cmp     #$0D
         beq     LFA16
-        sta     ($CB),y
+        sta     (INPBUFP),y
         iny
         cpy     YLNLIM
         bcc     LFA05
 LFA16:  clc
 LFA17:  lda     #$0D
-        sta     ($CB),y
+        sta     (INPBUFP),y
         tya
         beq     LFA1F
         clc
 LFA1F:  ldy     #$00
         rts
 
-LFA22:  lda     LE652,x
+LFA22:  lda     IOCHTBL,x
         cmp     #$82
         bne     LFA33
         jsr     LFA4D
@@ -3017,7 +3032,7 @@ LFA78:  lda     $D9                 ; Push new PC to the stack
 ; PRNCHAR
 PRNCHAR: 
         sta     LE7D1
-        lda     LE652,x
+        lda     IOCHTBL,x
         cmp     #$82
         bne     LFA9A
         lda     LE7D1
@@ -3073,7 +3088,7 @@ LFAEF:  jsr     LFBAA
         lda     $C1
 LFAFE:  clc
         adc     #$30
-        sta     ($CD),y
+        sta     (OUTBUFP),y
         iny
         rts
 
@@ -3380,52 +3395,57 @@ LFD51:  rts
 LFD52:  clc                         ; Return OK
         rts
 
-LFD54:  lda     #$00
-        ldx     LE653
-        sta     LE653
-        jsr     LFD9B
-        lda     LE653
-        bne     LFD69
-        lda     #$82
-        sta     LE653
-LFD69:  ldy     #$00
-        
-        lda     LE7BE
-        sta     $CB
-        lda     LE7BE+1
-        sta     $CC
-        rts
+LFD54:      lda     #$00
+            ldx     CHANN1          ; Get input channel device
+            sta     CHANN1          ; And clears it
+            jsr     LFD9B
+            lda     CHANN1
+            bne     @CONT
+            lda     #$82
+            sta     CHANN1
+@CONT:      ldy     #$00
+            lda     INPLBUF         ; Set input line buffer
+            sta     INPBUFP         ;
+            lda     INPLBUF+1       ;
+            sta     INPBUFP+1       ;
+            rts
 
-LFD76:  lda     LE654
-        bne     LFD80
-        lda     #$82
-        sta     LE654
-LFD80:  ldy     #$00
-        lda     LE7C0
-        sta     $CD
-        lda     LE7C0+1
-        sta     $CE
-        rts
+; Set output buffer
+; Also clears Y
+;
+SETOUTB:    lda     CHANN2          ; Get output channel device
+            bne     @CONT           ; If set, continue
+            lda     #$82            ; If not, set to console
+            sta     CHANN2          ;
+@CONT:      ldy     #$00
+            lda     OUTLBUF         ; Set output line buffer
+            sta     OUTBUFP         ;
+            lda     OUTLBUF+1       ;
+            sta     OUTBUFP+1       ;
+            rts
 
-LFD8D:  lda     #$00
-        ldx     LE654
-        sta     LE654
-        jsr     LFD9B
-        jmp     LFD76
+LFD8D:      lda     #$00
+            ldx     CHANN2
+            sta     CHANN2
+            jsr     LFD9B
+            jmp     SETOUTB
 
-LFD9B:  bmi     LFDB7
-        beq     LFDB7
-        stx     LE6DA
-        ldx     #$09
-LFDA4:  lda     LE652,x
-        cmp     LE6DA
-        beq     LFDB7
-        dex
-        bpl     LFDA4
-        ldx     LE6DA
-        lda     #$00
-        sta     LE65C,x
-LFDB7:  rts
+; ????
+; Device number in X
+;
+LFD9B:      bmi     @RETURN
+            beq     @RETURN
+            stx     LE6DA
+            ldx     #$09
+@LOOP:      lda     IOCHTBL,x
+            cmp     LE6DA
+            beq     @RETURN
+            dex
+            bpl     @LOOP
+            ldx     LE6DA
+            lda     #$00
+            sta     LE65C,x
+@RETURN:    rts
 
 ; Console Input Routine
 ;
