@@ -181,10 +181,17 @@ MEMCOUNT:   .res 2                  ; Counter for memory copy operations
 
 CODOSSCRT:  .res $25                ; $C7 - $EB
     
-    INPBUFP           = $CB           ; (word) Pointer to input buffer
-    OUTBUFP           = $CD           ; (word) Pointer to output buffer
+    INPBUFP           = $CB         ; (word) Pointer to input buffer
+    OUTBUFP           = $CD         ; (word) Pointer to output buffer
 
-    L00D2           = $00D2         ; TODO
+    ; $D2-$D9 is a temporary area for two different uses:
+    ;   * Copy and execute the 
+    L00D2             = $D2         ; (word) Number of bytes to copy?
+
+    PCSAVE            = $DA         ; (word) Program counter
+
+    DMAENC            = $E7         ; (byte) Encoded K-1013 DMA address  
+
 
 INTSVA:     .res 1                  ; $EC  Accumulator save during SVC or IRQ processing.
 
@@ -431,7 +438,9 @@ LE65E:      .byte   $00
             .byte   $4C
             .byte   $00
 
-LE6C5:      .byte   $90   
+; K-1013 DMA buffer encoded addresses
+;
+DMAT:       .byte   $90   
             .byte   $8C
             .byte   $88
             .byte   $84
@@ -445,7 +454,7 @@ ACCUM:      .byte   $00             ; Accumulator
 PRGBANK:    .BYTE   $00             ; Current program bank
 DATBANK:    .BYTE   $00             ; Current data bank
 BNKCFG:     .BYTE   $00             ; Current bank configuration
-LE6D1:      .BYTE   $00
+SVCSTAT:    .BYTE   $00             ; SVC status (enabled/disables) at interrupt?
 DSTBANK:    .BYTE   $00             ; Destination bank for memory copy operations?
 
 LE6D3:      .byte   $7F
@@ -650,11 +659,11 @@ LE77E:      .byte   $00
 LE77F:      .byte   $00
 SVC13FLG:   .byte   $00             ; Flag. If bit 7 = 1 then program executing was invoked by SVC #13.
 LE781:      .byte   $00
-LE782:      .byte   $00
+VERBOSE:    .byte   $00             ; Flag. If bit 7 = 1, print human readable error msgs
 
 IRQFLAG:    .byte   $00             ; Flag. If bit 7 = 1, interrupt is IRQ (0 is BRK)
 NMIFLAG:    .byte   $00             ; Flag. If bit 7 = 1, interrupt is NMI
-LE785:      .byte   $00
+DEFSVCFLAG: .byte   $00             ; Flag. If bit 7 = 1, SVC enabled by default
 LE786:      .byte   $00
 LE787:      .byte   $00
 KBDECHO:    .byte   $00             ; Keyboard echo flag for CODOS. Set to $80 to enable echo.
@@ -685,7 +694,7 @@ SYSERRMNAM: .byte   "SYSERRMSG.Z"
 CMDPROCNAM: .byte   "COMDPROC.Z"
 STARTUPNAM: .byte   "STARTUP.J"
 INPLBUF:    .word   $0500           ; Pointer to start of system input line buffer.
-OUTLBUF:      .word   $0600           ; Pointer to start of system output line buffer
+OUTLBUF:    .word   $0600           ; Pointer to start of system output line buffer
 LE7C2:      .word   $A000           ; Pointer to large transient buffer for COPYF, ETC.
 LE7C4:      .word   $1400           ; Size (NOT. final address) of large transient buffer.
 INTSRVP:    .word   INTSRV          ; Pointer to user-defined interrupt service routine.
@@ -696,16 +705,19 @@ LE7CB:      .word   $0000
             .byte   $00
 DRIVERP:    .word   $0000           ; Pointer to current device driver
 SAVECH:     .byte   $00             ; Used for temporary save character in I/O functions
-LE7D2:      .byte   $FF
-            .byte   $FF
-            .byte   $FF
-LE7D5:      .byte   $00
+
+; Breakpoint table
+
+BPBANK:     .byte   $FF             ; BP 0
+            .byte   $FF             ; BP 1
+            .byte   $FF             ; BP 2
+BPADDRLO:   .byte   $00
             .byte   $00
             .byte   $00
-LE7D8:      .byte   $00
+BPADDRHI:   .byte   $00
             .byte   $00
             .byte   $00
-LE7DB:      .byte   $00
+BPOP:       .byte   $00
             .byte   $00
             .byte   $00
 
@@ -821,7 +833,7 @@ INTPROC:    sec                     ; Set IRQ flag
             pla                     ; Get and save processor status register
             sta     PROCST          ;
             pla                     ; Get and save
-            sta     $DA             ; Program counter (low)
+            sta     PCSAVE          ; Program counter (low)
             pla                     ; Program counter (high) in A
             jmp     INTCONT
 
@@ -834,13 +846,13 @@ SVCINT:     lda     #$00
             pla                     ; Get and save address off SVC number (low)
             sec                     ;
             sbc     #$02            ;
-            sta     $DA             ; 
+            sta     PCSAVE          ; 
             pla                     ; Get address of SVC number (high)
             sbc     #$00            ;
 
 ; Interrupt service routine (continued)
 
-INTCONT:    sta     $DB             ; Save program counter (high)
+INTCONT:    sta     PCSAVE+1        ; Save program counter (high)
             stx     XREG            ; Save registers on entry
             sty     YREG            ;
             cld
@@ -864,121 +876,127 @@ INTCONT:    sta     $DB             ; Save program counter (high)
             lda     INTSVA          ; 
             sta     ACCUM
             bit     IRQFLAG         ; Is it an IRQ?
-            bmi     LE963
+            bmi     @DOIRQ
             sec                     ; No, set the ???? flag
             ror     LE77F           ;
-            ldx     #$02
-LE910:      lda     LE7D2,x
-            cmp     PRGBANK
-            bne     LE951
-            lda     LE7D5,x
-            cmp     $DA
-            bne     LE951
-            lda     LE7D8,x
-            cmp     $DB
-            bne     LE951
-            ldy     #$00
-            lda     PRGBANK
-            eor     DEFBNK
-            sta     BNKCTL
-            lda     LE7DB,x
-            sta     ($DA),y
-            lda     DEFBNK
-            sta     BNKCTL
-            lda     #$FF
-            sta     LE7D2,x
-            jsr     LFD54
-            jsr     LFD8D
+            ldx     #$02            ; Check which Break Point it is
+@LOOP:      lda     BPBANK,x        ; Is it the same program bank?
+            cmp     PRGBANK         ;
+            bne     @NEXT           ; No, check next BP
+            lda     BPADDRLO,x      ; Is it the same address?
+            cmp     PCSAVE          ;
+            bne     @NEXT           ; No, check next
+            lda     BPADDRHI,x      ; Maybe,
+            cmp     PCSAVE+1        ; lets see the MSB
+            bne     @NEXT           ; No, check next
+            ldy     #$00            ; Yes
+            lda     PRGBANK         ; TODO:
+            eor     DEFBNK          ;    What is it doing here?
+            sta     BNKCTL          ;
+            lda     BPOP,x          ; Get saved instruction byte at BP 
+            sta     (PCSAVE),y      ; and restore it to the PC
+            lda     DEFBNK          ; TODO: Again
+            sta     BNKCTL          ;    Why?
+            lda     #$FF            ; Invalidate/clear BP
+            sta     BPBANK,x        ;
+            jsr     LFD54           ; TODO: These two have to do with the
+            jsr     LFD8D           ;       output device
             jsr     PRNSTR
             .byte   $0d, "BP", $00
-            jmp     LE9A1
+            jmp     @PRNSTAT           ; Print status (Registers, pointers) and warm-start
+            ; Not reached
+@NEXT:      dex
+            bpl     @LOOP
 
-LE951:      dex
-            bpl     LE910
-            lda     PRGBANK
-            bne     LE963
-            lda     SVCENB
-            sta     LE6D1
-            bpl     LE963
-            jmp     SVCPROC
+            ; If we are here, either it is an SVC or just a BRK
 
-LE963:      jsr     LFD54
-            jsr     LFD8D
-            bit     IRQFLAG
-            bpl     LE999
-            jsr     PRNSTR
+            lda     PRGBANK         ; SVC only available in bank 0
+            bne     @DOIRQ          ;
+            lda     SVCENB          ; Are SVC enabled?
+            sta     SVCSTAT         ; Save SVC status
+            bpl     @DOIRQ          ; No, should be BRK
+            jmp     SVCPROC         ; Yes, serve it
+
+@DOIRQ:     jsr     LFD54           ; TODO: These two have to do with the
+            jsr     LFD8D           ;       output device
+            bit     IRQFLAG         ; Is it an IRQ?
+            bpl     @DOBRK          ; No, then it is a BRK
+            jsr     PRNSTR          ; Yes, print
             .byte   $0D, "INTERRUPT (", $00
-            bit     NMIFLAG
-            bpl     LE98E
-            jsr     PRNSTR
+            bit     NMIFLAG         ; Is it an NMI?
+            bpl     @NOTNMI         ; No, print IRQ
+            jsr     PRNSTR          ; Yes, print NMI
             .byte   "NMI)", $00
-            jmp     LE9A1
+            jmp     @PRNSTAT
 
-LE98E:      jsr     PRNSTR
+@NOTNMI:    jsr     PRNSTR
             .byte   "IRQ)", $00
-            jmp     LE9A1
+            jmp     @PRNSTAT
 
-LE999:      jsr     PRNSTR
+@DOBRK:     jsr     PRNSTR
             .byte   $0D, "BRK", $00
 
-LE9A1:      jsr     PRNSTR
+@PRNSTAT:   jsr     PRNSTR
             .byte   ", ", $00
             jsr     LF94B
             jmp     WARMST
+            ; Not reached
 
-ERROR52:  inc     ERRNUM
-ERROR51:  inc     ERRNUM
-ERROR50:  inc     ERRNUM
-ERROR49:  inc     ERRNUM
-ERROR48:  inc     ERRNUM
-ERROR47:  inc     ERRNUM
-ERROR46:  inc     ERRNUM
-ERROR45:  inc     ERRNUM
-ERROR44:  inc     ERRNUM
-ERROR43:  inc     ERRNUM
-ERROR42:  inc     ERRNUM
-ERROR41:  inc     ERRNUM
-ERROR40:  inc     ERRNUM
-ERROR39:  inc     ERRNUM
-ERROR38:  inc     ERRNUM
-ERROR37:  inc     ERRNUM        ; Required software package not loaded in memory. 
-ERROR36:  inc     ERRNUM
-ERROR35:  inc     ERRNUM
-ERROR34:  inc     ERRNUM
-ERROR33:  inc     ERRNUM
-ERROR32:  inc     ERRNUM
-ERROR31:  inc     ERRNUM
-ERROR30:  inc     ERRNUM
-ERROR29:  inc     ERRNUM
-ERROR28:  inc     ERRNUM
-ERROR27:  inc     ERRNUM
-ERROR26:  inc     ERRNUM
-ERROR25:  inc     ERRNUM
-ERROR24:  inc     ERRNUM
-ERROR23:  inc     ERRNUM
-ERROR22:  inc     ERRNUM
-ERROR21:  inc     ERRNUM
-ERROR20:  inc     ERRNUM
-ERROR19:  inc     ERRNUM
-ERROR18:  inc     ERRNUM
-ERROR17:  inc     ERRNUM
-ERROR16:  inc     ERRNUM
-ERROR15:  inc     ERRNUM
-ERROR14:  inc     ERRNUM
-ERROR13:  inc     ERRNUM
-ERROR12:  inc     ERRNUM
-ERROR11:  inc     ERRNUM
-ERROR10:  inc     ERRNUM
-ERROR09:  inc     ERRNUM
-ERROR08:  inc     ERRNUM
-ERROR07:  inc     ERRNUM
-ERROR06:  inc     ERRNUM
-ERROR05:  inc     ERRNUM
-ERROR04:  inc     ERRNUM
-ERROR03:  inc     ERRNUM
-ERROR02:  inc     ERRNUM
-ERROR01:  inc     ERRNUM
-          jmp     (ERRRCVRYP)
+; Error routines
+;
+ERROR52:    inc     ERRNUM
+ERROR51:    inc     ERRNUM
+ERROR50:    inc     ERRNUM
+ERROR49:    inc     ERRNUM
+ERROR48:    inc     ERRNUM
+ERROR47:    inc     ERRNUM
+ERROR46:    inc     ERRNUM
+ERROR45:    inc     ERRNUM
+ERROR44:    inc     ERRNUM
+ERROR43:  	inc     ERRNUM
+ERROR42:  	inc     ERRNUM
+ERROR41:  	inc     ERRNUM
+ERROR40:  	inc     ERRNUM
+ERROR39:  	inc     ERRNUM
+ERROR38:  	inc     ERRNUM
+ERROR37:  	inc     ERRNUM          ; Required software package not loaded in memory. 
+ERROR36:  	inc     ERRNUM
+ERROR35:  	inc     ERRNUM
+ERROR34:  	inc     ERRNUM
+ERROR33:  	inc     ERRNUM
+ERROR32:  	inc     ERRNUM
+ERROR31:  	inc     ERRNUM
+ERROR30:  	inc     ERRNUM
+ERROR29:  	inc     ERRNUM
+ERROR28:  	inc     ERRNUM
+ERROR27:  	inc     ERRNUM
+ERROR26:  	inc     ERRNUM
+ERROR25:  	inc     ERRNUM
+ERROR24:  	inc     ERRNUM
+ERROR23:  	inc     ERRNUM
+ERROR22:  	inc     ERRNUM
+ERROR21:  	inc     ERRNUM
+ERROR20:  	inc     ERRNUM
+ERROR19:  	inc     ERRNUM
+ERROR18:  	inc     ERRNUM
+ERROR17:  	inc     ERRNUM
+ERROR16:  	inc     ERRNUM
+ERROR15:  	inc     ERRNUM
+ERROR14:  	inc     ERRNUM
+ERROR13:  	inc     ERRNUM
+ERROR12:  	inc     ERRNUM
+ERROR11:  	inc     ERRNUM
+ERROR10:  	inc     ERRNUM
+ERROR09:  	inc     ERRNUM
+ERROR08:  	inc     ERRNUM
+ERROR07:  	inc     ERRNUM
+ERROR06:  	inc     ERRNUM
+ERROR05:  	inc     ERRNUM
+ERROR04:  	inc     ERRNUM
+ERROR03:  	inc     ERRNUM
+ERROR02:  	inc     ERRNUM
+ERROR01:  	inc     ERRNUM
+            jmp     (ERRRCVRYP)
 
         ; Error recovery routine
         ;
@@ -988,7 +1006,7 @@ ERRRCVRY:
         sta     HSRCW
         cld
         jsr     INIMMAP
-        bit     LE782
+        bit     VERBOSE
         bpl     LEA2B
         pla
         jmp     WARMST
@@ -1010,7 +1028,7 @@ LEA2B:  pla
         sbc     #$00
         sta     ERRADDR+1
         lda     #$80
-        sta     LE782
+        sta     VERBOSE
         jsr     LFD54
         jsr     LFD8D
         jsr     PRNSTR
@@ -1043,22 +1061,22 @@ LEA9B:  bit     LE77F
         bit     LE781
         bmi     LEABD
         lda     ERRADDR
-        sta     $DA
+        sta     PCSAVE
         lda     ERRADDR+1
-        sta     $DB
+        sta     PCSAVE+1
         ldx     #$04
 LEAB1:  lda     ERRORS,x            ; Copy registers at error
         sta     STACKP,x
         dex
         bpl     LEAB1
 LEABA:  jsr     LF948
-LEABD:  bit     LE782
-        bpl     WARMST
-        ldx     #$0B
-LEAC4:  lda     SYSERRMNAM,x        ; Get file with error messages
+LEABD:  bit     VERBOSE             ; Quiet? (Do not print error messages)
+        bpl     WARMST              ; N
+        ldx     #$0B                ; Get file with error messages
+@LOOP:  lda     SYSERRMNAM,x        ;
         sta     FNAMBUF,x           ;
         dex                         ;
-        bpl     LEAC4               ;
+        bpl     @LOOP               ;
         inx                         ; X == 0
         stx     LE6DC               ; Init retries?
         jsr     LF77A
@@ -1110,8 +1128,8 @@ LEB20:  jmp     LEB41
         sta     DATBANK
         ldx     #$7F
         stx     DEFBNK
-        ldx     LE785
-        stx     LE6D1
+        ldx     DEFSVCFLAG
+        stx     SVCSTAT
         ldx     #$FF
         bit     SVC13FLG
         bpl     LEB47
@@ -1168,8 +1186,8 @@ LEB7E:  pha
         bpl     LEBA8
         lda     #$01                    ; Set DMA direction byte to write
 LEBA8:  sta     HSRCW                   ;
-        lda     LE6D1
-        sta     SVCENB
+        lda     SVCSTAT                 ; Restore SVC status
+        sta     SVCENB                  ;
         lda     ACCUM
 .if  CODOS2_VER = 17
         sta     SAVEACC
@@ -1243,10 +1261,10 @@ LEC14:  lda     LEC32,x
         rts
 
 LEC1E:  ldx     #$07
-LEC20:  lda     LEC2A,x
+@LOOP:  lda     LEC2A,x
         sta     a:L00D2,x
         dex
-        bpl     LEC20
+        bpl     @LOOP
         rts
 
 LEC2A:  php
@@ -1259,7 +1277,7 @@ LEC2A:  php
         plp
         .byte   $4C                 ; JMP Absolute. As LEC2A is copied to $D2, it
                                     ; means it jumps to address contained in
-                                    ; $DA-$DB
+                                    ; $DA-$DB, which is PCSAVE (saved Program Counter)
 
         ; Bank switch/restore routine. Copied to 0100-0112
 
@@ -1422,34 +1440,33 @@ LED59:  and     #$03
 LED63:  jsr     LF470
         jmp     LED41
 
-LED69:  lda     $E7             ; Set DMA register to 
-        sta     ADMA
-        lda     LE73B
-        cmp     #$1A
-        bcc     LED78
-        jsr     ERROR44
-LED78:  lda     LE776
-        sta     HSRCW
-        ldx     #READWRITE
-        jsr     SNDCMD
-LED83:  lda     HSRCW
-        bmi     LED83
-        jsr     RSLTPH
-        lda     DSKSTAT
-        and     #$D8
-        beq     LEDA4
-        cmp     #$40
-        beq     LED99
-        jsr     ERROR40
-LED99:  lda     ST1
-        and     #$B7
-        cmp     #$80
-        beq     LEDA4
-        sec
-        rts
-
-LEDA4:  clc
-        rts
+LED69:      lda     DMAENC
+            sta     ADMA
+            lda     LE73B
+            cmp     #$1A
+            bcc     LED78
+            jsr     ERROR44
+LED78:      lda     LE776
+            sta     HSRCW
+            ldx     #READWRITE
+            jsr     SNDCMD
+LED83:      lda     HSRCW
+            bmi     LED83
+            jsr     RSLTPH
+            lda     DSKSTAT
+            and     #$D8
+            beq     LEDA4
+            cmp     #$40
+            beq     LED99
+            jsr     ERROR40
+LED99:      lda     ST1
+            and     #$B7
+            cmp     #$80
+            beq     LEDA4
+            sec
+            rts
+LEDA4:      clc
+            rts
 
 LEDA6:  sta     LE739
         lda     #$45                    ; Set command to write
@@ -1577,11 +1594,11 @@ LEEC2:  lda     #$00
         lda     #$0C
         jsr     LED0B
         lda     #$94
-        sta     $E7
+        sta     DMAENC
         lda     LE775
         bne     LEEE2
-        lda     LE6C5,x
-        sta     $E7
+        lda     DMAT,x
+        sta     DMAENC
         lda     #$00
 LEEE2:  rts
 
@@ -1659,7 +1676,7 @@ LEF62:  txa
         ldx     #$00
         jsr     LED0B
         lda     #$F8
-        sta     $E7
+        sta     DMAENC
         lda     LE795
         clc
         adc     #$11
@@ -1893,7 +1910,7 @@ LF0FC:      jsr     ASSIGNED        ; Get assigned device/file
             sta     @LF133
 @LF123:     lda     LE6D3
             sta     BNKCTL
-            lda     $D3
+            lda     L00D2+1
             beq     @LF17D
             ldy     $E2
             bne     @LF141
@@ -1941,7 +1958,7 @@ LF0FC:      jsr     ASSIGNED        ; Get assigned device/file
             adc     L00D2
             sta     L00D2
             bcs     @LF167
-@LF165:     dec     $D3
+@LF165:     dec     L00D2+1
 @LF167:     inc     $E3
             bne     @LF16D
             inc     $E4
@@ -2006,7 +2023,7 @@ LF0FC:      jsr     ASSIGNED        ; Get assigned device/file
             clc
             adc     MEMCOUNT
             sta     MEMCOUNT
-            lda     $D3
+            lda     L00D2+1
             adc     MEMCOUNT+1
             sta     MEMCOUNT+1
 @LF1EB:     ldx     CHANNEL
@@ -2048,23 +2065,23 @@ LF221:      jsr     LF24F
             jsr     LF081
             jsr     LEF12
             bcs     LF22F
-            jsr     ERROR46
-LF22F:      sec
-            lda     $CF
-            sbc     MEMCOUNT
-            lda     $D0
-            sbc     MEMCOUNT+1
-            lda     $D1
-            sbc     #$00
-            bcs     LF246
-            lda     $CF
-            sta     MEMCOUNT
-            lda     $D0
-            sta     MEMCOUNT+1
-LF246:      lda     MEMCOUNT
-            sta     L00D2
-            lda     MEMCOUNT+1
-            sta     $D3
+            jsr     ERROR46         ; System crash: file ordinal check error
+LF22F:      sec                     ; MEMCOUNT > File size?
+            lda     $CF             ;
+            sbc     MEMCOUNT        ;
+            lda     $D0             ;
+            sbc     MEMCOUNT+1      ;
+            lda     $D1             ;
+            sbc     #$00            ;
+            bcs     LF246           ; No
+            lda     $CF             ; Yes, adjust MEMCOUNT to file size
+            sta     MEMCOUNT        ;
+            lda     $D0             ;
+            sta     MEMCOUNT+1      ;
+LF246:      lda     MEMCOUNT        ; Set bytes to transfer
+            sta     L00D2           ;
+            lda     MEMCOUNT+1      ;
+            sta     L00D2+1         ;
             rts
 
 
@@ -3018,7 +3035,7 @@ LF99E:  lda     #$20
 LF9BA:  lda     PRGBANK
         eor     DEFBNK
         sta     BNKCTL
-        lda     ($DA),y
+        lda     (PCSAVE),y
         ldx     DEFBNK
         stx     BNKCTL
         rts
@@ -3229,7 +3246,7 @@ LFB1B:  sec
         rts
 
 LFB29:  jsr     LFB35
-        lda     $D3
+        lda     L00D2+1
         ora     L00D2
         bne     LFB6D
         lda     BUFFERP1+1
@@ -3238,14 +3255,14 @@ LFB34:  rts
 LFB35:  stx     $029C
         lda     #$00
         sta     L00D2
-        sta     $D3
+        sta     L00D2+1
         lda     BUFFERP1,x
         sta     $D4
         lda     BUFFERP1+1,x
         sta     $D5
         ldx     #$11
         clc
-LFB49:  ror     $D3
+LFB49:  ror     L00D2+1
         ror     L00D2
         ror     BUFFERP1+1
         ror     BUFFERP1
@@ -3256,9 +3273,9 @@ LFB49:  ror     $D3
         clc
         adc     $D4
         sta     L00D2
-        lda     $D3
+        lda     L00D2+1
         adc     $D5
-        sta     $D3
+        sta     L00D2+1
         bcc     LFB49
 LFB65:  ldx     $029C
         rts
@@ -3548,11 +3565,11 @@ LFD9B:      bmi     @RETURN         ; If it is a device or
             stx     DEVICE
             ldx     #$09
 @LOOP:      lda     IOCHTBL,x       ; Search for file in the I/O channel table
-            cmp     DEVICE           ; If it is assigned
+            cmp     DEVICE          ; If it is assigned
             beq     @RETURN         ; returns
             dex
             bpl     @LOOP
-            ldx     DEVICE           ; Not found in the device table
+            ldx     DEVICE          ; Not found in the device table
             lda     #$00            ; Close or free entry???
             sta     LE65C,x         ;
 @RETURN:    rts
