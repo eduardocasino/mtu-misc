@@ -8,7 +8,7 @@ entryhi=\\x${entry%??}
 load=${3#*x}
 loadlo=\\x${load#??}
 loadhi=\\x${load%??}
-size=$(printf '%x' $(stat -c"%s" $1))
+size=$(printf '%4.4x' $(stat -c"%s" $1))
 sizelo=\\x${size#??}
 sizehi=\\x${size%??}
 
