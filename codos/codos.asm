@@ -120,6 +120,9 @@
     SVCPROC         = $DD20         ; SVC processor
     LDD23           = $DD23
 
+    USRRAM          = $C000         ; K-1013 onboard user RAM
+    SYSRAM          = $E000         ; K-1013 onboard system RAM
+
     IOENABLE        = $FFFE         ; Enable I/O space from $BE00 to $BFFF
     IODISABLE       = $FFFF         ; Disable I/O space (enable RAM) from $BE00 to $BFFF
 
@@ -172,7 +175,11 @@ U7:         .res 3                  ; $BE  File position (3 bytes)
             ; $C1 - $EC : Seratch RAM used by CODOS nucleus,
             ; SVC Processor and Command Proc. 
 
-CODOSSCRT:  .res $2b                ; $C1 - $EB
+BUFFERP1:   .res 2
+MEMBUFF:    .res 2                  ; Pointer to buffer for memory copy operations
+MEMCOUNT:   .res 2                  ; Counter for memory copy operations
+
+CODOSSCRT:  .res $25                ; $C7 - $EB
     
     INPBUFP           = $CB           ; (word) Pointer to input buffer
     OUTBUFP           = $CD           ; (word) Pointer to output buffer
@@ -230,8 +237,8 @@ JTSTKEY:    jmp     TSTKEY          ; Console Key-depressed test subroutine
             jmp     NMIPROC
             jmp     IRQPROC
 LE615:      jmp     LDD23
-JERROR37:   jmp     ERROR37         ; Jump to " Required software package not loaded" error message
-JINLINE:    jmp     INLINE
+JERROR37:   jmp     ERROR37         ; Jump to "Required software package not loaded" error message
+JINLINE:    jmp     INLINE          ; Jump to input an entire line from the keyboard
             jmp     CIN
 JCOUT:      jmp     COUT            ; Jump to console-character-out routine with CTRL-S/Q (XON/XOFF)
             jmp     JERROR37        ; Required software package not loaded in memory
@@ -250,7 +257,7 @@ DNT:        .byte   "N"             ; Null device driver
 
             ; Device driver dispatch table for input
 
-DDTI:       .word   NULDRV          ; Null driver device (DTI=$80)
+DDTI:       .word   NULDRVI         ; Input null driver device (DTI=$80)
 CINP:       .word   CIN             ; Console input routine (DTI=$82)
             .word   ERROR33         ; Input from output-only device, or vice-versa
             .word   ERROR33         ; Input from output-only device, or vice-versa
@@ -261,7 +268,7 @@ CINP:       .word   CIN             ; Console input routine (DTI=$82)
 
             ; Device driver dispatch table for output
 
-DDTO:       .word   NULDRVO         ; Null driver device (DTI=$80)
+DDTO:       .word   NULDRVO         ; Output null driver device (DTI=$80)
 COUTP:      .word   COUT            ; Console output routine (DTI = $82)
             .word   PRTOUT          ; Printer output routine (DTI = $84)
             .word   YOUT            ; "Y" output routine (DTI = $86)
@@ -283,111 +290,147 @@ CHANN2:     .byte   $82             ; Channel 2: Output from system monitor
             .byte   $00             ; Channel 8: Available (Output preferable)
             .byte   $00             ; Channel 9: Available (Output preferable)
 
+            ; 
 LE65C:      .byte   $06
 LE65D:      .byte   $00
 LE65E:      .byte   $00
+
             .byte   $00
             .byte   $00
             .byte   $00
+
             .byte   $00
             .byte   $00
             .byte   $00
+
             .byte   $00
             .byte   $00
             .byte   $E2
+
             .byte   $88
             .byte   $00
             .byte   $00
+
             .byte   $00
             .byte   $00
             .byte   $00
+
             .byte   $00
             .byte   $00
             .byte   $00
+
             .byte   $00
             .byte   $00
             .byte   $00
+
             .byte   $E1
             .byte   $84
             .byte   $00
+
             .byte   $00
             .byte   $00
             .byte   $00
+
             .byte   $00
             .byte   $00
             .byte   $00
+
             .byte   $00
             .byte   $00
             .byte   $00
+
             .byte   $00
             .byte   $E0
             .byte   $80
+
             .byte   $00
             .byte   $00
             .byte   $00
+
             .byte   $00
             .byte   $00
             .byte   $00
+
             .byte   $00
             .byte   $00
             .byte   $00
+
             .byte   $00
             .byte   $00
             .byte   $D7
+
             .byte   $5C
             .byte   $00
             .byte   $00
+
             .byte   $00
             .byte   $00
             .byte   $00
+
             .byte   $00
             .byte   $00
             .byte   $00
+
             .byte   $00
             .byte   $00
             .byte   $00
+
             .byte   $D6
             .byte   $58
             .byte   $00
+
             .byte   $00
             .byte   $00
             .byte   $00
+
             .byte   $00
             .byte   $00
             .byte   $00
+
             .byte   $00
             .byte   $00
             .byte   $00
+
             .byte   $00
             .byte   $D5
             .byte   $54
+
             .byte   $00
             .byte   $00
             .byte   $00
+
             .byte   $00
             .byte   $00
             .byte   $00
+
             .byte   $00
             .byte   $00
             .byte   $00
+
             .byte   $00
             .byte   $00
             .byte   $D4
+
             .byte   $50
             .byte   $00
             .byte   $00
+
             .byte   $00
             .byte   $00
             .byte   $00
+
             .byte   $00
             .byte   $00
             .byte   $00
+
             .byte   $00
             .byte   $00
             .byte   $00
+
             .byte   $D3
             .byte   $4C
             .byte   $00
+
 LE6C5:      .byte   $90   
             .byte   $8C
             .byte   $88
@@ -403,7 +446,7 @@ PRGBANK:    .BYTE   $00             ; Current program bank
 DATBANK:    .BYTE   $00             ; Current data bank
 BNKCFG:     .BYTE   $00             ; Current bank configuration
 LE6D1:      .BYTE   $00
-LE6D2:      .BYTE   $00
+DSTBANK:    .BYTE   $00             ; Destination bank for memory copy operations?
 
 LE6D3:      .byte   $7F
 LE6D4:      .byte   $00
@@ -411,8 +454,8 @@ LE6D5:      .byte   $00
 LE6D6:      .byte   $00
 LE6D7:      .byte   $00
 DEFBNK:     .byte   $7F             ; Default bank configuration
-LE6D9:      .byte   $00
-LE6DA:      .byte   $00
+CHANNEL:    .byte   $00             ; Current channel for I/O operations
+DEVICE:     .byte   $00             ; Current device/file for I/O operations
 
 LE6DB:      .byte   $00
 
@@ -593,7 +636,7 @@ LE773:      .byte   $07
 LE774:      .byte   $00
 LE775:      .byte   $00
 LE776:      .byte   $00             ; DMA Direction?
-LE777:      .byte   $00
+IGNORWRP:   .byte   $00             ; Flag. If bit 7 = 1, ignore memory write protection 
 LE778:      .byte   $00
 IGNORERR:   .byte   $00             ; Flag. If bit 7 = 1 then system will ignore (continue after)
                                     ; irrecoverable disk read errors (use a last resort only).
@@ -615,9 +658,9 @@ LE785:      .byte   $00
 LE786:      .byte   $00
 LE787:      .byte   $00
 KBDECHO:    .byte   $00             ; Keyboard echo flag for CODOS. Set to $80 to enable echo.
-LE789:      .byte   $03
-LE78A:      .byte   $13
-LE78B:      .byte   $1A
+ETX:        .byte   $03             ; ETX (CTRL-C)
+XOFF:       .byte   $13             ; XOFF
+EOF:        .byte   $1A             ; End of file
 LE78C:      .byte   $5F             ; _
 LE78D:      .byte   $3B             ; ;
 LE78E:      .byte   $2E             ; .
@@ -651,9 +694,8 @@ LE7CA:      .byte   $1A
 LE7CB:      .word   $0000
             .byte   $00
             .byte   $00
-LE7CF:      .byte   $00
-LE7D0:      .byte   $00
-LE7D1:      .byte   $00
+DRIVERP:    .word   $0000           ; Pointer to current device driver
+SAVECH:     .byte   $00             ; Used for temporary save character in I/O functions
 LE7D2:      .byte   $FF
             .byte   $FF
             .byte   $FF
@@ -1023,7 +1065,7 @@ LEAC4:  lda     SYSERRMNAM,x        ; Get file with error messages
         bne     WARMST
         jsr     LF592
 LEAD9:  ldx     #$00
-        jsr     LF9F1
+        jsr     GETLINE
         bcs     LEAF7
         dec     ERRNUM
         bne     LEAD9
@@ -1148,12 +1190,12 @@ LEBC4:  lda     CMDPROC                 ; Check if Command Processor is loaded
         rts                             ; Yes, return
 
 LEBCC:  ldx     #$09                    ; Get file name
-LEBCE:  lda     CMDPROCNAM,x            ;
+@LOOP:  lda     CMDPROCNAM,x            ;
         sta     FNAMBUF,x               ;
         dex                             ;
-        bpl     LEBCE                   ;
+        bpl     @LOOP                   ;
         ldx     #$00
-        stx     LE6DC               ; Init retries?
+        stx     LE6DC                   ; Init retries?
         jsr     LF592
         ldx     #$00
         txa
@@ -1168,18 +1210,20 @@ LEBEA:  ldx     #$00
 
 ; Init memory map config
 ;
+            .export INIMMAP
+
 INIMMAP:    sec
-            ror     SEEIO               ; Set I/O space enable semaphore
-            lda     #$00
-            sta     LE6D2               ; TODO: Unknown variable
-            lda     DEFBNK              ; Set default bank config
-            sta     BNKCTL              ;
-            lda     #$7F                ;
-            sta     SVIA1DIR            ;
+            ror     SEEIO           ; Set I/O space enable semaphore
+            lda     #$00            ; Set destination bank for memory copy ops?
+            sta     DSTBANK         ;
+            lda     DEFBNK          ; Set default bank config
+            sta     BNKCTL          ;
+            lda     #$7F            ;
+            sta     SVIA1DIR        ;
 
             ; This clears the break flag by forcing an rti
 
-            lda     #>@RETURN           ; Set return address to $EC11
+            lda     #>@RETURN       ; Set return address to $EC11
             pha
             lda     #<@RETURN
             pha
@@ -1279,7 +1323,7 @@ GETDRVST:
         bne     LEC91           ; Always jump
 SENSE:  ldx     #SENSEINT       ; Send Sense interrupt command to the disk controller
 LEC91:  jsr     SNDCMD
-RSLTPH:  ldx     #$00
+RSLTPH: ldx     #$00
 LEC96:  lda     MSTR
         bpl     LEC96
         and     #$40
@@ -1541,7 +1585,7 @@ LEEC2:  lda     #$00
         lda     #$00
 LEEE2:  rts
 
-LEEE3:  ldy     LE6DA
+LEEE3:  ldy     DEVICE
         ldx     #$00
 LEEE8:  lda     LE65C,y
         sta     $DC,x
@@ -1551,7 +1595,7 @@ LEEE8:  lda     LE65C,y
         bmi     LEEE8
         rts
 
-LEEF4:  ldy     LE6DA
+LEEF4:  ldy     DEVICE
         ldx     #$00
 LEEF9:  lda     $DC,x
         sta     LE65C,y
@@ -1647,26 +1691,42 @@ LEF9F:  cpx     NDRIVES
         jsr     ERROR05
 LEFA7:  rts
 
-LEFA8:  stx     LE6D9
-        cpx     #$0A
-        bcc     LEFB2
-        jsr     ERROR08
-LEFB2:  lda     IOCHTBL,x
-        sta     LE6DA
-        rts
 
-LEFB9:  jsr     LEFA8
-        bne     LEFC1
-        jsr     ERROR09
-LEFC1:  tax
-        rts
+; Get device or file from channel
+;
+; Saves device into DEVICE and returns in into A
+; Does not return on error
+;
+            .export GETDEV
 
-LEFC3:  jsr     LEE70
-LEFC6:  lda     $DC
-        and     #$20
-        beq     LEFCF
-        jsr     ERROR07
-LEFCF:  rts
+GETDEV:     stx     CHANNEL         ; Save channel
+            cpx     #$0A            ; Is it valid?
+            bcc     @CONT           ; Yes, go on
+            jsr     ERROR08         ; Nop, Missing or illegal channel number.
+@CONT:      lda     IOCHTBL,x       ; Get device or file
+            sta     DEVICE          ; And save it
+            rts
+
+; Get assigned device/file to channel in X
+;
+; Saves device into DEVICE and returns device in X.
+; Does not return on error
+;
+            .export ASSIGNED
+
+ASSIGNED:   jsr     GETDEV          ; Get device for channel
+            bne     @RET            ; Valid, return            
+            jsr     ERROR09         ; Channel needed is not assigned
+@RET:       tax
+            rts
+
+
+LEFC3:      jsr     LEE70
+LEFC6:      lda     $DC
+            and     #$20
+            beq     @RET
+            jsr     ERROR07         ; Locked file violation
+@RET:       rts
 
 LEFD0:  lda     #$00
         sta     LE76F
@@ -1773,7 +1833,7 @@ LF094:  rts
         sta     $CF
         sta     $D0
         sta     $D1
-LF0A4:  jsr     LEFB9
+LF0A4:  jsr     ASSIGNED
         bmi     LF0D5
         jsr     LF081
         lda     $CF
@@ -1798,7 +1858,7 @@ LF0CF:  jsr     LEDB2
         jsr     LEEF4
 LF0D5:  rts
 
-        jsr     LEFB9
+        jsr     ASSIGNED
         bmi     LF0FB
         jsr     LEFC3
         jsr     LEFD0
@@ -1816,398 +1876,432 @@ LF0D5:  rts
 LF0F8:  jsr     LEEF4
 LF0FB:  rts
 
-LF0FC:  jsr     LEFB9
-        bpl     LF104
-        jmp     LF1AB
+LF0FC:      jsr     ASSIGNED        ; Get assigned device/file
+            bpl     @ISFILE         ; Check if a file
+            jmp     @ISDEV          ; Jump if a device
 
-LF104:  jsr     LF221
-        lda     $E5
-        sta     LF146
-        sta     LF138
-        sta     LF186
-        sta     LF132
-        lda     $E6
-        sta     LF147
-        sta     LF139
-        sta     LF187
-        sta     LF133
-LF123:  lda     LE6D3
-        sta     BNKCTL
-        lda     $D3
-        beq     LF17D
-        ldy     $E2
-        bne     LF141
-LF131:  .byte   $B9
-LF132:  brk
-LF133:  cpx     #$91
-        .byte   $C3
-        iny
-        .byte   $B9
-LF138:  brk
-LF139:  cpx     #$91
-        .byte   $C3
-        iny
-        bne     LF131
-        beq     LF158
-LF141:  ldx     $E2
-        ldy     #$00
-LF145:  .byte   $BD
-LF146:  brk
-LF147:  cpx     #$91
-        .byte   $C3
-        iny
-        inx
-        bne     LF145
-        tya
-        beq     LF158
-        clc
-        adc     $C3
-        sta     $C3
-        bcc     LF15A
-LF158:  inc     $C4
-LF15A:  lda     $E2
-        beq     LF165
-        clc
-        adc     L00D2
-        sta     L00D2
-        bcs     LF167
-LF165:  dec     $D3
-LF167:  inc     $E3
-        bne     LF16D
-        inc     $E4
-LF16D:  lda     DEFBNK
-        sta     BNKCTL
-        ldx     #$00
-        stx     $E2
-        jsr     LEDB2
-        jmp     LF123
+@ISFILE:    jsr     LF221
+            lda     $E5
+            sta     @LF146
+            sta     @LF138
+            sta     @LF186
+            sta     @LF132
+            lda     $E6
+            sta     @LF147
+            sta     @LF139
+            sta     @LF187
+            sta     @LF133
+@LF123:     lda     LE6D3
+            sta     BNKCTL
+            lda     $D3
+            beq     @LF17D
+            ldy     $E2
+            bne     @LF141
 
-LF17D:  lda     L00D2
-        beq     LF19F
-        ldy     $E2
-        ldx     #$00
-LF185:  .byte   $B9
-LF186:  brk
-LF187:  cpx     #$81
-        .byte   $C3
-        inc     $C3
-        bne     LF190
-        inc     $C4
-LF190:  dec     L00D2
-        beq     LF19A
-        iny
-        bne     LF185
-        jmp     LF167
+            ; Ugh, self modifying code ahead!
 
-LF19A:  iny
-        beq     LF167
-        sty     $E2
-LF19F:  lda     DEFBNK
-        sta     BNKCTL
-        jsr     LEEF4
-        jmp     LF1EB
+@LF131:     .byte   $B9             ; lda $E000, y
+@LF132:     .byte   <SYSRAM
+@LF133:     .byte   >SYSRAM
 
-LF1AB:  and     #$7F
-        tax
-        lda     DDTI,x
-        sta     LE7CF
-        lda     DDTI+1,x
-        sta     LE7D0
-        jsr     LF24F
-        jsr     LF246
-        lda     #$00
-        sec
-        sbc     $C5
-        sta     $C5
-        lda     #$00
-        sbc     $C6
-        sta     $C6
-        ora     $C5
-        beq     LF1EB
-LF1D1:  jsr     LF1F7
-        bcs     LF1DE
-        inc     $C5
-        bne     LF1D1
-        inc     $C6
-        bne     LF1D1
-LF1DE:  lda     L00D2
-        clc
-        adc     $C5
-        sta     $C5
-        lda     $D3
-        adc     $C6
-        sta     $C6
-LF1EB:  ldx     LE6D9
-        clc
-        lda     $C5
-        ora     $C6
-        bne     LF1F6
-        sec
-LF1F6:  rts
+            sta     (MEMBUFF), y
+            iny
 
-LF1F7:  lda     DEFBNK
-        sta     BNKCTL
-        jsr     LF219
-        ldx     LE6D3
-        stx     BNKCTL
-        nop
-        nop
-        nop
-        bcs     LF217
-        clc
-        ldx     #$00
-        sta     ($C3,x)
-        inc     $C3
-        bne     LF216
-        inc     $C4
-LF216:  rts
+            .byte   $B9             ; lda $E000, y
+@LF138:     .byte   <SYSRAM
+@LF139:     .byte   >SYSRAM
 
-LF217:  sec
-        rts
+            sta     (MEMBUFF), y
+            iny
 
-LF219:  jmp     (LE7CF)
+            bne     @LF131
+            beq     @LF158
+@LF141:     ldx     $E2
+            ldy     #$00
 
-NULDRV:     lda     LE78B
-NULDRVO:    sec
+@LF145:     .byte   $BD             ; lda $E000, x
+@LF146:     .byte   <SYSRAM
+@LF147:     .byte   >SYSRAM
+
+            sta     (MEMBUFF), y
+            iny
+
+            inx
+            bne     @LF145
+            tya
+            beq     @LF158
+            clc
+            adc     MEMBUFF
+            sta     MEMBUFF
+            bcc     @LF15A
+@LF158:     inc     MEMBUFF+1
+@LF15A:     lda     $E2
+            beq     @LF165
+            clc
+            adc     L00D2
+            sta     L00D2
+            bcs     @LF167
+@LF165:     dec     $D3
+@LF167:     inc     $E3
+            bne     @LF16D
+            inc     $E4
+@LF16D:     lda     DEFBNK
+            sta     BNKCTL
+            ldx     #$00
+            stx     $E2
+            jsr     LEDB2
+            jmp     @LF123
+
+@LF17D:     lda     L00D2
+            beq     @LF19F
+            ldy     $E2
+            ldx     #$00
+
+@LF185:     .byte   $B9             ; lda $E000, y
+@LF186:     .byte   <SYSRAM
+@LF187:     .byte   >SYSRAM
+
+            sta     (MEMBUFF,x)
+            inc     MEMBUFF
+            bne     @LF190
+            inc     MEMBUFF+1
+@LF190:     dec     L00D2
+            beq     @LF19A
+            iny
+            bne     @LF185
+            jmp     @LF167
+
+@LF19A:     iny
+            beq     @LF167
+            sty     $E2
+@LF19F:     lda     DEFBNK
+            sta     BNKCTL
+            jsr     LEEF4
+            jmp     @LF1EB
+
+@ISDEV:     and     #$7F            ; Clear device's higher bit
+            tax                     ; and use it as an index
+            lda     DDTI,x          ; to get the device's driver
+            sta     DRIVERP         ;
+            lda     DDTI+1,x        ;
+            sta     DRIVERP+1       ;
+            jsr     LF24F
+            jsr     LF246
+            lda     #$00
+            sec
+            sbc     MEMCOUNT
+            sta     MEMCOUNT
+            lda     #$00
+            sbc     MEMCOUNT+1
+            sta     MEMCOUNT+1
+            ora     MEMCOUNT
+            beq     @LF1EB
+@LF1D1:     jsr     LF1F7
+            bcs     @LF1DE
+            inc     MEMCOUNT
+            bne     @LF1D1
+            inc     MEMCOUNT+1
+            bne     @LF1D1
+@LF1DE:     lda     L00D2
+            clc
+            adc     MEMCOUNT
+            sta     MEMCOUNT
+            lda     $D3
+            adc     MEMCOUNT+1
+            sta     MEMCOUNT+1
+@LF1EB:     ldx     CHANNEL
+            clc
+            lda     MEMCOUNT
+            ora     MEMCOUNT+1
+            bne     @RET
+            sec
+@RET:       rts
+
+
+LF1F7:      lda     DEFBNK
+            sta     BNKCTL
+            jsr     JDRIVERP
+            ldx     LE6D3
+            stx     BNKCTL
+            nop
+            nop
+            nop
+            bcs     LF217
+            clc
+            ldx     #$00
+            sta     (MEMBUFF,x)
+            inc     MEMBUFF
+            bne     LF216
+            inc     MEMBUFF+1
+LF216:      rts
+
+LF217:      sec
             rts
 
-LF221:  jsr     LF24F
-        jsr     LF081
-        jsr     LEF12
-        bcs     LF22F
-        jsr     ERROR46
-LF22F:  sec
-        lda     $CF
-        sbc     $C5
-        lda     $D0
-        sbc     $C6
-        lda     $D1
-        sbc     #$00
-        bcs     LF246
-        lda     $CF
-        sta     $C5
-        lda     $D0
-        sta     $C6
-LF246:  lda     $C5
-        sta     L00D2
-        lda     $C6
-        sta     $D3
-        rts
+JDRIVERP:   jmp     (DRIVERP)       ; Jumps to current device driver's routine
 
-LF24F:  lda     LE6D2
-        bne     LF26C
-        lda     $C4
-        bne     LF260
-        lda     $C3
-        cmp     #$B0
-        bcc     LF26C
-        bcs     LF264
-LF260:  cmp     #$02
-        bcs     LF26C
-LF264:  bit     LE777
-        bmi     LF26C
-        jsr     ERROR17
-LF26C:  lda     $C5
-        clc
-        adc     $C3
-        lda     $C6
-        adc     $C4
-        bcc     LF27A
-        jsr     ERROR16
-LF27A:  cmp     #$E0
-        bcc     LF28B
-        lda     LE6D2
-        bne     LF28B
-        bit     LE777
-        bmi     LF28B
-        jsr     ERROR17
-LF28B:  nop
-LF28C:  lda     LE6D2
-        and     #$03
-        eor     DEFBNK
-        sta     LE6D3
-        rts
+NULDRVI:    lda     EOF             ; Just returns "End of file"
+NULDRVO:    sec                     ; Error
+            rts                     ;
 
-LF298:  jsr     LEFB9
-        bpl     LF2A0
-        jmp     LF385
+LF221:      jsr     LF24F
+            jsr     LF081
+            jsr     LEF12
+            bcs     LF22F
+            jsr     ERROR46
+LF22F:      sec
+            lda     $CF
+            sbc     MEMCOUNT
+            lda     $D0
+            sbc     MEMCOUNT+1
+            lda     $D1
+            sbc     #$00
+            bcs     LF246
+            lda     $CF
+            sta     MEMCOUNT
+            lda     $D0
+            sta     MEMCOUNT+1
+LF246:      lda     MEMCOUNT
+            sta     L00D2
+            lda     MEMCOUNT+1
+            sta     $D3
+            rts
 
-LF2A0:  jsr     LF28C
-        jsr     LEFC3
-        lda     $E5
-        sta     LF2EA
-        sta     LF2D6
-        sta     LF2DC
-        sta     LF341
-        lda     $E6
-        sta     LF2EB
-        sta     LF2D7
-        sta     LF2DD
-        sta     LF342
-LF2C2:  lda     LE6D3
-        sta     BNKCTL
-        lda     $C6
-        bne     LF2CF
-        jmp     LF336
 
-LF2CF:  ldy     $E2
-        bne     LF2E3
-LF2D3:  lda     ($C3),y
-        .byte   $99
-LF2D6:  brk
-LF2D7:  cpx     #$C8
-        lda     ($C3),y
-        .byte   $99
-LF2DC:  brk
-LF2DD:  cpx     #$C8
-        bne     LF2D3
-        beq     LF2F8
-LF2E3:  ldx     $E2
-        ldy     #$00
-LF2E7:  lda     ($C3),y
-        .byte   $9D
-LF2EA:  brk
-LF2EB:  cpx     #$C8
-        inx
-        bne     LF2E7
-        tya
-        clc
-        adc     $C3
-        sta     $C3
-        bcc     LF2FA
-LF2F8:  inc     $C4
-LF2FA:  lda     $E2
-        beq     LF305
-        clc
-        adc     $C5
-        sta     $C5
-        bcs     LF307
-LF305:  dec     $C6
-LF307:  lda     DEFBNK
-        sta     BNKCTL
-        jsr     LF088
-        inc     $E3
-        bne     LF316
-        inc     $E4
-LF316:  ldy     #$00
-        sty     $E2
-        jsr     LEF05
-        bcc     LF375
-        jsr     LEF26
-        lda     LE774
-        cmp     LE773
-        bne     LF2C2
-        jsr     LF3D2
-        ldy     LE76C
-        jsr     LEE85
-        jmp     LF2C2
+LF24F:      lda     DSTBANK         ; Check destination bank
+            bne     @DESTOK         ; Is not system bank, so don't check for
+                                    ; protected memory
+            lda     MEMBUFF+1
+            bne     @NOTZP          ; Jump if orig not in ZP
+            lda     MEMBUFF         ; Check if orig is in reserved ZP space
+            cmp     #$B0            ;
+            bcc     @DESTOK         ; Orig below $00B0 (OK)
+            bcs     @DESTPRTCT      ; Orig gt or eq $00B0 (reserved CODOS space)
+            ; Not reached
 
-LF336:  lda     $C5
-        beq     LF35E
-        ldy     $E2
-        ldx     #$00
-LF33E:  lda     ($C3,x)
-        .byte   $99
-LF341:  brk
-LF342:  cpx     #$E6
-        .byte   $C3
-        bne     LF349
-        inc     $C4
-LF349:  dec     $C5
-        beq     LF353
-        iny
-        bne     LF33E
-        jmp     LF307
+@NOTZP:     cmp     #$02            ; Check if orig below $0200 (reserved CODOS space)
+            bcs     @DESTOK         ; Orig gt or eq $0200
+@DESTPRTCT: bit     IGNORWRP        ; Is copy to CODOS space allowed?
+            bmi     @DESTOK         ; Yes, go on
+            jsr     ERROR17         ; No, reserved or protected memory violation
 
-LF353:  iny
-        beq     LF307
-        sty     $E2
-        lda     $DC
-        ora     #$40
-        sta     $DC
-LF35E:  lda     DEFBNK
-        sta     BNKCTL
-        jsr     LEF05
-        php
-        bcc     LF36D
-        jsr     LEF26
-LF36D:  jsr     LEEF4
-        ldx     LE6D9
-        plp
-        rts
+@DESTOK:    lda     MEMCOUNT        ; Check if <from> + <count> > $FFFF
+            clc
+            adc     MEMBUFF
+            lda     MEMCOUNT+1
+            adc     MEMBUFF+1
+            bcc     @DESTOK2        ; Dest beyond 0xFFFF?
+            jsr     ERROR16         ; yes, <from> address greater than <to> address
+@DESTOK2:   cmp     #>SYSRAM        ; Is it in SYSRAM (protected)
+            bcc     @DESTOK3        ; No, go on
+            lda     DSTBANK         ; Bank 0?
+            bne     @DESTOK3        ; No, go on
+            bit     IGNORWRP        ; Is copy to CODOS space allowed?
+            bmi     @DESTOK3        ; Yes, go on
+            jsr     ERROR17         ; No, reserved or protected memory violation
+@DESTOK3:   nop
+            ; Fallthrough
 
-LF375:  jsr     LEFD0
-        lda     $C6
-        bne     LF382
-        lda     LE76E
-        jsr     LEDB5
-LF382:  jmp     LF2C2
+; HERE
 
-LF385:  and     #$7F
-        tax
-        lda     DDTO,x
-        sta     LE7CF
-        lda     DDTO+1,x
-        sta     LE7D0
-        jsr     LF28C
-        lda     #$00
-        sec
-        sbc     $C5
-        sta     $C5
-        lda     #$00
-        sbc     $C6
-        sta     $C6
-        ora     $C5
-        beq     LF3B3
-LF3A8:  jsr     LF3B8
-        inc     $C5
-        bne     LF3A8
-        inc     $C6
-        bne     LF3A8
-LF3B3:  sec
-        ldx     LE6D9
-        rts
+LF28C:      lda     DSTBANK
+            and     #$03
+            eor     DEFBNK
+            sta     LE6D3
+            rts
 
-LF3B8:  ldx     DEFBNK
-        stx     BNKCTL
-        ldx     #$00
-        lda     ($C3,x)
-        jsr     LF219
-        lda     LE6D3
-        sta     BNKCTL
-        inc     $C3
-        bne     LF3D1
-        inc     $C4
-LF3D1:  rts
+LF298:      jsr     ASSIGNED
+            bpl     LF2A0
+            jmp     LF385
 
-LF3D2:  ldy     #$FF
-        lda     ($E9),y
-        tay
-LF3D7:  iny
-        lda     ($E9),y
-        bne     LF3D7
-        cpy     #$F9
-        bcc     LF3FE
-        ldy     #$00
-LF3E2:  iny
-        lda     ($E9),y
-        bne     LF3E2
-        cpy     #$F9
-        bcc     LF3FE
-        lda     $E3
-        bne     LF3F1
-        dec     $E4
-LF3F1:  dec     $E3
-        dec     $E2
-        jsr     LEF26
-        jsr     LEEF4
-        jsr     ERROR38
-LF3FE:  lda     #$FC
-        jsr     LEE85
-        tya
-        ldy     #$FF
-        sta     ($E9),y
-        rts
+LF2A0:      jsr     LF28C
+            jsr     LEFC3
+            lda     $E5
+            sta     LF2EA
+            sta     LF2D6
+            sta     LF2DC
+            sta     LF341
+            lda     $E6
+            sta     LF2EB
+            sta     LF2D7
+            sta     LF2DD
+            sta     LF342
+LF2C2:      lda     LE6D3
+            sta     BNKCTL
+            lda     MEMCOUNT+1
+            bne     LF2CF
+            jmp     LF336
+
+LF2CF:      ldy     $E2
+            bne     LF2E3
+LF2D3:      lda     (MEMBUFF),y
+        
+            .byte   $99             ; sta $E000, y
+LF2D6:      .byte   $00
+LF2D7:      .byte   $E0
+
+            iny
+            lda     (MEMBUFF),y
+        
+            .byte   $99             ; sta $E000, y
+LF2DC:      .byte   $00
+LF2DD:      .byte   $E0     
+            
+            iny
+            bne     LF2D3
+            beq     LF2F8
+LF2E3:      ldx     $E2
+            ldy     #$00
+LF2E7:      lda     (MEMBUFF),y
+
+            .byte   $9D             ; sta $E000, x
+LF2EA:      .byte   $00
+LF2EB:      .byte   $E0
+
+            iny
+            inx
+            bne     LF2E7
+            tya
+            clc
+            adc     MEMBUFF
+            sta     MEMBUFF
+            bcc     LF2FA
+LF2F8:      inc     MEMBUFF+1
+LF2FA:      lda     $E2
+            beq     LF305
+            clc
+            adc     MEMCOUNT
+            sta     MEMCOUNT
+            bcs     LF307
+LF305:      dec     MEMCOUNT+1
+LF307:      lda     DEFBNK
+            sta     BNKCTL
+            jsr     LF088
+            inc     $E3
+            bne     LF316
+            inc     $E4
+LF316:      ldy     #$00
+            sty     $E2
+            jsr     LEF05
+            bcc     LF375
+            jsr     LEF26
+            lda     LE774
+            cmp     LE773
+            bne     LF2C2
+            jsr     LF3D2
+            ldy     LE76C
+            jsr     LEE85
+            jmp     LF2C2
+
+LF336:      lda     MEMCOUNT
+            beq     LF35E
+            ldy     $E2
+            ldx     #$00
+LF33E:      lda     (MEMBUFF,x)
+
+            .byte   $99             ; sta $E000, y
+LF341:      .byte   $00
+LF342:      .byte   $E0     
+
+            inc     MEMBUFF
+
+            bne     LF349
+            inc     MEMBUFF+1
+LF349:      dec     MEMCOUNT
+            beq     LF353
+            iny
+            bne     LF33E
+            jmp     LF307
+
+LF353:      iny
+            beq     LF307
+            sty     $E2
+            lda     $DC
+            ora     #$40
+            sta     $DC
+LF35E:      lda     DEFBNK
+            sta     BNKCTL
+            jsr     LEF05
+            php
+            bcc     LF36D
+            jsr     LEF26
+LF36D:      jsr     LEEF4
+            ldx     CHANNEL
+            plp
+            rts
+
+LF375:      jsr     LEFD0
+            lda     MEMCOUNT+1
+            bne     LF382
+            lda     LE76E
+            jsr     LEDB5
+LF382:      jmp     LF2C2
+
+LF385:      and     #$7F
+            tax
+            lda     DDTO,x
+            sta     DRIVERP
+            lda     DDTO+1,x
+            sta     DRIVERP+1
+            jsr     LF28C
+            lda     #$00
+            sec
+            sbc     MEMCOUNT
+            sta     MEMCOUNT
+            lda     #$00
+            sbc     MEMCOUNT+1
+            sta     MEMCOUNT+1
+            ora     MEMCOUNT
+            beq     LF3B3
+LF3A8:      jsr     LF3B8
+            inc     MEMCOUNT
+            bne     LF3A8
+            inc     MEMCOUNT+1
+            bne     LF3A8
+LF3B3:      sec
+            ldx     CHANNEL
+            rts
+
+LF3B8:      ldx     DEFBNK
+            stx     BNKCTL
+            ldx     #$00
+            lda     (MEMBUFF,x)
+            jsr     JDRIVERP
+            lda     LE6D3
+            sta     BNKCTL
+            inc     MEMBUFF
+            bne     LF3D1
+            inc     MEMBUFF+1
+LF3D1:      rts
+
+LF3D2:      ldy     #$FF
+            lda     ($E9),y
+            tay
+LF3D7:      iny
+            lda     ($E9),y
+            bne     LF3D7
+            cpy     #$F9
+            bcc     LF3FE
+            ldy     #$00
+LF3E2:      iny
+            lda     ($E9),y
+            bne     LF3E2
+            cpy     #$F9
+            bcc     LF3FE
+            lda     $E3
+            bne     LF3F1
+            dec     $E4
+LF3F1:      dec     $E3
+            dec     $E2
+            jsr     LEF26
+            jsr     LEEF4
+            jsr     ERROR38
+LF3FE:      lda     #$FC
+            jsr     LEE85
+            tya
+            ldy     #$FF
+            sta     ($E9),y
+            rts
 
 LF409:  ldx     #$00
         stx     LE6DC
@@ -2229,16 +2323,16 @@ LF41A:  ldx     LE6DC
         bpl     LF45E
         stx     LE6DC
         ldx     #$09
-LF43A:  jsr     LEFA8
+LF43A:  jsr     GETDEV
         beq     LF453
         bmi     LF453
         tax
         lda     LE65D,x
         cmp     LE6DC
         bne     LF450
-        ldx     LE6D9
+        ldx     CHANNEL
         jsr     LF5C5
-LF450:  ldx     LE6D9
+LF450:  ldx     CHANNEL
 LF453:  dex
         bpl     LF43A
         ldx     LE6DC
@@ -2259,9 +2353,9 @@ LF470:  sty     $02A2
         and     #$03
         sta     LE76B
         ldy     #$09
-LF47A:  ldx     IOCHTBL,y
-        bmi     LF491
-        beq     LF491
+LF47A:  ldx     IOCHTBL,y       ; Get channel's device or file
+        bmi     LF491           ; Continue if it is a device driver
+        beq     LF491           ; or not assigned
         lda     LE65D,x
         cmp     LE76B
         bne     LF491
@@ -2321,14 +2415,14 @@ LF4F2:  lda     LE6DD,x
         sta     $DC
         jsr     LF567
         lda     #$40
-        sta     $C5
+        sta     MEMCOUNT
         lda     #$00
-        sta     $C6
+        sta     MEMCOUNT+1
         lda     #$DD
-        sta     $C3
+        sta     MEMBUFF
         lda     #$E6
-        sta     $C4
-        ldx     LE6D9
+        sta     MEMBUFF+1
+        ldx     CHANNEL
         jsr     LF298
         jsr     LF088
         jsr     LEEF4
@@ -2364,8 +2458,8 @@ LF560:  lda     $DC
         ora     #$C0
         sta     LE786
 LF567:  jsr     LEEF4
-        ldx     LE6D9
-        lda     LE6DA
+        ldx     CHANNEL
+        lda     DEVICE
         sta     IOCHTBL,x
         rts
 
@@ -2379,9 +2473,9 @@ LF576:  lda     DNT,y
 LF584:  tya
         asl     a
         ora     #$80
-        ldx     LE6D9
+        ldx     CHANNEL
         sta     IOCHTBL,x
-        sta     LE6DA
+        sta     DEVICE
         rts
 
 LF592:  ldx     #$00
@@ -2406,17 +2500,17 @@ LF5AD:  lda     LE6DC
         rts
 
 LF5C3:  ldx     #$00
-LF5C5:  jsr     LEFA8
+LF5C5:  jsr     GETDEV
         beq     LF62C
         ldx     #$09
 LF5CC:  lda     IOCHTBL,x
-        cmp     LE6DA
+        cmp     DEVICE
         bne     LF5D9
-        cpx     LE6D9
+        cpx     CHANNEL
         bne     LF624
 LF5D9:  dex
         bpl     LF5CC
-        ldx     LE6DA
+        ldx     DEVICE
         bmi     LF624
         jsr     LF081
         jsr     LF81C
@@ -2447,9 +2541,9 @@ LF60B:  dey
         bpl     LF61C
         jsr     LEEA5
 LF61C:  lda     #$00
-        ldx     LE6DA
+        ldx     DEVICE
         sta     LE65C,x
-LF624:  ldx     LE6D9
+LF624:  ldx     CHANNEL
         lda     #$00
         sta     IOCHTBL,x
 LF62C:  rts
@@ -2487,11 +2581,11 @@ LF65C:  ldx     LE6DB
         ldy     $DE
         jsr     LF691
         lda     #$00
-        ldx     LE6DA
+        ldx     DEVICE
         sta     LE65C,x
         ldx     #$09
 LF680:  lda     IOCHTBL,x
-        cmp     LE6DA
+        cmp     DEVICE
         bne     LF68D
         lda     #$00
         sta     IOCHTBL,x
@@ -2512,7 +2606,7 @@ LF691:  lda     ($E9),y
 LF6A2:  jmp     LEEA5
 
 LF6A5:  lda     #$00
-        sta     LE6DA
+        sta     DEVICE
         ldx     LE797
 LF6AD:  txa
         sec
@@ -2527,15 +2621,15 @@ LF6AD:  txa
         lda     LE65E,x
         cmp     LE6EC
         bne     LF6AD
-        stx     LE6DA
+        stx     DEVICE
         jsr     LEEE3
         lda     $DC
         rts
 
-LF6D2:  stx     LE6DA
+LF6D2:  stx     DEVICE
         jmp     LF6AD
 
-LF6D8:  ldx     LE6DA
+LF6D8:  ldx     DEVICE
         bne     LF6E0
         jsr     ERROR29
 LF6E0:  jsr     LEEE3
@@ -2758,30 +2852,33 @@ LF892:  cmp     LE78C
 
         ldx     #$00
 
-        ; Converts word at $C1-$C2,x into its 4-char ascii hex representation
-        ; at  (OUTBUFP),y
-HEXWORD: 
-        lda     $C2,x           ; Gets most significant byte
-        jsr     HEXBYTE         ; Converts it
-        lda     $C1,x           ; Gets less significant byte
-HEXBYTE: 
-        pha                     ; Save byte
-        lsr     a               ; Get upper nibble
-        lsr     a               ;
-        lsr     a               ;
-        lsr     a               ;
-        jsr     HEXNIBBLE           ; Convert it
-        pla                     ; Recover byte
-HEXNIBBLE: 
-        and     #$0F            ; and get lower nibble
-        clc
-        adc     #$30            ; Adds "0"
-        cmp     #$3A            ; Is it "9" or lower?
-        bmi     LF8B6           ; Yes, goto store it
-        adc     #$06            ; Nope, add 7 (6 + carry) to get hex digit
-LF8B6:  sta     (OUTBUFP),y     ; And store it
-        iny                     ; Next position
-        rts                     ; and return
+; Converts word at BUFFERP1,x into its 4-char ascii hex representation
+; at  (OUTBUFP),y
+;
+HEXWORD:    lda     BUFFERP1+1,x    ; Gets most significant byte
+            jsr     HEXBYTE         ; Converts it
+            lda     BUFFERP1,x      ; Gets less significant byte
+            ; Fallthrough
+
+; Converts byte in A into its 2-char ascii hex representation
+; at  (OUTBUFP),y
+;
+HEXBYTE:    pha                     ; Save byte
+            lsr     a               ; Get upper nibble
+            lsr     a               ;
+            lsr     a               ;
+            lsr     a               ;
+            jsr     @NIBBLE         ; Convert it
+            pla                     ; Recover byte
+@NIBBLE:    and     #$0F            ; and get lower nibble
+            clc
+            adc     #$30            ; Adds "0"
+            cmp     #$3A            ; Is it "9" or lower?
+            bmi     @STORE          ; Yes, goto store it
+            adc     #$06            ; Nope, add 7 (6 + carry) to get hex digit
+@STORE:     sta     (OUTBUFP),y     ; And store it
+            iny                     ; Next position
+            rts                     ; and return
 
 LF8BA:  lda     #$0A
         jsr     LF915
@@ -2816,11 +2913,11 @@ LF8F1:  pha
         jsr     LFB29
         pla
         clc
-        adc     $C1
-        sta     $C1
-        lda     $C2
+        adc     BUFFERP1
+        sta     BUFFERP1
+        lda     BUFFERP1+1
         adc     #$00
-        sta     $C2
+        sta     BUFFERP1+1
         bcc     LF90B
         jsr     ERROR19
 LF90B:  dec     $029F
@@ -2832,8 +2929,8 @@ LF90B:  dec     $029F
 LF915:  sta     $D8
         lda     #$00
         sta     $D9
-        sta     $C1
-        sta     $C2
+        sta     BUFFERP1
+        sta     BUFFERP1+1
         sta     $029F
         beq     LF925
 LF924:  iny
@@ -2934,131 +3031,147 @@ LF9D6:  lda     #$0D
         jmp     PRNCHAR
 
 LF9DB:  ldx     #$02
-LF9DD:  sty     $C5
+LF9DD:  sty     MEMCOUNT
         lda     #$00
-        sta     $C6
+        sta     MEMCOUNT+1
         lda     OUTBUFP
-        sta     $C3
+        sta     MEMBUFF
         lda     OUTBUFP+1
-        sta     $C4
+        sta     MEMBUFF+1
         jsr     LF298
         ldy     #$00
         rts
 
-LF9F1:  ldy     #$00
-        lda     IOCHTBL,x
-        cmp     #$82
-        bne     LFA05
-        lda     INPBUFP
-        sta     $F0
-        lda     INPBUFP+1
-        sta     $F1
-        jmp     JINLINE
+; Get line from input channel in X and store into INPBUFP
+; Returns carry clear if success, carry set on error (no input)
+; Returns length (excluding end of line) in A
+;
+;LF9F1
+            .export GETLINE
 
-LFA05:  jsr     LFA22
-        bcs     LFA17
-        cmp     #$0D
-        beq     LFA16
-        sta     (INPBUFP),y
-        iny
-        cpy     YLNLIM
-        bcc     LFA05
-LFA16:  clc
-LFA17:  lda     #$0D
-        sta     (INPBUFP),y
-        tya
-        beq     LFA1F
-        clc
-LFA1F:  ldy     #$00
-        rts
+GETLINE:    ldy     #$00
+            lda     IOCHTBL,x       ; Get device/file for channel in X
+            cmp     #$82            ; Is it the console?
+            bne     @FROMDEV        ; No, jump
+            lda     INPBUFP         ; Yes, set console input buffer
+            sta     $F0             ;
+            lda     INPBUFP+1       ;
+            sta     $F1             ;
+            jmp     JINLINE         ; Get entire line from keyboard and place it
+                                    ; into ($F0) (which now it is INPBUFP)
 
-LFA22:  lda     IOCHTBL,x
-        cmp     #$82
-        bne     LFA33
-        jsr     LFA4D
-        cmp     LE78B
-        beq     LFA32
-        clc
-LFA32:  rts
+@FROMDEV:   jsr     GETCHAR         ; Get character from device
+            bcs     @END            ; If none, end with carry set (error)
+            cmp     #$0D            ; End of line?
+            beq     @CCEND          ; Yes, end with carry clear (success)
+            sta     (INPBUFP),y     ; Store in buffer
+            iny                     ; Increment buffer index
+            cpy     YLNLIM          ; Buffer full?
+            bcc     @FROMDEV        ; No, get next character
+@CCEND:     clc                     ; Clear carry (success)
+@END:       lda     #$0D            ; Store end of line
+            sta     (INPBUFP),y     ;
+            tya                     ; Return length (excluding end of line)
+            beq     @RETURN         ; No input, return
+            clc
+@RETURN:    ldy     #$00
+            rts
 
-LFA33:  jsr     LFAA4
-        sec
-        ror     LE777
-        jsr     LF0FC
-        php
-        clc
-        rol     LE777
+; Get character from input channel in X and return it in A
+; Carry clear on success, carry set if no input
+;
+            .export GETCHAR
 
-LFA42:  ldy     $028B
-        ldx     $028A
-        lda     LE7D1
-        plp
-        rts
+GETCHAR:    lda     IOCHTBL,x       ; Get devive/file for channel in X
+            cmp     #$82            ; Is it the console?
+            bne     @FROMDEV        ; No, jump
+            jsr     JCINP           ; Yes, get character from console
+            cmp     EOF             ; No input?
+            beq     @RETURN         ; Return
+            clc                     ; Clear carry (success)
+@RETURN:    rts
 
-LFA4D:  jmp     (CINP)              ; Jump to console input routine
+@FROMDEV:   jsr     LFAA4
+            sec                     ; Set ignore memory write protection flag
+            ror     IGNORWRP        ;
+            jsr     LF0FC
+            php                     ; Save processor status
+            clc                     ; Clear gnore memory write protection flag
+            rol     IGNORWRP        ;
+
+            ; Fallthrough
+
+LFA42:      ldy     $028B
+            ldx     $028A
+            lda     SAVECH          ; Recover char
+            plp                     ; Recover processor status
+            rts
+
+JCINP:      jmp     (CINP)          ; Jump to console input routine
 
 
 ; Print string immediately following the JSR call
 ;
-PRNSTR: stx     $0287               ; Save X
-        ldx     #$02                ; X = 2
-        bne     LFA5A               ; Always jump
-        stx     $0287               ; Dead code?
-LFA5A:  sta     $0288               ; Save A
-        sty     $0289               ; Save Y
-        pla                         ; Get PC and save in $D8-$D9. PC points
-        sta     $D8                 ; to last opcode of instruction
-        pla                         ;
-        sta     $D9                 ;
-LFA66:  inc     $D8                 ; Increment PC
-        bne     LFA6C
-        inc     $D9
-LFA6C:  ldy     #$00
-        lda     ($D8),y             ; Get char
-        beq     LFA78               ; If null, end of string
-        jsr     PRNCHAR               ; Print char
-        jmp     LFA66               ; Loop
+            .export PRNSTR
 
-LFA78:  lda     $D9                 ; Push new PC to the stack
-        pha                         ;
-        lda     $D8                 ;
-        pha                         ;
-        ldy     $0289               ; Restore indexes
-        lda     $0288               ;
-        ldx     $0287               ;
-        rts
+PRNSTR:     stx     $0287           ; Save X
+            ldx     #$02            ; X = 2
+            bne     LFA5A           ; Always jump
+            stx     $0287           ; Dead code?
+LFA5A:      sta     $0288           ; Save A
+            sty     $0289           ; Save Y
+            pla                     ; Get PC and save in $D8-$D9. PC points
+            sta     $D8             ; to last opcode of instruction
+            pla                     ;
+            sta     $D9             ;
+LFA66:      inc     $D8             ; Increment PC
+            bne     LFA6C
+            inc     $D9
+LFA6C:      ldy     #$00
+            lda     ($D8),y         ; Get char
+            beq     LFA78           ; If null, end of string
+            jsr     PRNCHAR         ; Print char
+            jmp     LFA66           ; Loop
 
-; Print character in A
-; PRNCHAR
-PRNCHAR: 
-        sta     LE7D1
-        lda     IOCHTBL,x
-        cmp     #$82
-        bne     LFA9A
-        lda     LE7D1
-        jsr     LFABE
-        sec
-        rts
+LFA78:      lda     $D9             ; Push new PC to the stack
+            pha                     ;
+            lda     $D8             ;
+            pha                     ;
+            ldy     $0289           ; Restore indexes
+            lda     $0288           ;
+            ldx     $0287           ;
+            rts
 
-LFA9A:  jsr     LFAA7
-        jsr     LF298
-        php
-        jmp     LFA42
+; Print character in A to channel in X
+;
+PRNCHAR:    sta     SAVECH          ; Save char
+            lda     IOCHTBL,x       ; Get device/file for channel
+            cmp     #$82            ; Is it console?
+            bne     LFA9A           ; No, jump
+            lda     SAVECH          ; Recover char
+            jsr     JCOUTP          ; And output to console
+            sec                     ; Set carry (Why?)
+            rts
 
-LFAA4:  sta     LE7D1               ; Save char
-LFAA7:  stx     $028A               ; Save X
-        sty     $028B               ; Save Y
-        lda     #$01
-        sta     $C5
-        lda     #$00
-        sta     $C6
-        lda     #$D1
-        sta     $C3
-        lda     #$E7
-        sta     $C4
-        rts
+LFA9A:      jsr     LFAA7
+            jsr     LF298
+            php
+            jmp     LFA42
 
-LFABE:  jmp     (COUTP)             ; Jump to console output routine
+LFAA4:      sta     SAVECH          ; Save char
+LFAA7:      stx     $028A           ; Save X
+            sty     $028B           ; Save Y
+            lda     #$01
+            sta     MEMCOUNT
+            lda     #$00
+            sta     MEMCOUNT+1
+            lda     #<SAVECH
+            sta     MEMBUFF
+            lda     #>SAVECH
+            sta     MEMBUFF+1
+            rts
+
+JCOUTP:     jmp     (COUTP)             ; Jump to console output routine
 
         stx     $028C
         lda     #$00
@@ -3066,12 +3179,12 @@ LFABE:  jmp     (COUTP)             ; Jump to console output routine
         ldx     #$06
 LFACB:  lda     LFB05,x
         sta     $D8
-        lda     LFB06,x
+        lda     LFB05+1,x
         sta     $D9
         stx     $028D
         ldx     #$17
         jsr     LFB70
-        lda     $C1
+        lda     BUFFERP1
         bne     LFAE8
         bit     $029F
         bmi     LFAEC
@@ -3085,60 +3198,57 @@ LFAEF:  jsr     LFBAA
         dex
         bpl     LFACB
         ldx     $028C
-        lda     $C1
+        lda     BUFFERP1
 LFAFE:  clc
         adc     #$30
         sta     (OUTBUFP),y
         iny
         rts
 
-LFB05:  .byte   $0A
-LFB06:  .byte   $00
-        .byte   $64
-        .byte   $00
-        .byte   $E8
-        .byte   $03
-        bpl     LFB34       ; $10 $2F      ??
+LFB05:  .word   $000A
+        .word   $0064
+        .word   $03E8
+        .word   $2710
 
 LFB0D:  clc
-        lda     $C1,x
-        adc     $C1
-        sta     $C1
-        lda     $C2,x
-        adc     $C2
-        sta     $C2
+        lda     BUFFERP1,x
+        adc     BUFFERP1
+        sta     BUFFERP1
+        lda     BUFFERP1+1,x
+        adc     BUFFERP1+1
+        sta     BUFFERP1+1
         rts
 
 LFB1B:  sec
-        lda     $C1
-        sbc     $C1,x
-        sta     $C1
-        lda     $C2
-        sbc     $C2,x
-        sta     $C2
+        lda     BUFFERP1
+        sbc     BUFFERP1,x
+        sta     BUFFERP1
+        lda     BUFFERP1+1
+        sbc     BUFFERP1+1,x
+        sta     BUFFERP1+1
         rts
 
 LFB29:  jsr     LFB35
         lda     $D3
         ora     L00D2
         bne     LFB6D
-        lda     $C2
+        lda     BUFFERP1+1
 LFB34:  rts
 
 LFB35:  stx     $029C
         lda     #$00
         sta     L00D2
         sta     $D3
-        lda     $C1,x
+        lda     BUFFERP1,x
         sta     $D4
-        lda     $C2,x
+        lda     BUFFERP1+1,x
         sta     $D5
         ldx     #$11
         clc
 LFB49:  ror     $D3
         ror     L00D2
-        ror     $C2
-        ror     $C1
+        ror     BUFFERP1+1
+        ror     BUFFERP1
         dex
         beq     LFB65
         bcc     LFB49
@@ -3153,61 +3263,61 @@ LFB49:  ror     $D3
 LFB65:  ldx     $029C
         rts
 
-LFB69:  lda     $C2,x
+LFB69:  lda     BUFFERP1+1,x
         bne     LFB7B
 LFB6D:  jsr     ERROR19
 LFB70:  sty     $028E
-        lda     $C1,x
+        lda     BUFFERP1,x
         sta     $D4
         beq     LFB69
-        lda     $C2,x
+        lda     BUFFERP1+1,x
 LFB7B:  sta     $D5
         lda     #$00
-        sta     $C1,x
-        sta     $C2,x
+        sta     BUFFERP1,x
+        sta     BUFFERP1+1,x
         ldy     #$11
         clc
         bcc     LFB9F
-LFB88:  rol     $C1,x
-        rol     $C2,x
-        lda     $C1,x
+LFB88:  rol     BUFFERP1,x
+        rol     BUFFERP1+1,x
+        lda     BUFFERP1,x
         sec
         sbc     $D4
         sta     L00D2
-        lda     $C2,x
+        lda     BUFFERP1+1,x
         sbc     $D5
         bcc     LFB9F
-        sta     $C2,x
+        sta     BUFFERP1+1,x
         lda     L00D2
-        sta     $C1,x
-LFB9F:  rol     $C1
-        rol     $C2
+        sta     BUFFERP1,x
+LFB9F:  rol     BUFFERP1
+        rol     BUFFERP1+1
         dey
         bne     LFB88
         ldy     $028E
         rts
 
-LFBAA:  lda     $C1,x
-        sta     $C1
-        lda     $C2,x
-        sta     $C2
+LFBAA:  lda     BUFFERP1,x
+        sta     BUFFERP1
+        lda     BUFFERP1+1,x
+        sta     BUFFERP1+1
         rts
 
-LFBB3:  lda     $C1
-        sta     $C1,x
-        lda     $C2
-        sta     $C2,x
+LFBB3:  lda     BUFFERP1
+        sta     BUFFERP1,x
+        lda     BUFFERP1+1
+        sta     BUFFERP1+1,x
         rts
 
-LFBBC:  lda     $C2,x
+LFBBC:  lda     BUFFERP1+1,x
         pha
-        lda     $C1,x
+        lda     BUFFERP1,x
         pha
         jsr     LFBB3
         pla
-        sta     $C1
+        sta     BUFFERP1
         pla
-        sta     $C2
+        sta     BUFFERP1+1
         rts
 
         stx     $0297
@@ -3221,8 +3331,8 @@ LFBDB:  lda     $D6
         rts
 
 LFBE1:  lda     #$00
-        sta     $C1,x
-        sta     $C2,x
+        sta     BUFFERP1,x
+        sta     BUFFERP1+1,x
         stx     $028F
         tax
         jsr     LF925
@@ -3289,18 +3399,18 @@ LFC61:  rts
 LFC75:  sta     LE71F
         lda     #$58
         sta     SAVEDMAGIC
-        lda     $C5
+        lda     MEMCOUNT
         sec
-        sbc     $C3
-        sta     $C5
-        lda     $C6
-        sbc     $C4
-        sta     $C6
+        sbc     MEMBUFF
+        sta     MEMCOUNT
+        lda     MEMCOUNT+1
+        sbc     MEMBUFF+1
+        sta     MEMCOUNT+1
         bcs     LFC8F
         jsr     ERROR16
-LFC8F:  inc     $C5
+LFC8F:  inc     MEMCOUNT
         bne     LFC95
-        inc     $C6
+        inc     MEMCOUNT+1
 LFC95:  bit     LE77B
         bpl     LFC9D
         jsr     LFCF5
@@ -3310,38 +3420,38 @@ LFC9D:  ldx     #$02
         ldx     #$06
 LFCA6:  jsr     LFBAA
         ldx     #$05
-LFCAB:  lda     $C1,x
+LFCAB:  lda     BUFFERP1,x
         sta     LE721,x
         dex
         bpl     LFCAB
         jsr     LFCD9
-        ldx     LE6D9
+        ldx     CHANNEL
         jsr     LF298
         jsr     LFCEA
         bit     LE77B
         bpl     LFCC7
         jsr     LFCF5
-LFCC7:  ldx     LE6D9
+LFCC7:  ldx     CHANNEL
         lda     LE6D6
-        sta     LE6D2
+        sta     DSTBANK
         jsr     LF298
         lda     #$00
-        sta     LE6D2
+        sta     DSTBANK
         rts
 
 LFCD9:  lda     #$0A
-        sta     $C5
+        sta     MEMCOUNT
         lda     #$00
-        sta     $C6
+        sta     MEMCOUNT+1
         lda     #<SAVEDMAGIC
-        sta     $C3
+        sta     MEMBUFF
         lda     #>SAVEDMAGIC
-        sta     $C4
+        sta     MEMBUFF+1
         rts
 
 LFCEA:  ldx     #$05
 LFCEC:  lda     LE721,x
-        sta     $C1,x
+        sta     BUFFERP1,x
         dex
         bpl     LFCEC
         rts
@@ -3349,10 +3459,10 @@ LFCEC:  lda     LE721,x
 LFCF5:  ldx     #$01
 LFCF7:  lda     $C9,x
         pha
-        lda     $C3,x
+        lda     MEMBUFF,x
         sta     $C9,x
         pla
-        sta     $C3,x
+        sta     MEMBUFF,x
         dex
         bpl     LFCF7
         rts
@@ -3365,35 +3475,35 @@ LFD05:  sta     $0294               ; Save A in temporary storage
         bne     LFD33               ; Return with error
         jsr     LFCEA
         lda     LE71F
-        sta     LE6D2
+        sta     DSTBANK
         bit     LE77B
         bpl     LFD2C
         jsr     LFCF5
         lda     LE6D7
-        sta     LE6D2
-LFD2C:  ldx     LE6D9
+        sta     DSTBANK
+LFD2C:  ldx     CHANNEL
         jsr     LF0FC
         rts
 
 LFD33:  sec
         rts
 
-LFD35:  jsr     LFCD9
-        lda     #$00
-        sta     LE6D2
-        sec
-        ror     LE777
-        jsr     LF0FC
-        bcs     LFD51
-        rol     LE777
-        lda     SAVEDMAGIC          ; Check that the magic number is correct
-        cmp     #$58                ;
-        beq     LFD52               ; Yes, jump to return OK
-        sec                         ; Return error
-LFD51:  rts
+LFD35:      jsr     LFCD9
+            lda     #$00
+            sta     DSTBANK
+            sec                     ; Set ignore memory write protection flag
+            ror     IGNORWRP        ;
+            jsr     LF0FC
+            bcs     LFD51
+            rol     IGNORWRP        ; Clear ignore memory write protection flag
+            lda     SAVEDMAGIC      ; Check that the magic number is correct
+            cmp     #$58            ;
+            beq     LFD52           ; Yes, jump to return OK
+            sec                     ; Return error
+LFD51:      rts
 
-LFD52:  clc                         ; Return OK
-        rts
+LFD52:      clc                     ; Return OK
+            rts
 
 LFD54:      lda     #$00
             ldx     CHANN1          ; Get input channel device
@@ -3431,62 +3541,61 @@ LFD8D:      lda     #$00
             jmp     SETOUTB
 
 ; ????
-; Device number in X
+; Device or file number in X
 ;
-LFD9B:      bmi     @RETURN
-            beq     @RETURN
-            stx     LE6DA
+LFD9B:      bmi     @RETURN         ; If it is a device or
+            beq     @RETURN         ; not assigned, return
+            stx     DEVICE
             ldx     #$09
-@LOOP:      lda     IOCHTBL,x
-            cmp     LE6DA
-            beq     @RETURN
+@LOOP:      lda     IOCHTBL,x       ; Search for file in the I/O channel table
+            cmp     DEVICE           ; If it is assigned
+            beq     @RETURN         ; returns
             dex
             bpl     @LOOP
-            ldx     LE6DA
-            lda     #$00
-            sta     LE65C,x
+            ldx     DEVICE           ; Not found in the device table
+            lda     #$00            ; Close or free entry???
+            sta     LE65C,x         ;
 @RETURN:    rts
 
 ; Console Input Routine
 ;
-CIN:    jsr     JGETKEY
-        cmp     LE789
-        beq     LFDDC
-        cmp     LE78B
-        beq     LFDCE
-        bit     KBDECHO
-        bpl     LFDCD
-        jsr     JOUTCH
-LFDCD:  clc
-LFDCE:  rts
+CIN:        jsr     JGETKEY         ; Get key
+            cmp     ETX             ; End of text?
+            beq     JCNTRLC         ; Yes, process CTRL-C
+            cmp     EOF             ; End of file?
+            beq     @RETURN         ; Yes, return
+            bit     KBDECHO         ; No, is ECHO on?
+            bpl     @CCRET          ; No, return with carry clear
+            jsr     JOUTCH          ; Yes, echo character
+@CCRET:     clc
+@RETURN:    rts
 
 ; Console Output Routine
 ;
-COUT:   sta     $0299
-        jsr     JTSTKEY
-        bcc     LFDE9
-LFDD7:  cmp     LE789
-        bne     LFDDF
-LFDDC:  jmp     CNTRLC
+COUT:       sta     $0299           ; Save char
+            jsr     JTSTKEY         ; Check if key pressed
+            bcc     COUTC           ; No, output char
+CHKCTLC:    cmp     ETX             ; Is it CTRL-C?
+            bne     KEYPR           ; No, go on
+JCNTRLC:    jmp     CNTRLC          ; Process CTRL-C
+KEYPR:      cmp     XOFF            ; Is it XOFF?
+            bne     COUTC           ; No, output char
+            jsr     JGETKEY         ; Yes, get key
+            bpl     CHKCTLC         ; If it is atandard ASCII, check again
+COUTC:      lda     $0299           ; Output char
+            jmp     JOUTCH          ;
 
-LFDDF:  cmp     LE78A
-        bne     LFDE9
-        jsr     JGETKEY
-        bpl     LFDD7
-LFDE9:  lda     $0299
-        jmp     JOUTCH
-
-LFDEF:  jsr     LF45F
-        ldx     LE6DC
-        rts
+LFDEF:      jsr     LF45F
+            ldx     LE6DC
+            rts
 
 .if  CODOS2_VER = 17
 GETDRVSTKLUDGE:
-        jsr     GETDRVST
-@LOOP:  jsr     LF766
-        inx
-        bne     @LOOP
-        rts
+            jsr     GETDRVST
+@LOOP:      jsr     LF766
+            inx
+            bne     @LOOP
+            rts
 .endif
         ; ORIGIN OF CODOS OVERLAYS
 
