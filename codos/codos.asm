@@ -175,6 +175,8 @@ U7:         .res 3                  ; $BE  File position (3 bytes)
             ; $C1 - $EC : Seratch RAM used by CODOS nucleus,
             ; SVC Processor and Command Proc. 
 
+            .export BUFFERP1, MEMBUFF
+
 BUFFERP1:   .res 2
 MEMBUFF:    .res 2                  ; Pointer to buffer for memory copy operations
 MEMCOUNT:   .res 2                  ; Counter for memory copy operations
@@ -195,7 +197,9 @@ CODOSSCRT:  .res $25                ; $C7 - $EB
 
 INTSVA:     .res 1                  ; $EC  Accumulator save during SVC or IRQ processing.
 
-            ; $ED - $EF : Global RAM used by CODOS 
+            ; $ED - $EF : Global RAM used by CODOS
+ 
+            .exportzp ERRNUM, SVCENB
 
 ERRNUM:     .res 1                  ; $ED  Error number for user-defined error recovery.
 SVCENB:     .res 1                  ; $EE  ADDRESS OF SVC ENABLE FLAG
@@ -226,11 +230,6 @@ UNKNWN17:   .res 1                  ; $FF
     PRTOUT          = $D280         ; Printer output entry point
 
             .segment "cmdproc"
-
-CMDPROC:
-
-    LD846           = $D846
-    LD9FE           = $D9FE
 
             .segment "codos"
             
@@ -451,6 +450,8 @@ YREG:       .byte   $00             ; Y
 XREG:       .byte   $00             ; X
 ACCUM:      .byte   $00             ; Accumulator
 
+            .export PRGBANK
+
 PRGBANK:    .BYTE   $00             ; Current program bank
 DATBANK:    .BYTE   $00             ; Current data bank
 BNKCFG:     .BYTE   $00             ; Current bank configuration
@@ -458,10 +459,16 @@ SVCSTAT:    .BYTE   $00             ; SVC status (enabled/disables) at interrupt
 DSTBANK:    .BYTE   $00             ; Destination bank for memory copy operations?
 
 LE6D3:      .byte   $7F
-LE6D4:      .byte   $00
-LE6D5:      .byte   $00
+
+            .export NEWBNK, CHGBNKFLG
+
+NEWBNK:     .byte   $00             ; TODO:
+CHGBNKFLG:  .byte   $00             ; If set, switches to NEWBNK
 LE6D6:      .byte   $00
 LE6D7:      .byte   $00
+
+            .export DEFBNK
+
 DEFBNK:     .byte   $7F             ; Default bank configuration
 CHANNEL:    .byte   $00             ; Current channel for I/O operations
 DEVICE:     .byte   $00             ; Current device/file for I/O operations
@@ -614,8 +621,7 @@ LE758:      .byte   $00
 
             ; Error recovery
 
-ERRADDR:
-            .word   $0000           ; Address+1 where last error was detected by CODOS.
+ERRADDR:    .word   $0000           ; Address+1 where last error was detected by CODOS.
 ERRORS:     .byte   $00             ; Stack pointer at error
 ERRORP:     .byte   $00             ; Processor status at error
 ERRORY:     .byte   $00             ; Y at error
@@ -671,7 +677,7 @@ ETX:        .byte   $03             ; ETX (CTRL-C)
 XOFF:       .byte   $13             ; XOFF
 EOF:        .byte   $1A             ; End of file
 LE78C:      .byte   $5F             ; _
-LE78D:      .byte   $3B             ; ;
+SCOLON:     .byte   $3B             ; ;
 LE78E:      .byte   $2E             ; .
 LE78F:      .byte   $24             ; $
 LE790:      .byte   $3A             ; :
@@ -707,6 +713,8 @@ DRIVERP:    .word   $0000           ; Pointer to current device driver
 SAVECH:     .byte   $00             ; Used for temporary save character in I/O functions
 
 ; Breakpoint table
+
+            .export BPBANK, BPADDRLO, BPADDRHI, BPOP
 
 BPBANK:     .byte   $FF             ; BP 0
             .byte   $FF             ; BP 1
@@ -944,6 +952,14 @@ INTCONT:    sta     PCSAVE+1        ; Save program counter (high)
 
 ; Error routines
 ;
+            .export ERROR01, ERROR02, ERROR03, ERROR04, ERROR05, ERROR06, ERROR07, ERROR08
+            .export ERROR09, ERROR10, ERROR11, ERROR12, ERROR13, ERROR14, ERROR15, ERROR16
+            .export ERROR17, ERROR18, ERROR19, ERROR20, ERROR21, ERROR22, ERROR23, ERROR24
+            .export ERROR25, ERROR26, ERROR27, ERROR28, ERROR29, ERROR30, ERROR31, ERROR32
+            .export ERROR33, ERROR34, ERROR35, ERROR36, ERROR37, ERROR38, ERROR39, ERROR40
+            .export ERROR41, ERROR42, ERROR43, ERROR44, ERROR45, ERROR46, ERROR47, ERROR48
+            .export ERROR49, ERROR50, ERROR51, ERROR52
+
 ERROR52:    inc     ERRNUM
 ERROR51:    inc     ERRNUM
 ERROR50:    inc     ERRNUM
@@ -965,7 +981,7 @@ ERROR35:  	inc     ERRNUM
 ERROR34:  	inc     ERRNUM
 ERROR33:  	inc     ERRNUM
 ERROR32:  	inc     ERRNUM
-ERROR31:  	inc     ERRNUM
+ERROR31:  	inc     ERRNUM          ; Breakpoint table full (3 BP's already set).
 ERROR30:  	inc     ERRNUM
 ERROR29:  	inc     ERRNUM
 ERROR28:  	inc     ERRNUM
@@ -1114,16 +1130,19 @@ WARMST: cld
         jsr     LEBC4
         jmp     LD846
 
-        jsr     LD9FE
-        bit     LE6D5
-        bpl     LEB20
-        lda     LE6D4
-        sta     PRGBANK
-        sta     DATBANK
-LEB20:  jmp     LEB41
 
-        jsr     LD9FE
-        lda     LE6D4
+NEXT:       jsr     LD9FE           ; Continue execution
+            bit     CHGBNKFLG
+            bpl     LEB20
+            lda     NEWBNK
+            sta     PRGBANK
+            sta     DATBANK
+LEB20:      jmp     LEB41
+
+        .export LEB23
+
+LEB23:  jsr     LD9FE
+        lda     NEWBNK
         sta     PRGBANK
         sta     DATBANK
         ldx     #$7F
@@ -1252,13 +1271,14 @@ INIMMAP:    sec
 
 ; Copy bank switch/restore routine to $0100-$0112
 
-CPYBNKSW: 
-        ldx     #$12
-LEC14:  lda     LEC32,x
-        sta     BANKSW,x
-        dex
-        bpl     LEC14
-        rts
+            .export CPYBNKSW
+
+CPYBNKSW:   ldx     #$12
+LEC14:      lda     LEC32,x
+            sta     BANKSW,x
+            dex
+            bpl     LEC14
+            rts
 
 LEC1E:  ldx     #$07
 @LOOP:  lda     LEC2A,x
@@ -2943,35 +2963,40 @@ LF90B:  dec     $029F
         lda     (INPBUFP),y
         rts
 
-LF915:  sta     $D8
-        lda     #$00
-        sta     $D9
-        sta     BUFFERP1
-        sta     BUFFERP1+1
-        sta     $029F
-        beq     LF925
-LF924:  iny
-LF925:  jsr     LF930
-        beq     LF92E
-        cmp     #$20
-        beq     LF924
-LF92E:  rts
+LF915:      sta     $D8
+            lda     #$00
+            sta     $D9
+            sta     BUFFERP1
+            sta     BUFFERP1+1
+            sta     $029F
+            beq     LF925
+LF924:      iny
+            ; Fallthrough
 
-        iny
-LF930:  lda     (INPBUFP),y
-        beq     LF947
-        bcs     LF93F
-        cmp     #$0D
-        beq     LF93D
-        cmp     LE78D
-LF93D:  clc
-        rts
+            .export LF925
 
-LF93F:  cmp     #$0D
-        beq     LF946
-        cmp     LE78D
-LF946:  sec
-LF947:  rts
+LF925:      jsr     LF930
+            beq     @RETURN         ; If null or semicolon, return
+            cmp     #$20            ; If blank,
+            beq     LF924           ;   get next char
+@RETURN:    rts
+
+            iny                     ; Dead code?
+
+LF930:      lda     (INPBUFP),y     ; Get char from input buffer
+            beq     @RETURN         ; if null, return
+            bcs     @CSCONT         ; We come from carry set?
+            cmp     #$0D            ; No, end of line?
+            beq     @CCRET          ; Yes, return success
+            cmp     SCOLON          ; Set zero flag if semicolon
+@CCRET:     clc                     ; Clear carry
+            rts
+
+@CSCONT:    cmp     #$0D            ; End of line
+            beq     @CSRET          ; Yes, return with carry set
+            cmp     SCOLON          ; Set zero flag if semicolon
+@CSRET:     sec
+@RETURN:    rts
 
 LF948:  jsr     SETOUTB         ; Set output line buffer as destination
 LF94B:  jsr     PRNSTR
@@ -3337,15 +3362,17 @@ LFBBC:  lda     BUFFERP1+1,x
         sta     BUFFERP1+1
         rts
 
-        stx     $0297
-        ldx     #$15
-        jsr     LFBE1
-        lda     $D7
-        beq     LFBDB
-        jsr     ERROR18
-LFBDB:  lda     $D6
-        ldx     $0297
-        rts
+            .export LFBCC
+
+LFBCC:      stx     $0297
+            ldx     #$15
+            jsr     LFBE1
+            lda     $D7
+            beq     LFBDB
+            jsr     ERROR18
+LFBDB:      lda     $D6
+            ldx     $0297
+            rts
 
 LFBE1:  lda     #$00
         sta     BUFFERP1,x
