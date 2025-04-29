@@ -14,206 +14,212 @@ HSRCW           = $FFE8
 
 
 
-LE7CB           := $E7CB
-LE9AF           := $E9AF
-LE9D7           := $E9D7
-LE9E3           := $E9E3
-LE9ED           := $E9ED
-LE9F7           := $E9F7
-LE9F9           := $E9F9
-LE9FB           := $E9FB
-LE9FD           := $E9FD
-LE9FF           := $E9FF
-LEA05           := $EA05
-LEA0B           := $EA0B
 LEB2F           := $EB2F
-LEF33           := $EF33
-LEF90           := $EF90
 LF0D6           := $F0D6
 LF4A0           := $F4A0
 LF592           := $F592
-LF5C3           := $F5C3
-LF5C5           := $F5C5
 LF62D           := $F62D
-LF829           := $F829
-LF882           := $F882
-LF892           := $F892
 LF8CE           := $F8CE
-LF930           := $F930
 LFBE1           := $FBE1
 LFC62           := $FC62
 LFD05           := $FD05
 LFD5F           := $FD5F
-LFD76           := $FD76
 LFF0E           := $FF0E
 
-            .importzp MEMBUFF, BUFFERP1, ERRNUM, SVCENB, PCSAVE
+            .importzp MEMBUFF, P0SCRATCH, ERRNUM, SVCENB, PCSAVE, CMDLIDX
+
+            .segment "scratch0"
+
+SAVEA:      .res 1                  ; $0280 Seems that saves, but never restore
+CMDIDX:     .res 1                  ; $0281 Command index in tables
+CMDNUM:     .res 1                  ; $0282 Command number
 
             .segment "cmdproc"
 
             .export CMDPROC
 
 CMDPROC:    cld
-            lda     #$00
-            sta     HSRCW
+            lda     #$00            ; Unprotect SYSRAM
+            sta     HSRCW           ;
 
-            ; Init flags
-
-            ldx     #$05
-@LOOP:      sta     LE77D,x
-            dex
-            bpl     @LOOP
+            ldx     #$05            ; Init flags
+@LOOP:      sta     UNKFLAG2,x      ;
+            dex                     ;
+            bpl     @LOOP           ;
         
-            sta     ERRNUM
-            sta     SVCENB
+            sta     ERRNUM          ; Clear error
+            sta     SVCENB          ; Disable SVCs
         
-            jsr     INIMMAP
-            jsr     CPYBNKSW
-            lda     $E778
-            sta     $E777
-            jsr     LFD76
-            jsr     LFD5F
-            lda     $E653
-            cmp     #$82            ; Console output?
-            bne     LD837           ; Nope
+            jsr     INIMMAP         ; Set default memory config
+            jsr     CPYBNKSW        ; Copy bank switching routine to page zero
+            lda     UNPROTFLG       ; Get status of memory protection flag
+            sta     IGNORWRP        ; And copy to the ignore protection flag
+            jsr     SETOUTB         ; Set output buffer to output line buffer
+            jsr     SETINPB         ; Set input buffer to input line buffer
+            lda     CHANN1
+            cmp     #$82            ; Console input?
+            bne     @CONT           ; Nope
             jsr     PRNSTR          ; Yes, print CODOS prompt
             .byte   $0D, "CODOS> ", $00
 
-LD837:      ldx     #$01
-            jsr     GETLINE
-            bcc     CMDEXEC
-            ldx     #$01
-            jsr     LF5C5
-            jmp     CMDPROC
+@CONT:      ldx     #$01            ;
+            jsr     GETLINE         ; Get entire line
+            bcc     CMDEXEC         ; If OK, go execute the command
+            ldx     #$01            ; Not OK, free channel 1 (console )
+            jsr     FREECH          ;   (SETINPB will set it again to default $82)
+            jmp     CMDPROC         ; And restart command processor
 
             ; Command processor entry
 
             .export CMDEXEC
 
-CMDEXEC:    jsr     GETNEXTNB
-            beq     CMDPROC
-            sec
-            ror     LE77D
-            sty     $EB
-            jsr     LF882
-            bcs     LD870
-LD856:      iny
-            jsr     LF930
-            beq     LD870
-            jsr     LF892
-            bcc     LD856
-            cmp     #$21
-            beq     LD870
-            cmp     #$20
-            bne     LD86C
-            jsr     GETNEXTNB
-LD86C:      cmp     #$3A
-            beq     LD89F
-LD870:      ldy     $EB
-            jsr     LD8E8
-            beq     LD89F
-            jsr     LEF33
-            txa
-            asl     a
-            tax
-            lda     LDC99,x
-            sta     LE7CB
-            lda     LDC99+1,x
-            sta     LE7CB+1
-            jsr     GETNEXTNB
+CMDEXEC:    jsr     GETNEXTNB       ; Get next non-blank from input buffer
+            beq     CMDPROC         ; Nothing? Restart command processor
+            sec                     ; Set flag
+            ror     UNKFLAG2        ;
+            sty     CMDLIDX         ; Save command line index
+            jsr     ISALPHA         ; Check that char is alphabetic
+            bcs     @SEARCH
+@LOOP:      iny
+            jsr     GETNEXTCH       ; Get next char
+            beq     @SEARCH         ; Nothing? We got the command
+            jsr     VALFNCHR        ; Check it is a valid character
+            bcc     @LOOP           ; Yes, get next
+            cmp     #'!'            ; Abbreviation?
+            beq     @SEARCH         ; Yes, we got the command
+            cmp     #' '            ; Is it a blank?
+            bne     @CHKCOL         ; No, go check if it is a colon
+            jsr     GETNEXTNB       ; Yes, advance until next non-blank
+@CHKCOL:    cmp     #':'            ; Is it a colon? (???)
+            beq     EXTERNAL        ; Yes, it is an external in an specified drive
+@SEARCH:    ldy     CMDLIDX         ; We've got a command. Recover position
+            jsr     SEARCHCMD       ; See if in the command name table. Returns overlay
+                                    ; in A (zero if none) and cmd number in X
+            beq     EXTERNAL        ; It is not found, so try external
+            jsr     OVERLAY         ; It is found, loads the required overlay (if any)
+            txa                     ; Get the command number
+            asl     a               ; Calculate offset in command function table
+            tax                     ; Get the pointer to the function
+            lda     CMDFUNTBL,x     ;
+            sta     CMDFNP          ; And save to the jump to command pointer
+            lda     CMDFUNTBL+1,x   ;
+            sta     CMDFNP+1        ;
+            jsr     GETNEXTNB       ; Advance to the first argument in command line
             php
-            sty     $EB
+            sty     CMDLIDX         ; Save command line index
             bit     SVC13FLG
-            bmi     LD89B
+            bmi     @JCMD           ; If comes from SVC, jumps to the command function
             plp
-            jsr     LD89C
-            jmp     CMDPROC
+            jsr     JCMDFNP         ; Execute command function
+            jmp     CMDPROC         ; And restart command processor
+            ; Not reached
 
-LD89B:      plp
-LD89C:      jmp     (LE7CB)
+@JCMD:      plp
+            ; Fall through
 
-LD89F:  ldy     #$00
-        jsr     LD968
-        jsr     GETNEXTNB
-        sty     $EB
-        sec
-        ror     LE77E
-        jsr     LF592
-        clc
-        ror     LE77E
-        lda     #$00
-        sta     $E77B
-        sta     $E77C
-        ldx     #$00
-        txa
-        jsr     LFD05
-        bcc     LD8C7
-        jsr     LE9FB
-LD8C7:  lda     $E721
-        sta     PCSAVE
-        lda     $E722
-        sta     PCSAVE+1
-        lda     $E6D2
-        sta     PRGBANK
-        sta     $E6CF
-LD8DA:  ldx     #$00
-        txa
-        jsr     LFD05
-        bcc     LD8DA
-        jsr     LF5C3
-        jmp     LEB2F
+JCMDFNP:    jmp     (CMDFNP)        ; Jump to the command function pointer      
 
-LD8E8:  sty     $EB
-        ldx     #$00
-        stx     $0282
-        beq     LD8FD
-LD8F1:  ldx     $0281
-LD8F4:  inx
-        lda     LDBB9,x
-        cmp     #$20
-        bcs     LD8F4
-        inx
-LD8FD:  stx     $0281
-        lda     LDBB9,x
-        beq     LD936
-        inc     $0282
-        ldy     $EB
-LD90A:  lda     ($CB),y
-        jsr     LF892
-        bcs     LD91A
-        cmp     LDBB9,x
-        bne     LD8F1
-        inx
-        iny
-        bne     LD90A
-LD91A:  cmp     #$21
-        bne     LD92D
-        iny
-LD91F:  lda     LDBB9,x
-        cmp     #$20
-        bcc     LD929
-        inx
-        bne     LD91F
-LD929:  ldx     $0282
-        rts
+; Execute external command
+;
+EXTERNAL:   ldy     #$00
+            jsr     LD968           ; Get file and drive from beginning of command line
+            jsr     GETNEXTNB       ; Advance to first non blank (first argument)
+            sty     CMDLIDX         ; And save where it is
+            sec                     ; Set flag
+            ror     UNKFLAG3        ;
+            jsr     LF592
+            clc                     ; Clear flag
+            ror     UNKFLAG3        ;
+            lda     #$00
+            sta     $E77B
+            sta     $E77C
+            ldx     #$00
+            txa
+            jsr     LFD05
+            bcc     LD8C7
+            jsr     ERROR13         ; Not a loadable ("SAVEd") file.
+LD8C7:      lda     $E721
+            sta     PCSAVE
+            lda     $E722
+            sta     PCSAVE+1
+            lda     $E6D2
+            sta     PRGBANK
+            sta     $E6CF
+LD8DA:      ldx     #$00
+            txa
+            jsr     LFD05
+            bcc     LD8DA
+            jsr     FREECH0
+            jmp     LEB2F
 
-LD92D:  lda     LDBB9,x
-        cmp     #$20
-        bcc     LD929
-        bcs     LD8F1
-LD936:  ldx     #$00
-        rts
+; Search typed command in command name table
+;
+; Returns overlay in A (zero if none) and cmd number in X (zero if not found)
+;
+SEARCHCMD:  sty     CMDLIDX         ; Save command position
+            ldx     #$00            ; Init command name char index
+            stx     CMDNUM          ;
+            beq     @CMPNAM         ; And jump to compare command names
+            ; Not reached
+
+@NEXTCMD:   ldx     CMDIDX          ; Get current command index
+@SKIP:      inx                     ; Go to next
+            lda     CMDNAMTBL,x     ; Get first char of command name
+            cmp     #' '            ; Is it valid?
+            bcs     @SKIP           ; Yes, advance char
+            inx                     ; No, we've got the command typr, advance past it
+
+@CMPNAM:    stx     CMDIDX          ; Save command index
+            lda     CMDNAMTBL,x     ; Get command's char
+            beq     @ENDOFTBL       ; If null, end of table
+            inc     CMDNUM          ; Increment CMDNUM (command name char index?)
+            ldy     CMDLIDX         ; Get typed command position
+@CMPCH:     lda     ($CB),y         ; Get char
+            jsr     VALFNCHR        ; Check it is a valid command name char
+            bcs     @CHKABB         ; Nope, go check if it is a '!'
+            cmp     CMDNAMTBL,x     ; Yes, compare to current command in table
+            bne     @NEXTCMD        ; Not equal, try next command in table
+            inx                     ; Compare next name char
+            iny                     ;
+            bne     @CMPCH          ; Always jump
+            ; Not reached
+
+@CHKABB:    cmp     #'!'            ; Is it an abbreviation
+            bne     @CHKTYP         ; No, then are different or reached command overlay
+            iny                     ; Yes, advance in the command line
+@SKIP2:     lda     CMDNAMTBL,x     ; Skip rest of the name until command overlay
+            cmp     #' '            ; Printable? 
+            bcc     @RETURN         ; Nope, got command overlay
+            inx                     ; Skip char
+            bne     @SKIP2          ; Always jump
+            ; Not reached
+
+@RETURN:    ldx     CMDNUM          ; Load command number
+            rts                     ; And return
+
+@CHKTYP:    lda     CMDNAMTBL,x     ; Get command char
+            cmp     #' '            ; Printable
+            bcc     @RETURN         ; Nope then it is the command overlay
+            bcs     @NEXTCMD        ; Yes, then the command does not match. Go next.
+            ; Not reached
+
+@ENDOFTBL:  ldx     #$00
+            rts
 
 LD939:      jsr     LFBCC
             bcs     LD941
-            jsr     LEA05
-LD941:      sta     $0280
+            jsr     ERROR08         ; Missing or illegal channel number
+            ; Not reached
+
+LD941:      sta     SAVEA
             tax
-            sty     $EB
+            sty     CMDLIDX
             cmp     #$0A
-            bcc     LD94E
-            jsr     LEA05
-LD94E:      rts
+            bcc     @RETURN
+            jsr     ERROR08         ; Missing or illegal channel number
+            ; Not reached
+
+@RETURN:    rts
 
 ; Get drive from command line and check that it is opened
 ; Does not return on error
@@ -230,49 +236,51 @@ GETDRIVE:   jsr     LF8CE
             bcs     LD95D
             jsr     ERROR05             ; Missing or illegal disk drive number
             ; Not reached
-LD95D:      lda     BUFFERP1
+LD95D:      lda     P0SCRATCH
             tax
             stx     CURRDRV
-            sty     $EB                 ; Save command line position
+            sty     CMDLIDX             ; Save command line position
             jmp     DRVVALID            ; Verify that drive is valid
             ; Not reached
 
-LD968:  lda     $CB
-        sta     $C7
-        lda     $CC
-        sta     $C8
-        jsr     GETNEXTNB
-        jsr     LF829
-        bcc     LD97B
-        jsr     LE9FD
-LD97B:  jsr     GETNEXTNB
-        cmp     $E790
-        bne     LD989
-        jsr     GETNEXTNB1
-        jmp     GETDRIVEOPND
+; Get file and drive from command line
+;
+LD968:      lda     $CB
+            sta     $C7
+            lda     $CC
+            sta     $C8
+            jsr     GETNEXTNB
+            jsr     FNAMFROMBUF
+            bcc     LD97B
+            jsr     ERROR12         ; Missing or illegal file name
+LD97B:      jsr     GETNEXTNB
+            cmp     $E790
+            bne     LD989
+            jsr     GETNEXTNB1
+            jmp     GETDRIVEOPND
 
-LD989:  ldx     $E796
-        jsr     LEF90
-        stx     $E6DC
-        sty     $EB
-        rts
+LD989:      ldx     $E796
+            jsr     DRVVALIDO       ; Check that drive is valid and open
+            stx     $E6DC
+            sty     CMDLIDX
+            rts
 
-        jsr     GETNEXTNB
-        jsr     LF882
-        bcc     LD9A0
-        jsr     LE9FF
-LD9A0:  iny
-        jsr     LF930
-        jsr     LF892
-        dey
-        bcs     LD9AD
-        jmp     LD968
+            jsr     GETNEXTNB
+            jsr     ISALPHA
+            bcc     LD9A0
+            jsr     ERROR11         ; Missing or illegal device or file name
+LD9A0:      iny
+            jsr     GETNEXTCH
+            jsr     VALFNCHR
+            dey
+            bcs     LD9AD
+            jmp     LD968
 
-LD9AD:  jsr     LF930
-        sta     $E6DC
-        iny
-        sty     $EB
-        rts
+LD9AD:      jsr     GETNEXTCH
+            sta     $E6DC
+            iny
+            sty     CMDLIDX
+            rts
 
 ; Get Address and bank from command line + 2
 ;
@@ -284,8 +292,8 @@ LD9B7:      ldx     #$02
 ;
 LD9B9:      jsr     LFBE1
             bcs     @LD9C1
-            jsr     LE9F9
-@LD9C1:     sty     $EB
+            jsr     ERROR14         ; <from> address missing or illegal
+@LD9C1:     sty     CMDLIDX
             lda     #$00            ; Some initialization
             sta     NEWBNK          ;
             sta     CHGBNKFLG       ; Clears change bank flag
@@ -294,7 +302,7 @@ LD9B9:      jsr     LFBE1
             cmp     $E790
             bne     @RETURN
             jsr     GETNEXTNB1
-            sty     $EB
+            sty     CMDLIDX
             beq     @LD9E6
             iny
             sec
@@ -302,25 +310,25 @@ LD9B9:      jsr     LFBE1
             bcc     @LD9E6
             cmp     #$04
             bcc     @LD9E9
-@LD9E6:     jsr     LE9AF
+@LD9E6:     jsr     ERROR51         ; Missing or illegal memory bank number
 @LD9E9:     sta     NEWBNK          ; New bank
             sec                     ; And sets flag
             ror     CHGBNKFLG       ;
 @RETURN:    rts
 
-LD9F1:  ldx     #$04
-        jsr     LFBE1
-        bcs     LD9FB
-        jsr     LE9F7
-LD9FB:  sty     $EB
-        rts
+LD9F1:      ldx     #$04
+            jsr     LFBE1
+            bcs     LD9FB
+            jsr     ERROR15         ; <to> address missing or illegal
+LD9FB:      sty     CMDLIDX
+            rts
 
             .export GETPC
 
 GETPC:      lda     #$00
             sta     CHGBNKFLG       ; Clears bank switching flag
             sta     NEWBNK
-            jsr     GETNEXTNB           ; Get next char from command line
+            jsr     GETNEXTNB       ; Get next char from command line
             beq     @RETURN         ; If none, returns
             jsr     LD9B7           ; Get address and bank
             lda     MEMBUFF         ; Place address into program counter
@@ -339,7 +347,7 @@ LDA17:  lda     #$00
         jsr     LD9B9
         sec
         ror     $E77B
-LDA2D:  sty     $EB
+LDA2D:  sty     CMDLIDX
         rts
 
 LDA30:  lda     #$00
@@ -351,10 +359,10 @@ LDA30:  lda     #$00
         ldx     #$06
         jsr     LFBE1
         bcs     LDA47
-        jsr     LE9ED
+        jsr     ERROR20         ; <entry> address missing or illegal
 LDA47:  sec
         ror     $E77C
-LDA4B:  sty     $EB
+LDA4B:  sty     CMDLIDX
         rts
 
 ; BP Command
@@ -366,7 +374,7 @@ LDA4B:  sty     $EB
 ;
 ; If no arguments are provided, clears all break points
 ; 
-BREAKP:     jsr     GETNEXTNB           ; Get next char from command line       
+BREAKP:     jsr     GETNEXTNB       ; Get next char from command line       
             bne     @GETARGS        ; Jump if there are any arguments
 
             ldx     #$02            ; No arguments, clear all break points
@@ -389,7 +397,7 @@ BREAKP:     jsr     GETNEXTNB           ; Get next char from command line
             lda     #$FF            ; Invalidate/clear BP
             sta     BPBANK,x        ;
 @NEXT:      dex
-            bpl     @LOOP
+            bpl     @LOOP           ; Continue until last BP
             rts
 
 @GETARGS:   jsr     LD9B7
@@ -438,14 +446,14 @@ BREAKP:     jsr     GETNEXTNB           ; Get next char from command line
 ; FREE Command
 ;
 ; DESCRIPTION:  Disassociate an Input-Output channel from a device or file.
-; SYNTAX:       FREE <channel>
+; SYNTAX:       FREE <channel> ...
 ; ARGUMENTS:    <channel> = channel number to free, 0 to 9.
 ; 
 FREE:       jsr     LD939
-            jsr     LF5C5
-            ldy     $EB
-            jsr     GETNEXTNB           ; Get next channel
-            bne     FREE            ; Free it if any
+            jsr     FREECH
+            ldy     CMDLIDX         ; Get command line index
+            jsr     GETNEXTNB       ; Get next channel
+            bne     FREE            ; Repeat until no more arguments
             rts
 
 ; OPEN Command
@@ -459,7 +467,7 @@ OPEN:       beq     @NOPARAMS
 @GETDRV:    jsr     GETDRIVE        ; Get drive number in X and CURRDRV
 @OPENX:     jsr     OPENDRV         ; Open it
             jsr     GETNEXTNB
-            bne     @GETDRV
+            bne     @GETDRV         ; Repeat until no more arguments
             rts
 
 @NOPARAMS:  ldx     #$00            ; Set default drive (0)
@@ -477,9 +485,9 @@ OPEN:       beq     @NOPARAMS
 CLOSE:      beq     @NOARGS
 @LOOP:      jsr     GETDRIVE
 @CLOSEONE:  jsr     CLOSEDRV
-            ldy     $EB
+            ldy     CMDLIDX         ; Get command line index
             jsr     GETNEXTNB
-            bne     @LOOP
+            bne     @LOOP           ; Repeat until no more arguments
             rts
 
 @NOARGS:    ldx     #$00
@@ -491,25 +499,25 @@ CLOSE:      beq     @NOARGS
 ; DESCRIPTION:  Save one or more blocks of memory on a file.
 ; SYNTAX:       SAVE <file>[:<drive>][=<entry>]<from>[=<dest>] <to> ... 
 ; ARGUMENTS:
-;               <file>  = desired file name.
-;               <drive> = desired disk drive, 0 to 3. Defaults to the default drive,
+;               <file>  = file name.
+;               <drive> = drive name, 0 to 3. Defaults to the default drive,
 ;                         usually 0.
-;               <entry> = entry point desired. Defaults to <from>
+;               <entry> = entry point. Defaults to <from>
 ;               <from>  = starting address for the block of memory.
 ;               <dest>> = address at which the block is to be loaded into memory on
 ;                         subsequent GET commands. Defaults to <from>.
 ;               <to>    = final address of the memory block. 
 ; 
-SAVE:       jsr     LD968
+SAVE:       jsr     LD968           ; Get file and drive from command line
             jsr     LF4A0
             bit     $E786
-            bpl     LDB28
+            bpl     @LDB28
             bit     $E77A
-            bmi     LDB28
-            jsr     LE9E3
-LDB28:      ldy     $EB
+            bmi     @LDB28
+            jsr     ERROR25         ; New file name is already on selected diskette 
+@LDB28:     ldy     CMDLIDX
             jsr     LDA30
-LDB2D:      jsr     LD9B7
+@LDB2D:     jsr     LD9B7
             lda     NEWBNK
             sta     $E6D6
             jsr     LDA17
@@ -519,37 +527,49 @@ LDB2D:      jsr     LD9B7
             lda     #$00
             tax
             jsr     LFC62
-            ldy     $EB
+            ldy     CMDLIDX         ; Get cmd line index
             jsr     GETNEXTNB
-            bne     LDB2D
+            bne     @LDB2D
             jsr     LF0D6
-            jmp     LF5C3
+            jmp     FREECH0
 
-LDB55:      jsr     LD968
+; GET Command
+;
+; DESCRIPTION:  Load a memory image from a disk file.
+; SYNTAX:       GET <file>[:<drive>][=<dest>...] 
+; ARGUMENTS:
+;               <file>  = file name to be loaded into memory.
+;               <drive> = drive number, 0 to 3. Defaults to the default drive,
+;                         usually 0.
+;               <dest>  = destination starting address for load to be used in
+;                         lieu of the from address which was specified when the
+;                         file was saved. 
+; 
+GETCMD:     jsr     LD968
             jsr     LF592
-            ldy     $EB
+            ldy     CMDLIDX         ; Get command line index
             jsr     LDA17
             lda     NEWBNK
             sta     $E6D7
             ldx     #$00
             txa
             jsr     LFD05
-            bcc     LDB71
-            jsr     LE9FB
-LDB71:      lda     BUFFERP1
+            bcc     @LDB71
+            jsr     ERROR13         ; Not a loadable ("SAVEd") file
+@LDB71:     lda     P0SCRATCH
             sta     PCSAVE
-            lda     BUFFERP1+1
+            lda     P0SCRATCH+1
             sta     PCSAVE+1
             lda     $E6D2
             sta     PRGBANK
             sta     $E6CF
-LDB82:      ldy     $EB
+@LDB82:     ldy     CMDLIDX
             jsr     LDA17
             ldx     #$00
             txa
             jsr     LFD05
-            bcc     LDB82
-            jmp     LF5C3
+            bcc     @LDB82
+            jmp     FREECH0
             ; Not reached
 
 ; RESAVE Command
@@ -557,10 +577,10 @@ LDB82:      ldy     $EB
 ; DESCRIPTION:  Replace an existing file with a program or memory image(s).
 ; SYNTAX:       RESAVE <file>[:<drive>][=<entry>]<from>[=<dest>] <to> ... 
 ; ARGUMENTS:
-;               <file>  = desired file name.
-;               <drive> = desired disk drive, 0 to 3. Defaults to the default drive,
+;               <file>  = file name.
+;               <drive> = disk drive, 0 to 3. Defaults to the default drive,
 ;                         usually 0.
-;               <entry> = entry point desired. Defaults to <from>
+;               <entry> = entry point. Defaults to <from>
 ;               <from>  = starting address for the block of memory.
 ;               <dest>> = address at which the block is to be loaded into memory on
 ;                         subsequent GET commands. Defaults to <from>.
@@ -583,12 +603,21 @@ DRIVE:      jsr     GETDRIVEOPND
             sta     DEFDRV
             rts
 
-LDBA4:  jsr     LD968
-        jsr     LF62D
-        ldy     $EB
-        jsr     GETNEXTNB
-        bne     LDBA4
-        rts
+; DELETE Command
+;
+; DESCRIPTION:  Remove a file from disk
+; SYNTAX:       DELETE <file>[:<drive>] ...
+; ARGUMENTS:    None.
+;               <file>  = file name.
+;               <drive> = disk drive, 0 to 3. Defaults to the default drive,
+;                         usually 0.
+; 
+DELETE:     jsr     LD968
+            jsr     LF62D
+            ldy     CMDLIDX         ; Get command line index
+            jsr     GETNEXTNB
+            bne     DELETE          ; Repeat until last argument
+            rts
 
 ; BOOT Command
 ;
@@ -601,7 +630,10 @@ BOOT:       ldx     #$FF            ; Init stack pointer
             cld
             jmp     LFF0E           ; Boot from PROM
 
-LDBB9:      .byte   "ASSIGN", $07
+
+            ; Command name table
+
+CMDNAMTBL:  .byte   "ASSIGN", $07
             .byte   "FREE", $00
             .byte   "OPEN", $00
             .byte   "CLOSE", $00
@@ -638,20 +670,24 @@ LDBB9:      .byte   "ASSIGN", $07
             .byte   "RESAVE", $00
             .byte   "MSG", $06
 
+            ; Reserved for new commands
+
             .byte   $00, $00, $00, $00, $00, $00, $00, $00
             .byte   $00, $00, $00, $00, $00, $00, $00, $00
             .byte   $00, $00, $00, $00, $00, $00, $00, $00
 
-LDC99:      .word   $0000
+            ; Command function table
+
+CMDFUNTBL:  .word   $0000
             .word   $FE01           ; Assign
             .word   FREE
             .word   OPEN
             .word   CLOSE
             .word   SAVE
-            .word   LDB55
+            .word   GETCMD
             .word   $FE01           ; Dump
             .word   DRIVE
-            .word   LDBA4
+            .word   DELETE
             .word   $FE01           ; Lock
             .word   $FE1F           ; Unlock
             .word   $FE01           ; Files
@@ -665,21 +701,21 @@ LDC99:      .word   $0000
             .word   $FED7           ; Protect
             .word   $FE01           ; Fill
             .word   NEXT
-            .word   $FE01
-            .word   $FE6A
-            .word   $FE01
-            .word   $FE01
-            .word   $FE01
-            .word   $FEA7
+            .word   $FE01           ; Type
+            .word   $FE6A           ; Date
+            .word   $FE01           ; Getloc
+            .word   $FE01           ; Copy
+            .word   $FE01           ; Rename
+            .word   $FEA7           ; SCV
             .word   BOOT
-            .word   $FEF0
-            .word   $FE01
-            .word   $FE01
-            .word   $FE01
+            .word   $FEF0           ; Do
+            .word   $FE01           ; Hunt
+            .word   $FE01           ; Compare
+            .word   $FE01           ; Onkey
             .word   BREAKP
             .word   RESAVE
-            .word   $FEB3
-            .word   $0000
-            .word   $0000
-            .word   $0000
-            .word   $0000
+            .word   $FEB3           ; Msg
+            .word   $0000           ; Reserved
+            .word   $0000           ; Reserved
+            .word   $0000           ; Reserved
+            .word   $0000           ; Reserved
