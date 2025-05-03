@@ -1,6 +1,7 @@
 #!/bin/bash
 
-name=$(basename $1)
+#name=$(basename $1)
+name=$1
 output=${name%.*}.z
 entry=${2#*x}
 entrylo=\\x${entry#??}

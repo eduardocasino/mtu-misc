@@ -2,7 +2,7 @@ MEMORY {
     ZEROPAGE:   start = $0000, size = $100;
     SCRATCH:    start = $0280, size = $30, file="";
     USRRAM:     start = $C000, size = $2000;
-    CMDPROC:    start = $D800, size = $800, file="comdproc.bin";
+    CMDPROC:    start = $D800, size = $800, file="%%VERSION%%/comdproc.bin";
     SYSRAM:     start = $E000, size = $2000;
     CODOS:      start = $E54A, size = $19B6, file=%O;
     OVERLAYS:   start = $FE00, size = $100;
@@ -10,8 +10,8 @@ MEMORY {
 }
 SEGMENTS {
     zp:         load = ZEROPAGE, type = zp, start = $B0;
-    scratch0:   load = SCRATCH, type = rw;
-    scratch1:   load = SCRATCH, type = rw, start = $0283;
+    scratch0:   load = SCRATCH,  type = rw;
+    scratch1:   load = SCRATCH,  type = rw, start = $0283;
     cmdproc:    load = CMDPROC,  type = ro;
     header:     load = CODOS,    type = ro;
     codos:      load = CODOS,    type = rw, start = $E600;

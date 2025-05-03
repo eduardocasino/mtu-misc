@@ -1,39 +1,30 @@
+VERSIONS = 14 15 17
+
+$(foreach ver,$(VERSIONS),$(eval $(ver)/ := $(shell mkdir -p $(ver))))
+
 .PRECIOUS: %.bin
 
-all:	codos14.z codos15.z codos17.z comdproc.z
+all: $(VERSIONS:%=%/codos.z) $(VERSIONS:%=%/comdproc.z) $(VERSIONS:%=%/syserrmsg.z)
 
-codos14.z: codos14.bin
-	./makez.sh $< 0xe600 0xe54a
+$(foreach ver,$(VERSIONS),$(eval $(ver)/syserrmsg.z: syserrmsg.src \
+	; bbe -e 's/\x0a/\x0d/' < $$< > $$@))
 
-codos15.z: codos15.bin
-	./makez.sh $< 0xe600 0xe54a
+$(foreach ver,$(VERSIONS),$(eval $(ver)/codos.z: $(ver)/codos.bin \
+	; ./makez.sh $$< 0xe600 0xe54a))
 
-codos17.z: codos17.bin
-	./makez.sh $< 0xe600 0xe54a
+$(foreach ver,$(VERSIONS),$(eval $(ver)/comdproc.z: $(ver)/comdproc.bin \
+	; ./makez.sh $$< 0xd800 0xd800))
 
-comdproc.z: comdproc.bin
-	./makez.sh $< 0xd800 0xd800
+$(foreach ver,$(VERSIONS),$(eval $(ver)/codos.bin:: $(ver)/codos.cfg))
 
-codos14.bin: codos14.o comdproc.o
-	ld65 -C codos.cfg -vm -m $(basename $@).map -o $@ $^
+$(foreach ver,$(VERSIONS),$(eval $(ver)/codos.bin:: $(ver)/codos.o $(ver)/comdproc.o \
+	; ld65 -C $(ver)/codos.cfg -vm -m $(basename $$@).map -o $$@ $$^))
 
-codos15.bin: codos15.o comdproc.o
-	ld65 -C codos.cfg -vm -m $(basename $@).map -o $@ $^ 
+$(foreach ver,$(VERSIONS),$(eval $(ver)/codos.cfg: codos.cfg.in \
+	; sed -e 's/%%VERSION%%/$(ver)/' < $$< > $$@))
 
-codos17.bin: codos17.o comdproc.o
-	ld65 -C codos.cfg -vm -m $(basename $@).map -o $@ $^
-
-codos14.o: codos.asm
-	ca65 -U -D CODOS2_VER=14 -l $(basename $@).lst -o $@ $<
-
-codos15.o: codos.asm 
-	ca65 -U -D CODOS2_VER=15 -l $(basename $@).lst -o $@ $<
-
-codos17.o: codos.asm 
-	ca65 -U -D CODOS2_VER=17 -l $(basename $@).lst -o $@ $<
-
-comdproc.o: comdproc.asm 
-	ca65 -U -l $(basename $@).lst -o $@ $<
+$(foreach ver,$(VERSIONS),$(eval $(ver)/%.o: %.asm \
+	; ca65 -U -D CODOS2_VER=$(ver) -l $(basename $$@).lst -o $$@ $$<))
 
 clean:
-	rm -f *.o *.bin *.z *.map *.lst
+	rm -f */*.o */*.bin */*.z */*.map */*.lst */*.cfg
