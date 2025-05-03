@@ -962,7 +962,7 @@ INTCONT:    sta     PCSAVE+1        ; Save program counter (high)
             jsr     DEFSETOUTB      ; Set output buffer
             jsr     PRNSTR
             .byte   $0d, "BP", $00
-            jmp     @PRNSTAT           ; Print status (Registers, pointers) and warm-start
+            jmp     @PRNSTAT        ; Print status (Registers, pointers) and warm-start
             ; Not reached
 @NEXT:      dex
             bpl     @LOOP
@@ -1012,55 +1012,55 @@ INTCONT:    sta     PCSAVE+1        ; Save program counter (high)
             .export ERROR41, ERROR42, ERROR43, ERROR44, ERROR45, ERROR46, ERROR47, ERROR48
             .export ERROR49, ERROR50, ERROR51, ERROR52
 
-ERROR52:    inc     ERRNUM
+ERROR52:    inc     ERRNUM          ; Missing or illegal function key number
 ERROR51:    inc     ERRNUM          ; Missing or illegal memory bank number
-ERROR50:    inc     ERRNUM
-ERROR49:    inc     ERRNUM
-ERROR48:    inc     ERRNUM
-ERROR47:    inc     ERRNUM
-ERROR46:    inc     ERRNUM
-ERROR45:    inc     ERRNUM
-ERROR44:    inc     ERRNUM
-ERROR43:  	inc     ERRNUM
-ERROR42:  	inc     ERRNUM
-ERROR41:  	inc     ERRNUM
-ERROR40:  	inc     ERRNUM
-ERROR39:  	inc     ERRNUM
-ERROR38:  	inc     ERRNUM
-ERROR37:  	inc     ERRNUM          ; Required software package not loaded in memory. 
-ERROR36:  	inc     ERRNUM
-ERROR35:  	inc     ERRNUM
-ERROR34:  	inc     ERRNUM
-ERROR33:  	inc     ERRNUM
-ERROR32:  	inc     ERRNUM
+ERROR50:    inc     ERRNUM          ; System crash: Directory redundancy check failed
+ERROR49:    inc     ERRNUM          ; System crash: NEC 765 chip result phase error
+ERROR48:    inc     ERRNUM          ; System crash: NEC 765 chip command phase error
+ERROR47:    inc     ERRNUM          ; System crash: illegal track on disk
+ERROR46:    inc     ERRNUM          ; System crash: file ordinal check error
+ERROR45:    inc     ERRNUM          ; System crash: directory/file table check error
+ERROR44:    inc     ERRNUM          ; System crash: illegal sector on disk
+ERROR43:  	inc     ERRNUM          ; System crash: illegal system overlay number
+ERROR42:  	inc     ERRNUM          ; Unformatted diskette or hardware drive fault
+ERROR41:  	inc     ERRNUM          ; Unformatted diskette or irrecoverable seek error
+ERROR40:  	inc     ERRNUM          ; Unformatted diskette or drive went not-ready
+ERROR39:  	inc     ERRNUM          ; Diskette is full; no room left in directory
+ERROR38:  	inc     ERRNUM          ; Diskette is full; all blocks already allocated
+ERROR37:  	inc     ERRNUM          ; Required software package not loaded in memory
+ERROR36:  	inc     ERRNUM          ; Illegal entry into CODOS system
+ERROR35:  	inc     ERRNUM          ; No CODOS on drive 0, or system overlay load error
+ERROR34:  	inc     ERRNUM          ; Not enough channels are free for specified function
+ERROR33:  	inc     ERRNUM          ; Input from output-only device, or vice-versa
+ERROR32:  	inc     ERRNUM          ; Write-protected disk or formatting error
 ERROR31:  	inc     ERRNUM          ; Breakpoint table full (3 BP's already set).
-ERROR30:  	inc     ERRNUM
-ERROR29:  	inc     ERRNUM
-ERROR28:  	inc     ERRNUM
-ERROR27:  	inc     ERRNUM
+ERROR30:  	inc     ERRNUM          ; Unformatted disk or irrecoverable read/write error
+ERROR29:  	inc     ERRNUM          ; All buffers in use (free a chan. assigned to a file)
+ERROR28:  	inc     ERRNUM          ; Missing or illegal register name
+ERROR27:  	inc     ERRNUM          ; <destinatiom address missing or illegal
 ERROR26:  	inc     ERRNUM          ; Missing or illegal character string delimiter (' , ")
 ERROR25:  	inc     ERRNUM          ; New file name is already on selected diskette
 ERROR24:  	inc     ERRNUM          ; <value> missing or illegal
 ERROR23:  	inc     ERRNUM          ; Memory verify failure during SET or FILL
-ERROR22:  	inc     ERRNUM
-ERROR21:  	inc     ERRNUM
+ERROR22:  	inc     ERRNUM          ; Illegal or unimplemented SVC number
+ERROR21:  	inc     ERRNUM          ; New file on write-protected diskette
 ERROR20:  	inc     ERRNUM          ; <entry> address missing or illegal
-ERROR19:  	inc     ERRNUM
-ERROR18:  	inc     ERRNUM
+ERROR19:  	inc     ERRNUM          ; Arithmetic overflow
+ERROR18:  	inc     ERRNUM          ; <value> out of range (greater than $FF or less than 0)
 ERROR17:  	inc     ERRNUM          ; Reserved or protected memory violation
-ERROR16:  	inc     ERRNUM
+ERROR16:  	inc     ERRNUM          ; <from> address greater than to address
 ERROR15:  	inc     ERRNUM          ; <to> address missing or illegal
 ERROR14:  	inc     ERRNUM          ; <from> address missing or illegal
 ERROR13:  	inc     ERRNUM          ; Not a loadable ("SAVEd") file
 ERROR12:  	inc     ERRNUM          ; Missing or illegal file name
 ERROR11:  	inc     ERRNUM          ; Missing or illegal device or file name
-ERROR10:  	inc     ERRNUM
-ERROR09:  	inc     ERRNUM
+ERROR10:  	inc     ERRNUM          ; Diskette is write-protected
+ERROR09:  	inc     ERRNUM          ; Channel needed is not assigned
 ERROR08:  	inc     ERRNUM          ; Missing or illegal channel number
-ERROR07:  	inc     ERRNUM
-ERROR06:  	inc     ERRNUM
+ERROR07:  	inc     ERRNUM          ; Locked file violation
+ERROR06:  	inc     ERRNUM          ; Drive needed is not ready
 ERROR05:  	inc     ERRNUM          ; Missing or illegal disk drive number
-ERROR04:  	inc     ERRNUM
+ERROR04:  	inc     ERRNUM          ; Syntax error in command argument
 ERROR03:  	inc     ERRNUM          ; Drive needed is not open
 ERROR02:  	inc     ERRNUM          ; File not found
 ERROR01:  	inc     ERRNUM          ; Command not found
@@ -1453,7 +1453,7 @@ COMMPH:
             bpl     @WAITRD         ; Wait until bit 7 is 1 (Ready)
             and     #$40            ; Check data direction
             beq     @CONT           ; Jump if data register is to be written
-            jsr     ERROR48         ; System crash: NEC 765 chip command phase error.
+            jsr     ERROR48         ; System crash: NEC 765 chip command phase error
 @CONT:      lda     CMDTBL+1,x      ; Write command byte
             sta     DATR            ;
             inx                     ; next command byte
@@ -1742,7 +1742,7 @@ LEE63:      inc     WRERRCNT
             lda     ST1
             and     #$02
             beq     LEE2C
-            jsr     ERROR10         ; Diskette is write-protected.
+            jsr     ERROR10         ; Diskette is write-protected
             ; Not reached
 
 ; Gets FINFO for current file (DEVICE), copies it into CURFINFO in page zero
@@ -2762,13 +2762,13 @@ ASSIGN:     jsr     CLRASSIGNF      ; Clears assign flag and returns CURRDRV in 
             jsr     EXSENSEDRV      ; Sense drive X status command
             bit     ST0             ; Get status register 0
             bvc     @WRITABLE       ; Check if write protected
-            jsr     ERROR21         ; New file on write-protected diskette.
+            jsr     ERROR21         ; New file on write-protected diskette
             ; Not reached
 @WRITABLE:  ldy     #_BNENT         ; Get number of files on disk
             lda     (BATP),y        ;
             cmp     #MAXFILES+1     ; Have we reached the maximum?
             bcc     @AVAIL          ; No, still room for more
-            jsr     ERROR39         ; Diskette is full; no room left in directory.
+            jsr     ERROR39         ; Diskette is full; no room left in directory
             ; Not reached
 @AVAIL:     jsr     GETFREEB        ; Get the first free block
             sta     BATPTR          ; Stores it into the directory entry
@@ -2778,7 +2778,7 @@ ASSIGN:     jsr     CLRASSIGNF      ; Clears assign flag and returns CURRDRV in 
             beq     @ISNEW          ; New entry? Yes, go on
             jsr     ERROR45         ; No, there shouldn't be an active entry for
                                     ; that drive/block!
-                                    ; System crash: directory/file table check error.
+                                    ; System crash: directory/file table check error
             ; Not reached
 @ISNEW:     jsr     INITFILE        ; Init file size and file position
             lda     DRCTRYPNT+1     ; Get sector of first free entry
