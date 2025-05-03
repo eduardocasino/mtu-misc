@@ -16,7 +16,6 @@ HSRCW           = $FFE8
 
 LEB2F           := $EB2F
 LF0D6           := $F0D6
-LF4A0           := $F4A0
 LF592           := $F592
 LF62D           := $F62D
 LF8CE           := $F8CE
@@ -26,11 +25,12 @@ LFD05           := $FD05
 LFD5F           := $FD5F
 LFF0E           := $FF0E
 
-            .importzp MEMBUFF, P0SCRATCH, ERRNUM, SVCENB, PCSAVE, CMDLIDX
+            .importzp MEMBUFF, TMPBUFP, INPBUFP, P0SCRATCH, ERRNUM, SVCENB
+            .importzp PCSAVE, CMDLIDX
 
             .segment "scratch0"
 
-SAVEA:      .res 1                  ; $0280 Seems that saves, but never restore
+CHANNEL:    .res 1                  ; $0280 
 CMDIDX:     .res 1                  ; $0281 Command index in tables
 CMDNUM:     .res 1                  ; $0282 Command number
 
@@ -42,8 +42,8 @@ CMDPROC:    cld
             lda     #$00            ; Unprotect SYSRAM
             sta     HSRCW           ;
 
-            ldx     #$05            ; Init flags
-@LOOP:      sta     UNKFLAG2,x      ;
+            ldx     #$05            ; Clear error flags
+@LOOP:      sta     INTCMDERR,x     ;
             dex                     ;
             bpl     @LOOP           ;
         
@@ -75,8 +75,8 @@ CMDPROC:    cld
 
 CMDEXEC:    jsr     GETNEXTNB       ; Get next non-blank from input buffer
             beq     CMDPROC         ; Nothing? Restart command processor
-            sec                     ; Set flag
-            ror     UNKFLAG2        ;
+            sec                     ; Set flag: Error produced during
+            ror     INTCMDERR       ;    command processing
             sty     CMDLIDX         ; Save command line index
             jsr     ISALPHA         ; Check that char is alphabetic
             bcs     @SEARCH
@@ -122,14 +122,14 @@ JCMDFNP:    jmp     (CMDFNP)        ; Jump to the command function pointer
 ; Execute external command
 ;
 EXTERNAL:   ldy     #$00
-            jsr     LD968           ; Get file and drive from beginning of command line
+            jsr     GETFILNDRV      ; Get file and drive from beginning of command line
             jsr     GETNEXTNB       ; Advance to first non blank (first argument)
             sty     CMDLIDX         ; And save where it is
-            sec                     ; Set flag
-            ror     UNKFLAG3        ;
+            sec                     ; Mark that file to load is a command
+            ror     ISCMDFLG        ;  (just used to display the correct error message)
             jsr     LF592
-            clc                     ; Clear flag
-            ror     UNKFLAG3        ;
+            clc                     ; Clear the command flag
+            ror     ISCMDFLG        ;
             lda     #$00
             sta     $E77B
             sta     $E77C
@@ -144,7 +144,7 @@ LD8C7:      lda     $E721
             sta     PCSAVE+1
             lda     $E6D2
             sta     PRGBANK
-            sta     $E6CF
+            sta     DATBANK
 LD8DA:      ldx     #$00
             txa
             jsr     LFD05
@@ -174,7 +174,7 @@ SEARCHCMD:  sty     CMDLIDX         ; Save command position
             beq     @ENDOFTBL       ; If null, end of table
             inc     CMDNUM          ; Increment CMDNUM (command name char index?)
             ldy     CMDLIDX         ; Get typed command position
-@CMPCH:     lda     ($CB),y         ; Get char
+@CMPCH:     lda     (INPBUFP),y     ; Get char from input buffer
             jsr     VALFNCHR        ; Check it is a valid command name char
             bcs     @CHKABB         ; Nope, go check if it is a '!'
             cmp     CMDNAMTBL,x     ; Yes, compare to current command in table
@@ -206,16 +206,19 @@ SEARCHCMD:  sty     CMDLIDX         ; Save command position
 @ENDOFTBL:  ldx     #$00
             rts
 
-LD939:      jsr     LFBCC
-            bcs     LD941
+; Get channel number from A and store it in CHANNEL
+; Returns channel number in X
+;
+GETCHANN:   jsr     LFBCC           ; Get channel number
+            bcs     @CONT
             jsr     ERROR08         ; Missing or illegal channel number
             ; Not reached
 
-LD941:      sta     SAVEA
-            tax
-            sty     CMDLIDX
-            cmp     #$0A
-            bcc     @RETURN
+@CONT:      sta     CHANNEL         ; Save channel
+            tax                     ; ANd also return it in X
+            sty     CMDLIDX         ; Save command line index
+            cmp     #$0A            ; Valid channel numbers are 0-9
+            bcc     @RETURN         ; OK
             jsr     ERROR08         ; Missing or illegal channel number
             ; Not reached
 
@@ -229,7 +232,7 @@ GETDRIVEOPND:
             jmp     ISDRVOPEN
 
 ; Get drive from command line and sets CURRDRV
-; Returns drive in X
+; Returns drive in X. Sets CURRDRV and updates CMDLIDX.
 ; Does not return on error
 ;
 GETDRIVE:   jsr     LF8CE
@@ -243,43 +246,55 @@ LD95D:      lda     P0SCRATCH
             jmp     DRVVALID            ; Verify that drive is valid
             ; Not reached
 
-; Get file and drive from command line
+; Get file and drive from command line and ensures that drive is open
+; Returns drive in X. Sets CURRDRV, FNAMBUF and updates CMDLIDX.
 ;
-LD968:      lda     $CB
-            sta     $C7
-            lda     $CC
-            sta     $C8
-            jsr     GETNEXTNB
-            jsr     FNAMFROMBUF
-            bcc     LD97B
+GETFILNDRV: lda     INPBUFP         ; Copy command line pointer to
+            sta     TMPBUFP         ; TMPBUF so we can use FNAMFROMBUF
+            lda     INPBUFP+1       ;
+            sta     TMPBUFP+1       ;
+            jsr     GETNEXTNB       ; Get next non blank from command line
+                                    ; This sets Y to the first char of the file name
+            jsr     FNAMFROMBUF     ; Copy file name from (TMPBUFP),y to FNAMBUF
+            bcc     @CONT
             jsr     ERROR12         ; Missing or illegal file name
-LD97B:      jsr     GETNEXTNB
-            cmp     $E790
-            bne     LD989
-            jsr     GETNEXTNB1
-            jmp     GETDRIVEOPND
+@CONT:      jsr     GETNEXTNB       ; Get next non blank from command line
+            cmp     COLON           ; Drive separator?
+            bne     @USEDEF         ; No, use default drive
+            jsr     GETNEXTNB1      ; Yes, get next non blank from command line
+            jmp     GETDRIVEOPND    ; Get drive and ensure that it is open.
+                                    ; Sets CURRDRV and updates CMDLIDX.
+            ; Not reached
 
-LD989:      ldx     $E796
-            jsr     DRVVALIDO       ; Check that drive is valid and open
-            stx     $E6DC
-            sty     CMDLIDX
+@USEDEF:    ldx     DEFDRV          ; Get default drive
+            jsr     DRVVALIDO       ; Ensure that drive is valid and open
+            stx     CURRDRV
+            sty     CMDLIDX         ; Updates command line index
             rts
 
-            jsr     GETNEXTNB
-            jsr     ISALPHA
-            bcc     LD9A0
+; Gets <device> or <file>:<drive> from command line
+; If it is a file, uses GETFILNDRV and CURRDRV contains a valid drive.
+; If it is a device, CURRDRV contains the device name
+;
+GETDEVORFIL:
+            jsr     GETNEXTNB       ; Get next non-blank
+            jsr     ISALPHA         ; Verify it is alphanumeric
+            bcc     @CONT
             jsr     ERROR11         ; Missing or illegal device or file name
-LD9A0:      iny
-            jsr     GETNEXTCH
-            jsr     VALFNCHR
-            dey
-            bcs     LD9AD
-            jmp     LD968
-
-LD9AD:      jsr     GETNEXTCH
-            sta     $E6DC
-            iny
-            sty     CMDLIDX
+            ; Not reached
+@CONT:      iny                     ; Advance and
+            jsr     GETNEXTCH       ; Get next char
+            jsr     VALFNCHR        ; Validate it is a valid file name char
+            dey                     ; Go back
+            bcs     @INVALID        ; Not valid
+            jmp     GETFILNDRV
+            ; Not reached
+@INVALID:   jsr     GETNEXTCH       ; Get char
+            sta     CURRDRV         ; Save into CURRDRV to force an invalid?
+                                    ;   NOTE: seems that later on it will force a
+                                    ;   "Missing or illegal device or file name" error
+            iny                     ; Increment and save the command line index
+            sty     CMDLIDX         ;
             rts
 
 ; Get Address and bank from command line + 2
@@ -299,7 +314,7 @@ LD9B9:      jsr     LFBE1
             sta     CHGBNKFLG       ; Clears change bank flag
             jsr     GETNEXTNB
             beq     @RETURN
-            cmp     $E790
+            cmp     COLON
             bne     @RETURN
             jsr     GETNEXTNB1
             sty     CMDLIDX
@@ -386,13 +401,13 @@ BREAKP:     jsr     GETNEXTNB       ; Get next char from command line
             sta     MEMBUFF+1       ;
             ldy     #$00
             lda     BPBANK,x        ; Get bank
-            eor     DEFBNK          ; And switch to it 
+            eor     DEFBNKCFG       ; And switch to it 
             sta     BNKCTL          ;
             lda     (MEMBUFF),y     ; Get OP at BP address
             bne     @CONT           ; If not a BRK, do nothing
             lda     BPOP,x          ; Restore original OP
             sta     (MEMBUFF),y     ;
-@CONT:      lda     DEFBNK          ; Switch back to current bank
+@CONT:      lda     DEFBNKCFG       ; Switch back to default bank
             sta     BNKCTL          ;
             lda     #$FF            ; Invalidate/clear BP
             sta     BPBANK,x        ;
@@ -413,13 +428,13 @@ BREAKP:     jsr     GETNEXTNB       ; Get next char from command line
             sta     BPADDRHI,x      ;
             lda     NEWBNK          ; Set BP memory bank
             sta     BPBANK,x        ;
-            eor     DEFBNK          ; And switch to it
+            eor     DEFBNKCFG       ; And switch to it
             sta     BNKCTL          ;
             lda     (MEMBUFF),y     ; Get current opcode at BP address
             sta     BPOP,x          ; and save it
             tya                     ; Y is currently 0 (BRK)
             sta     (MEMBUFF),y     ; Set BRK at BP address
-@RSTBNK:    lda     DEFBNK          ; Switch bank bank
+@RSTBNK:    lda     DEFBNKCFG       ; Switch bank bank
             sta     BNKCTL          ;
             rts
 
@@ -432,7 +447,7 @@ BREAKP:     jsr     GETNEXTNB       ; Get next char from command line
             cmp     MEMBUFF+1       ;
             bne     @NEXT2          ; No, go try next slot
             lda     NEWBNK          ; Definitely, switch to BP bank
-            eor     DEFBNK          ;
+            eor     DEFBNKCFG       ;
             sta     BNKCTL          ;
             lda     (MEMBUFF),y     ; Get opcode at BP address
             bne     @SETBP          ; Not a BRK, set BP
@@ -449,7 +464,9 @@ BREAKP:     jsr     GETNEXTNB       ; Get next char from command line
 ; SYNTAX:       FREE <channel> ...
 ; ARGUMENTS:    <channel> = channel number to free, 0 to 9.
 ; 
-FREE:       jsr     LD939
+FREE:       jsr     GETCHANN        ; Get channel from command line
+                                    ; (in fact, from A, which contains first NN
+                                    ;  char after the command name)
             jsr     FREECH
             ldy     CMDLIDX         ; Get command line index
             jsr     GETNEXTNB       ; Get next channel
@@ -504,14 +521,14 @@ CLOSE:      beq     @NOARGS
 ;                         usually 0.
 ;               <entry> = entry point. Defaults to <from>
 ;               <from>  = starting address for the block of memory.
-;               <dest>> = address at which the block is to be loaded into memory on
+;               <dest>  = address at which the block is to be loaded into memory on
 ;                         subsequent GET commands. Defaults to <from>.
 ;               <to>    = final address of the memory block. 
 ; 
-SAVE:       jsr     LD968           ; Get file and drive from command line
-            jsr     LF4A0
+SAVE:       jsr     GETFILNDRV      ; Get file and drive from command line
+            jsr     ASSIGN0         ; Assign to channel 0
             bit     $E786
-            bpl     @LDB28
+            bpl     @LDB28          ; Bit 7 clear
             bit     $E77A
             bmi     @LDB28
             jsr     ERROR25         ; New file name is already on selected diskette 
@@ -545,7 +562,7 @@ SAVE:       jsr     LD968           ; Get file and drive from command line
 ;                         lieu of the from address which was specified when the
 ;                         file was saved. 
 ; 
-GETCMD:     jsr     LD968
+GETCMD:     jsr     GETFILNDRV
             jsr     LF592
             ldy     CMDLIDX         ; Get command line index
             jsr     LDA17
@@ -562,7 +579,7 @@ GETCMD:     jsr     LD968
             sta     PCSAVE+1
             lda     $E6D2
             sta     PRGBANK
-            sta     $E6CF
+            sta     DATBANK
 @LDB82:     ldy     CMDLIDX
             jsr     LDA17
             ldx     #$00
@@ -612,7 +629,7 @@ DRIVE:      jsr     GETDRIVEOPND
 ;               <drive> = disk drive, 0 to 3. Defaults to the default drive,
 ;                         usually 0.
 ; 
-DELETE:     jsr     LD968
+DELETE:     jsr     GETFILNDRV
             jsr     LF62D
             ldy     CMDLIDX         ; Get command line index
             jsr     GETNEXTNB
