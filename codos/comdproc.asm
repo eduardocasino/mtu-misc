@@ -15,14 +15,11 @@ HSRCW           = $FFE8
 
 
 LEB2F           := $EB2F
-LF0D6           := $F0D6
 LF592           := $F592
-LF62D           := $F62D
 LF8CE           := $F8CE
 LFBE1           := $FBE1
 LFC62           := $FC62
 LFD05           := $FD05
-LFD5F           := $FD5F
 LFF0E           := $FF0E
 
             .importzp MEMBUFF, TMPBUFP, INPBUFP, P0SCRATCH, ERRNUM, SVCENB
