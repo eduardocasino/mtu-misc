@@ -4,16 +4,6 @@
 ; Page:       1
 
 
-; TODO: Move this to an include file
-;
-SVIA1PORT       = $BFE0         ; System 1 6522 System control port data register
-SVIA1DIR        = $BFE2         ; System 1 6522 System control port direction register
-BNKCTL          = SVIA1PORT     ; System 1 6522 (Bank control data register)
-
-HSRCW           = $FFE8
-
-
-
 LEB2F           := $EB2F
 LF592           := $F592
 LF8CE           := $F8CE
@@ -51,8 +41,8 @@ CMDPROC:    cld
             jsr     CPYBNKSW        ; Copy bank switching routine to page zero
             lda     UNPROTFLG       ; Get status of memory protection flag
             sta     IGNORWRP        ; And copy to the ignore protection flag
-            jsr     SETOUTB         ; Set output buffer to output line buffer
-            jsr     SETINPB         ; Set input buffer to input line buffer
+            jsr     SETOUTBCH       ; Set output buffer to output line buffer
+            jsr     SETINPBCH       ; Set input buffer to input line buffer
             lda     CHANN1
             cmp     #$82            ; Console input?
             bne     @CONT           ; Nope
@@ -63,7 +53,7 @@ CMDPROC:    cld
             jsr     GETLINE         ; Get entire line
             bcc     CMDEXEC         ; If OK, go execute the command
             ldx     #$01            ; Not OK, free channel 1 (console )
-            jsr     FREECH          ;   (SETINPB will set it again to default $82)
+            jsr     FREECH          ;   (SETINPBCH will set it again to default $82)
             jmp     CMDPROC         ; And restart command processor
 
             ; Command processor entry
@@ -544,7 +534,7 @@ SAVE:       jsr     GETFILNDRV      ; Get file and drive from command line
             ldy     CMDLIDX         ; Get cmd line index
             jsr     GETNEXTNB
             bne     @LDB2D
-            jsr     LF0D6
+            jsr     FTRUNC
             jmp     FREECH0
 
 ; GET Command
