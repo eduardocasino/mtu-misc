@@ -6,11 +6,6 @@
 ; Input file: codos.bin
 ; Page:       1
 
-; Possible values: 14, 15, 17
-; If none is specified, 15 is assumed
-; Codos 11 is the same as Codos 15
-;
-
                     .include "codos.inc"
 
     BANKSW          := $0100

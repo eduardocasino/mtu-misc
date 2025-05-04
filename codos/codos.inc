@@ -1,3 +1,8 @@
+; Possible values: 14, 15, 17
+; If none is specified, 15 is assumed
+; Codos 11 is the same as Codos 15
+;
+
 .ifndef CODOS2_VER
     CODOS2_VER  = 15
 .endif
