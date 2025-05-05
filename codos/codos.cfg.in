@@ -2,8 +2,8 @@ MEMORY {
     ZEROPAGE:   start = $0000, size = $100;
     SCRATCH:    start = $0280, size = $30, file="";
     USRRAM:     start = $C000, size = $2000, define = yes;
-    CMDPROC:    start = $D800, size = $800, file="%%VERSION%%/comdproc.bin";
-    SVCPROC:    start = $DD20, size = $2E0, file="%%VERSION%%/svcproc.bin";
+    CMDPROC:    start = $D800, size = $800, file="build/%%VERSION%%/comdproc.bin";
+    SVCPROC:    start = $DD20, size = $2E0, file="build/%%VERSION%%/svcproc.bin";
     SYSRAM:     start = $E000, size = $2000, define = yes;
     CODOS:      start = $E54A, size = $19B6, file=%O;
     OVERLAYS:   start = $FE00, size = $100, define = yes;
