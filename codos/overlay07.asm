@@ -9,13 +9,6 @@
             .include "codos.inc"
             .include "symbols.inc"
 
-; CODOS symbols
-LEFD0           := $EFD0
-LF594           := $F594
-LF81C           := $F81C
-LF8A2           := $F8A2
-LFD76           := $FD76
-
             .segment "overlays"
 
             .byte   $07             ; Overlay number
@@ -33,8 +26,8 @@ LFD76           := $FD76
 ;               usually 0
 ; 
 ASSIGNCMD:  bne     @CONT
-            jmp     DISPLAYCH       ; No arguments, diaplay current channel assignments
-
+            jmp     DISPLAYCH       ; No arguments, display current channel assignments
+            ; Not reached
 @CONT:      jsr     GETCHANN        ; Get channel number from command line into CHANNEL
                                     ; (in fact, from A, which contains first NN
                                     ;  char after the command name)
@@ -84,71 +77,73 @@ ASSIGNCMD:  bne     @CONT
             ; Not reached
 @RETURN:    rts
 
-DISPLAYCH:  jsr     LFD76
-            ldx     #$00
-            beq     LFE74
-LFE6C:      ldx     TEMP4
-            inx
-            cpx     #$0A
-            bcs     LFEEF
-LFE74:      stx     TEMP4
-            lda     $E652,x
-            beq     LFE6C
-            sta     DEVICE
-            jsr     PRNSTR
-            .byte   "CHAN. ", $00
+; Display current channel assignments
+;
+DISPLAYCH:  jsr     SETOUTBCH       ; Set output buffe rand output channel to
+                                    ; console if not set
+            ldx     #$00            ; Init channel number
+            beq     @FIRST          ; Always jump
+@NEXTCH:    ldx     TEMP4           ; Get current channel
+            inx                     ; And go for next
+            cpx     #$0A            ; Are we past the last one?
+            bcs     @RETURN         ; Yes, just return
+@FIRST:     stx     TEMP4           ; Save current channel
+            lda     IOCHTBL,x       ; Get channel's device
+            beq     @NEXTCH         ; If not assigned, go check next
+            sta     DEVICE          ; Store file/device
+            jsr     PRNSTR          ; Print assignment info:
+            .byte   "CHAN. ", $00   ;
 
-            lda     TEMP4
-            ldy     #$00
+            lda     TEMP4           ; Get channel
+            ldy     #$00            ; Convert to hex at the begining of the output buffer    
+            jsr     HEXBYTE         ;
+            lda     #$20            ; Add a space next
+            sta     (OUTBUFP),y     ;
+            iny                     ; Advance one pos
+            ldx     TEMP4           ;   Get channel's device (again)
+            lda     IOCHTBL,x       ; Why? it is already in DEVICE...
+            bpl     @ISFILE         ; If it is a file, go display file name
+            and     #$7F            ; It is a device, clear device flag
+            lsr     a               ; and get device number
+            tax                     ; And from it, the device name
+            lda     DNT,x           ;  (which is a letter)
+            sta     (OUTBUFP),y     ; And place into the output buffer
+@PRINT:     iny                     ; Advance one pos and
+            jsr     POUTBUFFCR02    ;   print output buffer to console, followed by a CR
+            jmp     @NEXTCH
 
-            jsr     LF8A2
-            lda     #$20
-            sta     (OUTBUFP),y
-            iny
-            ldx     TEMP4
-            lda     $E652,x
-            bpl     LFEAE
-            and     #$7F
-            lsr     a
-            tax
-            lda     $E62A,x
-            sta     (OUTBUFP),y
-LFEA7:      iny
-            jsr     POUTBUFFCR02    ; Print output buffer to console, followed by a CR
-            jmp     LFE6C
-
-LFEAE:      sty     $0293
-            ldx     TEMP4
+@ISFILE:    sty     SAVEY7          ; Save output buffer index
+            ldx     TEMP4           ; Get channel number
             jsr     GETDEV          ; Get device or file from channel and store in DEVICE
             jsr     CPYCFINFO       ; Fills current FINFO structure for DEVICE
-            jsr     LF81C
-            lda     #$94
-            sta     $E7
-            jsr     LEFD0
-            jsr     READSECT
-            ldy     $0293
-            ldx     #$00
-LFECC:      lda     $E501,x
-            sta     (OUTBUFP),y
-            iny
-            cmp     #$2E
-            beq     LFED9
-            inx
-            bne     LFECC
-LFED9:      lda     $E502,x
-            sta     (OUTBUFP),y
-            iny
-            lda     #$3A
-            sta     (OUTBUFP),y
-            iny
-            lda     $DD
-            cld
-            clc
-            adc     #$30
-            sta     (OUTBUFP),y
-            jmp     LFEA7
+            jsr     ZEROFILEP       ; Zeroes file pointer
+            lda     #$94            ; Set transfer buffer to $E500 (Directory buffer)
+            sta     CURFINFO+_DMABF ;
+            jsr     GETFPSECT       ; Get sector of current file pointer
+            jsr     READSECT        ; Read sector
+            ldy     SAVEY7          ; Recover output buffer position
+            ldx     #$00            ; Init offset to file names in directory
+@GETCH:     lda     DIRBUF+1,x      ; Get file name char 
+            sta     (OUTBUFP),y     ; and store to output buffer
+            iny                     ; continue
+            cmp     #'.'            ; until extension separator
+            beq     @FEXT           ; then get the extension
+            inx                     ; Else go get next char
+            bne     @GETCH          ;
+@FEXT:      lda     DIRBUF+2,x      ; Store extension name
+            sta     (OUTBUFP),y     ;
+            iny                     ; Advance to next pos
+            lda     #':'            ; Print drive separator
+            sta     (OUTBUFP),y     ;
+            iny                     ; Advance
+            lda     CURFINFO+_DRIVE ; Get drive number 
+            cld                     ; Convert to ASCII
+            clc                     ;
+            adc     #'0'            ;
+            sta     (OUTBUFP),y     ; Save to the buffer
+            jmp     @PRINT          ; and print
 
-LFEEF:      rts
+@RETURN:    rts
 
             ; This block is just junk that was in the buffer when
             ; writing it to disk. I leave it to facilitate checksum

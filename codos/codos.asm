@@ -153,7 +153,7 @@ UNKNWN17:   .res 1                  ; $FF
 
             .segment "scratch1"
 
-            .export NFILES, TEMP4
+            .export NFILES, TEMP4, SAVEY7
 
 TEMP1:      .res 1                  ; $0283
 TEMP2:      .res 1                  ; $0284
@@ -171,7 +171,7 @@ SAVEX6:     .res 1                  ; $028F
 TEMP4:      .res 1                  ; $0290 (byte) Used as temporary space by command processor
 TEMP3:      .res 1                  ; $0291
 SAVEA2:     .res 1                  ; $0292
-            .res 1                  ; $0293
+SAVEY7:     .res 1                  ; $0293
 SAVEA3:     .res 1                  ; $0294
 SAVEX7:     .res 1                  ; $0295
             .res 1                  ; $0296
@@ -263,7 +263,7 @@ COUTP:      .word   COUT            ; Console output routine (DTI = $82)
 
             ; I/O Channel Table
 
-            .export CHANN1
+            .export IOCHTBL, CHANN1
 
 IOCHTBL:    .byte   $00             ; Channel 0: reserved for internal CODOS operation
 CHANN1:     .byte   $82             ; Channel 1: Input commands to system monitor
@@ -533,13 +533,14 @@ LE768:      .byte   $00
 N765ECNT:   .byte   $00             ; uPD765 error count
 CMDIDX:     .byte   $01             ; uPD765 command index
 SAVEDRV:    .byte   $FF             ; Used for temporary storage
-LE76C:      .byte   $00
-LE76D:      .byte   $00
-LE76E:      .byte   $00
+CBLOCK:     .byte   $00             ; Block of current file pointer
+CTRACK:     .byte   $00             ; Track of current file pointer
+CSECT:      .byte   $00             ; Sector of current file pointer
 CURHEAD:    .byte   $00             ; Current head
 SKDRIVE:    .byte   $00             ; Current drive in SEEK operations
 RWDRIVE:    .byte   $00             ; Current drive in READ(WRITE operations
 DSFLAG:     .byte   $00             ; Dual side flag for block calculations
+                                    ; If Bit 7 == 1, then dual side
 SCTBLKM1:   .byte   $07             ; Sectors/block minus 1 for block calculations
 LE774:      .byte   $00
 SECTNUM:    .byte   $00             ; Sector number (used in disk access functions)
@@ -1565,7 +1566,7 @@ WRITSECT:   sta     RWRSECTR        ; Set sector for write command
             beq     RDWRSECT        ; Always jump
             ; Not reached
 
-LEDB2:      jsr     LEFD0
+LEDB2:      jsr     GETFPSECT
             ; Fall through
 
 ; Read sector A
@@ -1937,18 +1938,22 @@ CHKLCK:     lda     CURFINFO+_FLAGS
             jsr     ERROR07         ; Locked file violation
 @RET:       rts
 
-; Calculate sectorTrack of file position?
+; Calculate sector, track  and head of file position
 ;
 ; File pointer is a 24 bit value
 ; As sectors are 256 bytes, and blocks start in a sector, the LSB is the byte offset
-; in the sector and the two most significant bytes are the sector offset in the block
+; in the sector and the two most significant bytes are used to calculate the block
+; number and the sector offset in that block
 ;
 ; Blocks are 2K of size for single side, 4K for dual side. So, to calculate the block
 ; offset from the first block of the file, we have to divide by 8 for single side
 ; disks and 16 for dual side. 
-; So, first we calculate the sector offset
+;
+; Sets CBLOCK, CURHEAD, CTRACK and CSECT and returs sector in A
+;
+            .export GETFPSECT
 
-LEFD0:      lda     #$00            ; Set head 0
+GETFPSECT:  lda     #$00            ; Set head 0
             sta     CURHEAD         ;
             lda     #$07            ; Sectors/block-1
             sta     SCTBLKM1        ;
@@ -1971,69 +1976,69 @@ LEFD0:      lda     #$00            ; Set head 0
             stx     SCTBLKM1        ;
             lsr     TEMP1           ; And divide again (total is sector offset / 16)
             ror     a               ;
-@CONT:      tax                     ; Transfer sector offset to X
+@CONT:      tax                     ; Transfer block offset to X
             lda     CURFINFO+_BATPT ; Get first block of file
             inx                     ; 
-            bne     LF00C
-LF009:      tay                     ; Get next block
-            lda     (BATP),y        ;
-LF00C:      dex
-            bne     LF009
-            sta     LE76C
+            bne     @LF00C
+@NXTBLK:    tay                     ; Get index of nex block
+            lda     (BATP),y        ; And read block info
+@LF00C:     dex                     ; Decrement block offset
+            bne     @NXTBLK         ; Continue until we arrive to block offset
+            sta     CBLOCK          ; Save block
             sec
             sbc     #$01
             ldx     #$FF
             sec
-LF018:      inx
-            sbc     #$0D        ; #FINFOLEN?
-            bcs     LF018
+@LF018:     inx
+            sbc     #$0D            ; #FINFOLEN?
+            bcs     @LF018
             adc     #$0D
             asl     a
             asl     a
             asl     a
-            bit     DSFLAG
-            bpl     LF028
+            bit     DSFLAG          ; Dual side disk?
+            bpl     @SKIP           ; Nope, skip
             asl     a
-LF028:      sta     TEMP1
+@SKIP:      sta     TEMP1
             txa
             asl     a
             asl     a
             tax
-            lda     #NSECTS
-            sta     SECSTRK
+            lda     #NSECTS         ; Get sectors per track
+            sta     SECSTRK         ;
             lda     #$07
-            bit     DSFLAG
-            bpl     LF042
-            lda     #$34
-            sta     SECSTRK
+            bit     DSFLAG          ; Dual side disk?
+            bpl     @SKIP2          ; No, skip
+            lda     #NSECTS*2       ; Yes, double the sectors per track
+            sta     SECSTRK         ;
             lda     #$0F
-LF042:      and     CURFINFO+_FPOS+1
+@SKIP2:     and     CURFINFO+_FPOS+1
             sta     LE774
             clc
             adc     TEMP1
             dex
-LF04C:      inx
+@LF04C:     inx
             sec
             sbc     SECSTRK
-            bcs     LF04C
+            bcs     @LF04C
             adc     SECSTRK
             cpx     #$0C
-            bcc     LF065
+            bcc     @LF065
             adc     #$11
             cmp     SECSTRK
-            bcc     LF065
+            bcc     @LF065
             sbc     SECSTRK
             inx
-LF065:      stx     LE76D
-            sta     LE76E
-            ldx     CURFINFO+_DRIVE
-            lda     LE76E
-            cmp     #NSECTS
-            bcc     LF077
+@LF065:     stx     CTRACK
+            sta     CSECT           ; Save file sector for pointer
+            ldx     CURFINFO+_DRIVE ; Get file drive
+            lda     CSECT           ; Get sector (again?)
+            cmp     #NSECTS         ; Is it bigger that sectors per track?
+            bcc     @SEEK           ; No, skip to seek track
             inc     CURHEAD         ; Switch to head 1
-LF077:      lda     LE76D
-            jsr     SEEKTRK
-            lda     LE76E
+@SEEK:      lda     CTRACK          ; Seek track
+            jsr     SEEKTRK         ;
+            lda     CSECT           ; And return sector in A
             rts
 
 ;
@@ -2043,7 +2048,7 @@ LF084:      bit     CURFINFO+_FLAGS ; Check flags
             bvc     LF094           ; If What the fuck flag is not set, return
             ; Fall through
 
-LF088:      jsr     LEFD0
+LF088:      jsr     GETFPSECT
             jsr     WRITSECT
             lda     CURFINFO+_FLAGS
             and     #$BF
@@ -2122,9 +2127,9 @@ LF0D5:      rts
 FTRUNC:     jsr     ASSIGNED
             bmi     LF0FB
             jsr     GETCURCHKLK
-            jsr     LEFD0
+            jsr     GETFPSECT
             jsr     LEF26
-            ldy     LE76C
+            ldy     CBLOCK
             lda     (BATP),y
             cmp     #$F9
             bcs     LF0F8
@@ -2472,7 +2477,7 @@ LF316:      ldy     #$00
             cmp     SCTBLKM1
             bne     LF2C2
             jsr     GETFREEB
-            ldy     LE76C
+            ldy     CBLOCK
             jsr     SETNEXTBLK
             jmp     LF2C2
 
@@ -2513,10 +2518,10 @@ LF36D:      jsr     UPDCFINFO
             plp
             rts
 
-LF375:      jsr     LEFD0
+LF375:      jsr     GETFPSECT
             lda     MEMCOUNT+1
             bne     LF382
-            lda     LE76E
+            lda     CSECT
             jsr     READSECT
 LF382:      jmp     LF2C2
 
@@ -2829,6 +2834,8 @@ FOPEN0:     ldx     #$00
 ; Assigns channel X to an existing file
 ; Fails if file does not exist
 ;
+            .export FOPEN
+
 FOPEN:      jsr     CLRASSIGNF      ; Clears assign flag and returns CURRDRV in X and A
             jsr     DRVVALIDO       ; Check that drive X is valid and open
             jsr     FEXIST          ; Check if file exists
@@ -3194,6 +3201,8 @@ INITFILE:   lda     #FHDRLEN            ; Set file size to 64
 
 ; Zeroes file pointer
 ;
+            .export ZEROFILEP
+
 ZEROFILEP:  lda     #$00
             ; Fall through
 
@@ -3322,6 +3331,8 @@ HEXWORD:    lda     P0SCRATCH+1,x   ; Gets most significant byte
 ; Converts byte in A into its 2-char ascii hex representation
 ; at  (OUTBUFP),y
 ;
+            .export HEXBYTE
+
 HEXBYTE:    pha                     ; Save byte
             lsr     a               ; Get upper nibble
             lsr     a               ;
