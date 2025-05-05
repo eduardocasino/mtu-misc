@@ -17,6 +17,8 @@ LFF0E           := $FF0E
 
             .segment "scratch0"
 
+            .export CHANNEL, CMDIDX
+
 CHANNEL:    .res 1                  ; $0280 
 CMDIDX:     .res 1                  ; $0281 Command index in tables
 CMDNUM:     .res 1                  ; $0282 Command number
@@ -196,6 +198,8 @@ SEARCHCMD:  sty     CMDLIDX         ; Save command position
 ; Get channel number from A and store it in CHANNEL
 ; Returns channel number in X
 ;
+            .export GETCHANN
+
 GETCHANN:   jsr     LFBCC           ; Get channel number
             bcs     @CONT
             jsr     ERROR08         ; Missing or illegal channel number
@@ -214,6 +218,8 @@ GETCHANN:   jsr     LFBCC           ; Get channel number
 ; Get drive from command line and check that it is opened
 ; Does not return on error
 ;
+                .export GETDRIVEOPND
+
 GETDRIVEOPND:  
             jsr     GETDRIVE
             jmp     ISDRVOPEN
@@ -236,6 +242,8 @@ LD95D:      lda     P0SCRATCH
 ; Get file and drive from command line and ensures that drive is open
 ; Returns drive in X. Sets CURRDRV, FNAMBUF and updates CMDLIDX.
 ;
+            .export GETFILNDRV
+
 GETFILNDRV: lda     INPBUFP         ; Copy command line pointer to
             sta     TMPBUFP         ; TMPBUF so we can use FNAMFROMBUF
             lda     INPBUFP+1       ;
@@ -263,6 +271,8 @@ GETFILNDRV: lda     INPBUFP         ; Copy command line pointer to
 ; If it is a file, uses GETFILNDRV and CURRDRV contains a valid drive.
 ; If it is a device, CURRDRV contains the device name
 ;
+            .export GETDEVORFIL
+
 GETDEVORFIL:
             jsr     GETNEXTNB       ; Get next non-blank
             jsr     ISALPHA         ; Verify it is alphanumeric

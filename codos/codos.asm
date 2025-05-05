@@ -114,7 +114,7 @@ PCSAVE:     .res 2                  ; $DA-$DB (word) Program counter
 
 PCSAVEPOS   = PCSAVE-P0SCRATCH
 
-            .export CURFINFO
+            .export CURFINFO, BATP
 
 CURFINFO:   .res FINFOLEN           ; $DC-$E8
 
@@ -153,6 +153,8 @@ UNKNWN17:   .res 1                  ; $FF
 
             .segment "scratch1"
 
+            .export NFILES, TEMP4
+
 TEMP1:      .res 1                  ; $0283
 TEMP2:      .res 1                  ; $0284
 SAVEY1:     .res 1                  ; $0285 Used to preserve Y register during disk operations
@@ -166,7 +168,7 @@ SAVEX4:     .res 1                  ; $028C
 SAVEX5:     .res 1                  ; $028D
 SAVEY4:     .res 1                  ; $028E
 SAVEX6:     .res 1                  ; $028F
-            .res 1                  ; $0290 (byte) Used as temporary space by command processor
+TEMP4:      .res 1                  ; $0290 (byte) Used as temporary space by command processor
 TEMP3:      .res 1                  ; $0291
 SAVEA2:     .res 1                  ; $0292
             .res 1                  ; $0293
@@ -347,13 +349,13 @@ CHGBNKFLG:  .byte   $00             ; If set, switches to NEWBNK
 LE6D6:      .byte   $00
 LE6D7:      .byte   $00
 
-            .export DEFBNKCFG
+            .export DEFBNKCFG, DEVICE
 
 DEFBNKCFG:  .byte   $7F             ; Default bank configuration
 CHANNEL:    .byte   $00             ; Current channel for I/O operations
 DEVICE:     .byte   $00             ; Current device/file for I/O operations
 
-            .export CURRDRV
+            .export DIRPOINT, CURRDRV
 
 DIRPOINT:   .byte   $00             ; Pointer to current directory entry
 CURRDRV:    .byte   $00             ; Current disk drive number
@@ -525,6 +527,8 @@ RCERRCNT:   .byte   $00             ; Cumulative count of recalibrate commands i
 SECERRNUM:  .byte   $FF             ; Sector number for last disk error causing a recalibrate.
 TRKERRNUM:  .byte   $FF             ; Track number for last disk error causing a recalibrate.
 
+            .export SECTNUM
+
 LE768:      .byte   $00
 N765ECNT:   .byte   $00             ; uPD765 error count
 CMDIDX:     .byte   $01             ; uPD765 command index
@@ -606,7 +610,7 @@ DEFAULTEXT: .byte   "C"             ; Current ASCII default file extension chara
 NUMOVL:     .byte   $11             ; Number of system overlays+1
 CURROVL:    .byte   $00             ; Current overlay number
 
-            .export DEFDRV, CMDFNP
+            .export DEFDRV, NUMFNAMES
 
 DEFDRV:     .byte   $00             ; Current default drive number (Set by DRIVE command).
 TOPASSIGTB: .byte   $4F             ; Top of active files table (6 active files max)
@@ -625,7 +629,7 @@ SYSERRMNAM: .byte   "SYSERRMSG.Z"
 CMDPROCNAM: .byte   "COMDPROC.Z"
 STARTUPNAM: .byte   "STARTUP.J"
 
-            .export INPLBUF, INTSRVP, ERRRCVRYP
+            .export INPLBUF, INTSRVP, ERRRCVRYP, CMDFNP
 
 INPLBUF:    .word   $0500           ; Pointer to start of system input line buffer.
 OUTLBUF:    .word   $0600           ; Pointer to start of system output line buffer
@@ -1081,7 +1085,6 @@ JPOSTERR:   nop                     ;
             nop                     ;
             nop                     ;
 
-; $EAFD
             .export WARMST
 
 WARMST:     cld
@@ -1567,6 +1570,8 @@ LEDB2:      jsr     LEFD0
 
 ; Read sector A
 ;
+            .export READSECT
+
 READSECT:   sta     RWRSECTR        ; Set sector for write command
             lda     #$46            ; Set command to read
             sta     RDWRD           ;
@@ -1661,6 +1666,8 @@ GETFINFO:   jsr     CPYCFINFO       ; Copies file info structure to CURFINFO str
 
 ; Set the BATP to the current drive's BAT
 ;
+            .export SETBATP
+
 SETBATP:    lda     #$00            ; BAT begins at page start 
             sta     BATP            ;
             lda     #$E4            ; Drive 0 BAT page
@@ -1695,6 +1702,8 @@ RDSECTATR12:
 ;    If sector == 0, loads BAT into BAT area
 ;    If sector != 0, into directory buffer
 ;
+            .export RDSECTNTR12
+
 RDSECTNTR12:
             jsr     PREPRDTR12
             jsr     READSECT
@@ -1741,6 +1750,8 @@ PTR12RET:   rts
 
 ; Copies file info to the current file structure in page zero
 ;
+            .export CPYCFINFO
+
 CPYCFINFO:  ldy     DEVICE          ; Get current device (file)
             ldx     #$00
 @LOOP:      lda     FINFOTBL,y      ; From file's FINFO
@@ -2728,7 +2739,7 @@ ASSIGN:     jsr     CLRASSIGNF      ; Clears assign flag and returns CURRDRV in 
                                     ; name
             ldx     #$00            ; Copy the new DIRENT to the directory buffer
 @LOOP:      lda     DIRENT,x        ;
-            sta     $E500,y         ;
+            sta     DIRBUF,y        ;
             iny                     ;
             inx                     ;
             cpx     #$10            ; Last byte?
@@ -2919,7 +2930,7 @@ LF639:      ldy     #$15
             tax
             sta     DIRPOINT
             ldy     #$01
-LF64A:      lda     $E500,x
+LF64A:      lda     DIRBUF,x
             cmp     #$2E
             beq     LF65C
             cmp     ($E5),y
@@ -2930,7 +2941,7 @@ LF658:      iny
             bne     LF64A
 LF65C:      ldx     DIRPOINT
             lda     #$00
-            sta     $E500,x
+            sta     DIRBUF,x
             jsr     WRTRCK12
             ldy     #_BNENT         ; Get number of files on disk
             lda     (BATP),y        ;
@@ -3115,7 +3126,7 @@ FEXIST:     jsr     SETBATP         ; Set BATP to the current drive's BAT
 @NOEMPTY:   jsr     RDSECTNTR12     ; Read SECTNUM sector into DIR buffer
 @ENTRYLP:   ldy     DIRPOINT        ; Get pointer to filename of entry
             ldx     #$00            ; Init FNAMBUF index
-@CMPLP:     lda     $E500,y         ; Get first char
+@CMPLP:     lda     DIRBUF,y        ; Get first char
             beq     @DELETED        ; If it is a NULL, it is deleted
             cmp     #'.'            ; Extension separator?
             beq     @CHKEXT         ;   yes, go compare extension
@@ -3546,6 +3557,8 @@ POUTBUFFCR: jsr     POUTBUFF
 
 ; Print a CR to channel X
 ;
+            .export PRNCR
+
 PRNCR:      lda     #$0D
             jmp     PRNCHAR
             ; Not reached
@@ -4022,7 +4035,7 @@ LFCF7:  lda     $C9,x
         rts
 
 
-; Loads $58 segemts from file
+; Loads $58 segments from file
 ;    Overlay in A
 ;    ????? in X
 ;
@@ -4190,11 +4203,13 @@ EXSENSEDRV17:
             rts
 .endif
 
-                .export OVLORG, SYSRAM
+                .export OVLORG, SYSRAM, DIRBUF
 
 OVLORG          := __OVERLAYS_START__   ; Origin of CODOS overlays
 
 USRRAM          := __USRRAM_START__     ; K-1013 onboard user RAM
 SYSRAM          := __SYSRAM_START__     ; K-1013 onboard system RAM
+
+DIRBUF          := SYSRAM+$500          ; Directory buffer
 
         .end
