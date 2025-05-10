@@ -95,7 +95,10 @@ typedef struct {
     uint8_t size2;
     uint16_t dir_offset;
     uint8_t date[10];
-    uint8_t reserved[32];
+    uint8_t reserved[28];
+    uint8_t finals;         // Final sector number for the load 
+    uint8_t dmaload;        // DMA address code for loading 1st sector
+    uint16_t entry;         // Address-1 of entry point into program
 } file_header_t;
 
 static_assert( sizeof( file_header_t ) == 64 );

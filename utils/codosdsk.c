@@ -86,7 +86,8 @@ static void extract_usage( char *myname )
 static void format_usage( char *myname )
 {
     fprintf( stderr, "\nUsage: %s format [--help] [--yes] [--packed] [--interleave <n>] [--skew <n>] \\\n", myname );
-    fputs("                       [--volid <n>] [--codos <file>] [--name <file>] [--overlays <file>] <image>\n\n", stderr );
+    fputs("                       [--codos <file> [--name <file>] [-date <date>] [-dma <n>]] \\\n", stderr );
+    fputs("                       [--overlays <file>] [--volid <n>] <image>\n\n", stderr );
 
     fputs( "Arguments:\n", stderr );
     fputs( "    <image>          Name of the newly formated image file.\n\n", stderr );
@@ -102,6 +103,8 @@ static void format_usage( char *myname )
     fputs( "    --codos|-c       CODOS kernel file.\n", stderr );
     fputs( "    --name|-n        Internal file name for CODOS kernel file. If not\n", stderr );
     fputs( "                     specified, defaults to --codos file name.\n", stderr );
+    fputs( "    --dma|-m         DMA Address code for loading of the first sector.\n", stderr );
+    fputs( "                     Defaults to 0x98 (0xFE00).\n", stderr );
     fputs( "    --date|-d        Use date string instead of current date.\n", stderr );
     fputs( "    --overlays|-o    CODOS overlays file.\n", stderr );
 }

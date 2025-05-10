@@ -374,7 +374,7 @@ static char *lowercase( char *string )
 
 // FIXME: Check for file validity
 //
-static int copy_to_disk( disk_t *disk, uint8_t *buffer, char *filename, char *internal, char *date )
+static int copy_to_disk( disk_t *disk, uint8_t *buffer, char *filename, char *internal, char *date, bool boot, uint8_t dma )
 {
     FILE *file;
     struct stat fs;
@@ -440,9 +440,22 @@ static int copy_to_disk( disk_t *disk, uint8_t *buffer, char *filename, char *in
     header.size0 = (uint8_t) filesiz & 0xff;
     header.size1 = (uint8_t) ( filesiz >> 8 ) & 0xff;
     header.size2 = (uint8_t) ( filesiz >> 16 ) & 0xff;
-
     set_date( header.date, sizeof( header.date ), date );
  
+    if ( boot )
+    {
+        header.dmaload = dma;
+        header.finals = (uint8_t) ( (filesiz + CODOS_SECTOR_SIZE - 1) / CODOS_SECTOR_SIZE );
+        if ( 1 != fread( buffer, 6, 1, file ) )
+        {
+            fputs( "Bad system file.\n", stderr );
+            fclose( file );
+            return -1;
+        }
+        header.entry = buffer[4] + buffer[5] * 256 - 1;
+        rewind( file );
+    }
+
     // Write file header
 
     size_t nbytes = sizeof( header );
@@ -509,7 +522,7 @@ static int copy_to_disk( disk_t *disk, uint8_t *buffer, char *filename, char *in
     return ret;
 }
 
-static int write_system( disk_t *disk, uint8_t *buffer, char *codos, char *internal, char *date )
+static int write_system( disk_t *disk, uint8_t *buffer, char *codos, char *internal, uint8_t dma, char *date )
 {
     // Check that block 1 is free
 
@@ -519,7 +532,7 @@ static int write_system( disk_t *disk, uint8_t *buffer, char *codos, char *inter
         return -1;
     }
 
-    return copy_to_disk( disk, buffer, codos, internal, date );
+    return copy_to_disk( disk, buffer, codos, internal, date, true, dma );
 
 }
 
@@ -905,7 +918,7 @@ int copy( disk_t *disk, uint8_t *buffer, size_t bufsiz, int argc, char **argv )
 
         if ( *matches == NULL )
         {
-            ret = copy_to_disk( disk, buffer, first, uppercase( second ), date );
+            ret = copy_to_disk( disk, buffer, first, uppercase( second ), date, false, 0 );
 
             if ( ! ret )
             {
@@ -1070,10 +1083,10 @@ int delete( disk_t *disk, uint8_t *buffer, size_t bufsiz, int argc, char **argv 
 int format( disk_t *disk, uint8_t *buffer, size_t bufsiz, int argc, char **argv )
 {
     FILE *file = NULL;
-    bool pflag = false, yes = false;
+    bool pflag = false, yes = false, dmaf = false;
     int ret;
     uint16_t volid = 0;
-    uint8_t interleave = 1, skew = 0;
+    uint8_t interleave = 1, skew = 0, dma = 0x98;
     char *codos = NULL, *overlays = NULL, *date = NULL, *internal = NULL;
 
     int opt;
@@ -1089,12 +1102,13 @@ int format( disk_t *disk, uint8_t *buffer, size_t bufsiz, int argc, char **argv 
         {"codos",      required_argument, 0, 'c' },
         {"overlays",   required_argument, 0, 'o' },
         {"name",       required_argument, 0, 'n' },
+        {"dma",        required_argument, 0, 'm' },
         {0,            0,                 0,  0  }
     };
 
     optind = 0;
 
-    while (( opt = getopt_long( argc, argv, "hypd:s:t:v:c:o:n:", long_opts, NULL)) != -1 )
+    while (( opt = getopt_long( argc, argv, "hypd:s:t:v:c:o:n:m:", long_opts, NULL)) != -1 )
     {
         switch( opt )
         {
@@ -1143,6 +1157,11 @@ int format( disk_t *disk, uint8_t *buffer, size_t bufsiz, int argc, char **argv 
                 ++yes;
                 break;
 
+            case 'm':
+                dma = (uint8_t) strtol( optarg, NULL, 0 );
+                ++dmaf;
+                break;
+            
             case 'h':
             default:
                 return 1;
@@ -1156,9 +1175,14 @@ int format( disk_t *disk, uint8_t *buffer, size_t bufsiz, int argc, char **argv 
             fputs( "Option '--name|-n' is only valid when '--codos|-c' is specified.\n", stderr );
             return 1;
         }
-        else if ( date )
+        if ( date )
         {
             fputs( "Option '--date|-d' is only valid when '--codos|-c' is specified.\n", stderr );
+            return 1;
+        }
+        if ( dmaf )
+        {
+            fputs( "Option '--dma|-m' is only valid when '--codos|-c' is specified.\n", stderr );
             return 1;
         }
     }
@@ -1215,7 +1239,7 @@ int format( disk_t *disk, uint8_t *buffer, size_t bufsiz, int argc, char **argv 
 
             if ( !ret && codos )
             {
-                ret = write_system( disk, buffer, codos, internal, date );
+                ret = write_system( disk, buffer, codos, internal, dma, date );
             }
 
             if ( !ret && overlays )
