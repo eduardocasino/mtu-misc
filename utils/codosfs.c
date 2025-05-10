@@ -653,9 +653,10 @@ static dir_entry_t **match_files( disk_t *disk, char *pattern, int *num )
 
 typedef enum { OP_DIR, OP_EXTRACT } op_t;
 
-static int file_op( op_t op, disk_t *disk, uint8_t *buffer, size_t bufsiz, int argc, char **argv )
+static int file_op( op_t op, disk_t *disk, uint8_t *buffer, size_t bufsiz, int *nfiles, int argc, char **argv )
 {
-    int filecount = 0;
+    int ret = 0;
+    int filecount;
     bool bat2 = false, locase = false;
 
     int opt;
@@ -726,7 +727,7 @@ static int file_op( op_t op, disk_t *disk, uint8_t *buffer, size_t bufsiz, int a
         {
             if ( 0 != read_block( disk, buffer, matches[f]->block, 1 ) )
             {
-                filecount = -1;
+                ret = -1;
                 break;
             }
     
@@ -743,7 +744,7 @@ static int file_op( op_t op, disk_t *disk, uint8_t *buffer, size_t bufsiz, int a
         {
             if ( 0 != extract_file( disk, buffer, filename, matches[f] ) )
             {
-                filecount = -1;
+                ret = -1;
                 break;
             }
         }
@@ -751,16 +752,20 @@ static int file_op( op_t op, disk_t *disk, uint8_t *buffer, size_t bufsiz, int a
 
     fclose( disk->image.file );
 
-    return filecount;
+    *nfiles = filecount;
+
+    return ret;
 }
 
 int dir( disk_t *disk, uint8_t *buffer, size_t bufsiz, int argc, char **argv )
 {
-    int nfiles = file_op( OP_DIR, disk, buffer, bufsiz, argc, argv );
+    int nfiles;
 
-    if ( nfiles < 0 )
+    int ret= file_op( OP_DIR, disk, buffer, bufsiz, &nfiles, argc, argv );
+
+    if ( ret != 0 )
     {
-        return -1;
+        return ret;
     }
 
     printf( "\nDisk volume number: $%2.2X%2.2X\n", disk->active_bat->volume_num_h, disk->active_bat->volume_num_l);
@@ -772,19 +777,21 @@ int dir( disk_t *disk, uint8_t *buffer, size_t bufsiz, int argc, char **argv )
 
 int extract( disk_t *disk, uint8_t *buffer, size_t bufsiz, int argc, char **argv )
 {
-    int ret = file_op( OP_EXTRACT, disk, buffer, bufsiz, argc, argv );
+    int nfiles;
 
-    if ( ret == 0 )
+    int ret = file_op( OP_EXTRACT, disk, buffer, bufsiz, &nfiles, argc, argv );
+
+    if ( ret != 0 )
+    {
+        return ret;
+    }
+
+    if ( ! nfiles )
     {
         fputs( "File not found.\n", stderr );
     }
 
-    if ( ret > -1 )
-    {
-        ret = 0;
-    }
-
-    return ret;
+    return 0;
 }
 
 typedef enum { ORIG_IMAGE, ORIG_HOST } origin_t;
@@ -947,24 +954,29 @@ static int delete_file( disk_t *disk, dir_entry_t *dirent )
 int delete( disk_t *disk, uint8_t *buffer, size_t bufsiz, int argc, char **argv )
 {
     char ret = -1;
-    bool bat2 = false;
+    bool bat2 = false, yes = false;
 
     int opt;
 
     static const struct option long_opts[] = {
         {"help", no_argument, 0, 'h' },
+        {"yes",  no_argument, 0, 'y' },
         {"bat2", no_argument, 0, '2' },
         {0,      0,           0,  0  }
     };
 
     optind = 0;
 
-    while (( opt = getopt_long( argc, argv, "h2", long_opts, NULL)) != -1 )
+    while (( opt = getopt_long( argc, argv, "hy2", long_opts, NULL)) != -1 )
     {
         switch( opt )
         {
             case '2':
                 ++bat2;
+                break;
+
+            case 'y':
+                ++yes;
                 break;
 
             case 'h':
@@ -975,7 +987,7 @@ int delete( disk_t *disk, uint8_t *buffer, size_t bufsiz, int argc, char **argv 
 
     argc -= optind-1;
     argv += optind-1;
-
+    
     if ( argc != 3 )
     {
         fputs( "Invalid argument count.\n", stderr );
@@ -1016,24 +1028,27 @@ int delete( disk_t *disk, uint8_t *buffer, size_t bufsiz, int argc, char **argv 
     }
     else
     {
-        fprintf( stderr, "Warning: About to delete %d file(s). Confirm? ", num_matches );
-
-        int c = getchar();
-
-        if ( 'y' != c && 'Y' != c)
+        if ( ! yes )
         {
-            fputs( "Aborted by user.\n", stderr );
-        }
-        else
-        {
-            for ( int entry = 0; matches[entry] != NULL; ++entry )
+            fprintf( stderr, "Warning: About to delete %d file(s). Confirm? ", num_matches );
+
+            int c = getchar();
+
+            if ( 'y' != c && 'Y' != c)
             {
-                ret = delete_file( disk, matches[entry] );
+                fputs( "Aborted by user.\n", stderr );
+                fclose( disk->image.file );
+                return -1;
+            }
+        }
 
-                if ( ret )
-                {
-                    break;
-                }
+        for ( int entry = 0; matches[entry] != NULL; ++entry )
+        {
+            ret = delete_file( disk, matches[entry] );
+
+            if ( ret )
+            {
+                break;
             }
         }
     }
@@ -1055,7 +1070,7 @@ int delete( disk_t *disk, uint8_t *buffer, size_t bufsiz, int argc, char **argv 
 int format( disk_t *disk, uint8_t *buffer, size_t bufsiz, int argc, char **argv )
 {
     FILE *file = NULL;
-    bool pflag = false;
+    bool pflag = false, yes = false;
     int ret;
     uint16_t volid = 0;
     uint8_t interleave = 1, skew = 0;
@@ -1064,6 +1079,8 @@ int format( disk_t *disk, uint8_t *buffer, size_t bufsiz, int argc, char **argv 
     int opt;
  
     static const struct option long_opts[] = {
+        {"help",       no_argument,       0, 'h' },
+        {"yes",        no_argument,       0, 'y' },
         {"packed",     no_argument,       0, 'p' },
         {"date",       required_argument, 0, 'd' },
         {"interleave", required_argument, 0, 's' },
@@ -1077,7 +1094,7 @@ int format( disk_t *disk, uint8_t *buffer, size_t bufsiz, int argc, char **argv 
 
     optind = 0;
 
-    while (( opt = getopt_long( argc, argv, "pd:s:t:v:c:o:n:", long_opts, NULL)) != -1 )
+    while (( opt = getopt_long( argc, argv, "hypd:s:t:v:c:o:n:", long_opts, NULL)) != -1 )
     {
         switch( opt )
         {
@@ -1122,6 +1139,11 @@ int format( disk_t *disk, uint8_t *buffer, size_t bufsiz, int argc, char **argv 
             case 'n':
                 internal = uppercase( optarg );
                 break;
+            case 'y':
+                ++yes;
+                break;
+
+            case 'h':
             default:
                 return 1;
         }
@@ -1148,7 +1170,7 @@ int format( disk_t *disk, uint8_t *buffer, size_t bufsiz, int argc, char **argv 
 
     if ( fname )
     {
-        if ( ! access( fname, F_OK ) )
+        if ( ! yes && ! access( fname, F_OK ) )
         {
             fprintf( stderr, "Warning: file %s exists. Overwrite? ", fname );
             int c = getchar();

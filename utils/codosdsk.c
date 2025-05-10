@@ -85,14 +85,15 @@ static void extract_usage( char *myname )
 
 static void format_usage( char *myname )
 {
-    fprintf( stderr, "\nUsage: %s format [--help] [--packed] [--interleave <n>] [--skew <n>] [--volid <n>] \\\n", myname );
-    fputs("                       [--codos <file>] [--name <file>] [--overlays <file>] <image>\n\n", stderr );
+    fprintf( stderr, "\nUsage: %s format [--help] [--yes] [--packed] [--interleave <n>] [--skew <n>] \\\n", myname );
+    fputs("                       [--volid <n>] [--codos <file>] [--name <file>] [--overlays <file>] <image>\n\n", stderr );
 
     fputs( "Arguments:\n", stderr );
     fputs( "    <image>          Name of the newly formated image file.\n\n", stderr );
 
     fputs( "Options:\n", stderr );
     fputs( "    --help|-h        Print this help\n", stderr );
+    fputs( "    --yes|-y         Force. Used for scripts.\n", stderr );
     fputs( "    --packed|-p      Create a packed (compressed) IMD image\n", stderr );
     fputs( "    --interleave|-s  Sector interleave, from 1 to 25. Defaults to 0.\n", stderr );
     fputs( "    --skew|-t        Track skew, from 0 to 25. Defaults to 0.\n", stderr );
@@ -124,15 +125,16 @@ static void copy_usage( char *myname )
 
 static void delete_usage( char *myname )
 {
-    fprintf( stderr, "\nUsage: %s delete [--help] [--bat2] <image> [0:]<file>\n", myname );
+    fprintf( stderr, "\nUsage: %s delete [--help] [--yes] [--bat2] <image> [0:]<pattern>\n", myname );
 
     fputs( "Arguments:\n", stderr );
     fputs( "    <image>          Name of the CODOS image file.\n", stderr );
-    fputs( "    <file>           File to be deleted. The prefix ':0' is optional and\n", stderr );
-    fputs( "                     has no effect, as the file is always within the image.\n\n", stderr );
-
+    fputs( "    <pattern>        Pattern of files to be deleted (see glob(7)). The prefix\n", stderr );
+    fputs( "                     ':0' is optional and has no effect, as the file is always\n", stderr );
+    fputs( "                     within the image.\n\n", stderr );
     fputs( "Options:\n", stderr );
     fputs( "    --help|-h        Print this help\n", stderr );
+    fputs( "    --yes|-y         Force. Used for scripts.\n", stderr );
     fputs( "    --bat2|-2        Use second copy of the disk BAT\n\n", stderr );
 }
 
