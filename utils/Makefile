@@ -21,7 +21,7 @@
 
 CC = gcc
 ALL = codosdsk
-DSKOBJ = imd.o codosfs.o codosdsk.o
+DSKOBJ = imd.o codosfs.o codosdsk.o hexdump.o
 
 all: $(ALL)
 
@@ -33,7 +33,7 @@ clean:
 
 imd.o: imd.h
 
-codosfs.o: codosfs.h imd.h
+codosfs.o: codosfs.h imd.h hexdump.h
 
 codosdsk.o: codosfs.h imd.h
 

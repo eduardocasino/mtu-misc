@@ -34,31 +34,132 @@
 #include "imd.h"
 #include "codosfs.h"
 
-typedef int (*command_fn_t)( disk_t *disk, uint8_t *buffer, int argc, char **argv );
+typedef int (*command_fn_t)( disk_t *disk, uint8_t *buffer, size_t bufsiz, int argc, char **argv );
+typedef void (*help_fn_t)(char *myname);
 
 typedef struct {
     const char *command_string;
     command_fn_t command_fn;
+    help_fn_t help_fn;
 } command_t;
 
 static void usage( char *myname )
 {
-    fprintf( stderr, "\nUsage: %s [--help] [--bat2] <image> <command>\n\n", myname );
+    fprintf( stderr, "\nUsage: %s [--help] <command>\n\n", myname );
     fputs( "Options:\n", stderr );
-    fputs( "    --help|-h    Print this help\n", stderr );
-    fputs( "    --bat2|-2    Use second copy of the disk BAT\n\n", stderr );
+    fputs( "    --help|-h       Print this help\n\n", stderr );
+
     fputs( "Commands:\n", stderr );
-    fputs( "    dir [<pattern>]\n", stderr );
-    fputs( "    extract [<pattern>]\n", stderr );
+    fputs( "    format, dir, copy, delete, extract, overlays\n", stderr );
+
+    fprintf( stderr, "\nType '%s <command> --help' for command details.\n\n", myname );
 }
 
-static const command_t commands[] = {
-    { "dir",        dir } ,
-    { "extract",    extract },
+static void dir_usage( char *myname )
+{
+    fprintf( stderr, "\nUsage: %s dir [--help] [--bat2] [--lowercase] <image> <pattern>\n", myname );
+
+    fputs( "Arguments:\n", stderr );
+    fputs( "    <image>          Name of the CODOS image file.\n", stderr );
+    fputs( "    <pattern>        File pattern (see glob(7)).\n\n", stderr );
+
+    fputs( "Options:\n", stderr );
+    fputs( "    --help|-h        Print this help\n", stderr );
+    fputs( "    --bat2|-2        Use second copy of the disk BAT\n\n", stderr );
+    fputs( "    --lowercase|-l   Use lowercase names in the dir listing.\n", stderr );
+}
+
+static void extract_usage( char *myname )
+{
+    fprintf( stderr, "\nUsage: %s extract [--help] [--bat2] [--lowercase] <image> <pattern>\n", myname );
+
+    fputs( "Arguments:\n", stderr );
+    fputs( "    <image>          Name of the CODOS image file.\n", stderr );
+    fputs( "    <pattern>        File pattern (see glob(7)).\n\n", stderr );
+
+    fputs( "Options:\n", stderr );
+    fputs( "    --help|-h        Print this help\n", stderr );
+    fputs( "    --bat2|-2        Use second copy of the disk BAT\n\n", stderr );
+    fputs( "    --lowercase|-l   Generate lowercase names for the extracted files.\n", stderr );
+}
+
+static void format_usage( char *myname )
+{
+    fprintf( stderr, "\nUsage: %s format [--help] [--packed] [--interleave <n>] [--skew <n>] [--volid <n>] \\\n", myname );
+    fputs("                       [--codos <file>] [--name <file>] [--overlays <file>] <image>\n\n", stderr );
+
+    fputs( "Arguments:\n", stderr );
+    fputs( "    <image>          Name of the newly formated image file.\n\n", stderr );
+
+    fputs( "Options:\n", stderr );
+    fputs( "    --help|-h        Print this help\n", stderr );
+    fputs( "    --packed|-p      Create a packed (compressed) IMD image\n", stderr );
+    fputs( "    --interleave|-s  Sector interleave, from 1 to 25. Defaults to 0.\n", stderr );
+    fputs( "    --skew|-t        Track skew, from 0 to 25. Defaults to 0.\n", stderr );
+    fputs( "    --volid|-v       Disk volume number ('n' is a 16-bit integer).\n", stderr );
+    fputs( "                     If omitted, defaults to $0000.\n", stderr );
+    fputs( "    --codos|-c       CODOS kernel file.\n", stderr );
+    fputs( "    --name|-n        Internal file name for CODOS kernel file. If not\n", stderr );
+    fputs( "                     specified, defaults to --codos file name.\n", stderr );
+    fputs( "    --date|-d        Use date string instead of current date.\n", stderr );
+    fputs( "    --overlays|-o    CODOS overlays file.\n", stderr );
+}
+
+static void copy_usage( char *myname )
+{
+    fprintf( stderr, "\nUsage: %s copy [--help] [--bat2] <image> [0:]<orig> [0:]<dest>\n", myname );
+
+    fputs( "Arguments:\n", stderr );
+    fputs( "    <image>          Name of the CODOS image file.\n", stderr );
+    fputs( "    <orig>           Source file.\n", stderr );
+    fputs( "    <dest>           Dest file.\n\n", stderr );
+    fputs( "Note:                Either source or dest must be prepended by the ':0'\n", stderr );
+    fputs( "                     prefix, meaning that it is a file within the image.\n\n", stderr );
+
+    fputs( "Options:\n", stderr );
+    fputs( "    --help|-h        Print this help\n", stderr );
+    fputs( "    --bat2|-2        Use second copy of the disk BAT\n\n", stderr );
+    fputs( "    --date|-d        Use date string instead of current date.\n", stderr );
+}
+
+static void delete_usage( char *myname )
+{
+    fprintf( stderr, "\nUsage: %s delete [--help] [--bat2] <image> [0:]<file>\n", myname );
+
+    fputs( "Arguments:\n", stderr );
+    fputs( "    <image>          Name of the CODOS image file.\n", stderr );
+    fputs( "    <file>           File to be deleted. The prefix ':0' is optional and\n", stderr );
+    fputs( "                     has no effect, as the file is always within the image.\n\n", stderr );
+
+    fputs( "Options:\n", stderr );
+    fputs( "    --help|-h        Print this help\n", stderr );
+    fputs( "    --bat2|-2        Use second copy of the disk BAT\n\n", stderr );
+}
+
+static void overlays_usage( char *myname )
+{
+    fprintf( stderr, "\nUsage: %s overlays [--help] <image> [<file>]\n", myname );
+
+    fputs( "Arguments:\n", stderr );
+    fputs( "    <image>          Name of the CODOS image file.\n", stderr );
+    fputs( "    <file>           File to save the overlays. If omitted, a HEX dump\n", stderr );
+    fputs( "                     is printed to stdout.\n\n", stderr );
+
+    fputs( "Options:\n", stderr );
+    fputs( "    --help|-h        Print this help\n", stderr );
+}
+
+static command_t commands[] = {
+    { "dir",        dir,        dir_usage },
+    { "extract",    extract,    extract_usage },
+    { "format",     format,     format_usage },
+    { "copy",       copy,       copy_usage },
+    { "delete",     delete,     delete_usage },
+    { "overlays",   overlays,   overlays_usage },
     { NULL }
 };
 
-static command_fn_t parse_command( char *myname, int argc, char **argv )
+static command_t *parse_command( char *myname, int argc, char **argv )
 {
     if ( argc > 1 )
     {
@@ -74,15 +175,14 @@ static command_fn_t parse_command( char *myname, int argc, char **argv )
             {
                 assert( commands[c].command_fn );
                 
-                return commands[c].command_fn;
-
+                return &commands[c];
             }
         }
     }
 
     // If it reaches here, no command match
     //
-    fputs( "Error: Missing or unknown command.\n\n", stderr );
+    fputs( "Error: Missing or unknown command.\n", stderr );
 
     usage( myname );
     
@@ -92,70 +192,24 @@ static command_fn_t parse_command( char *myname, int argc, char **argv )
 int main( int argc, char **argv )
 {
     disk_t disk = {0};
-    uint8_t buffer[DS_BLOCK_SIZE];
-    int ret;
-    int opt, opt_index = 0;
+    static uint8_t buffer[DS_BLOCK_SIZE];
+    int ret = -1;
+
     char *myname = basename( argv[0] );
 
-    static const struct option long_opts[] = {
-        {"help", no_argument, 0, 'h' },
-        {"bat2", no_argument, 0, '2' },
-        {0,      0,           0,  0  }
-    };
+    command_t *command = parse_command( myname, argc, argv );
 
-    disk.active_bat = &disk.bat;
-
-    optind = 0;
-
-    while (( opt = getopt_long( argc, argv, "h2", long_opts, &opt_index)) != -1 )
+    if ( NULL != command && NULL != command->command_fn )
     {
-        switch( opt )
-        {
-            case '2':
-                disk.active_bat = &disk.bat2;
-                break;
+        ret = command->command_fn( &disk, buffer, DS_BLOCK_SIZE, --argc, ++argv );
 
-            case 'h':
-            default:
-                usage( myname );
-                return -1;
+        if ( ret > 0 )
+        {
+            if ( NULL != command->help_fn )
+            {
+                command->help_fn( myname );
+            }
         }
     }
-
-    argc -= optind-1;
-    argv += optind-1;
-
-    // Open image name
-
-    if ( argc < 2 )
-    {
-        fputs( "Error: Image name not specified.\n", stderr );
-        usage( myname );
-        return -1;
-    }
-
-    if ( NULL == ( disk.image.file = fopen( argv[1], "rb") ) )
-    {
-        fprintf( stderr, "Error: Can't open '%s' image file: %s\n", argv[1], strerror(errno) );
-        return -1;
-    }
-    ++argv; --argc;
-
-    ret = codos_parse_disk_image( &disk );
-
-    if ( !ret )
-    {
-        ret = -1;
-
-        command_fn_t fn = parse_command( myname, argc, argv );
-
-        if ( NULL != fn )
-        {
-            ret = fn( &disk, buffer, --argc, ++argv );
-        }
-    }
-
-    fclose( disk.image.file );
-
     return ret;
 }

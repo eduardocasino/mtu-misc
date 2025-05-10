@@ -26,6 +26,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 #include <errno.h>
 
 #include "imd.h"
@@ -47,7 +48,17 @@ static int imd_check_file_header( FILE *fil )
 
     if ( 1 != fread( &signature, sizeof(signature), 1, fil ) )
     {
-        fputs( "Error reading image\n", stderr );
+        fputs( "Error reading image: ", stderr );
+
+        if ( ferror( fil ) )
+        {
+            perror("");
+        }
+        else
+        {
+            fputs("Premature end of file.\n", stderr );
+        }
+
         return -1;
     }
 
@@ -70,6 +81,155 @@ static int imd_check_file_header( FILE *fil )
         fputs( "Bad IMD header\n", stderr );
         return -1;
     }
+
+    return 0;
+}
+
+static int fseek_read( FILE *file, size_t ofs, void *buff, size_t size )
+{
+    int ret = fseek( file, ofs, SEEK_SET );
+
+    if ( ret )
+    {
+        fprintf( stderr, "fseek error: %s (%d)\n", strerror(errno), errno );
+    }
+    else
+    {
+        // Reads sector type + sector data
+
+        if ( size != fread( buff, 1, size, file ) )
+        {
+            if ( size == 0 )
+            {
+                ret = -1;
+
+                if ( feof( file ) )
+                {
+                    fputs( "EOF while reading from image file\n", stderr );
+                }
+                else
+                {
+                    fprintf( stderr, "fread error: %s (%d)\n", strerror(errno), errno );
+                }
+            }
+        }
+    }
+
+    return ret;
+}
+
+static int fseek_write( FILE *file, size_t ofs, void *buff, size_t size )
+{
+    int ret = fseek( file, ofs, SEEK_SET );
+
+    if ( ret )
+    {
+        fprintf( stderr, "fseek error: %s (%d)\n", strerror(errno), errno );
+    }
+    else
+    {
+        // Writes sector type + sector data
+
+        if ( size != fwrite( buff, 1, size, file ) )
+        {
+            fprintf( stderr, "fwrite error: %s (%d)\n", strerror(errno), errno );
+            ret = -1;
+        }
+    }
+
+    return ret;
+}
+
+// Input are __current__ head and cylinder of the just uncompressed sector
+//
+static void imd_recalculate_track_map( image_t *image, uint8_t head, uint8_t cylinder )
+{
+    int size_increment = sizes[image->current_track.imd.data.size] - 1;
+
+    // First, update tracks on the rest of the heads for this cylinder
+    for ( uint8_t hd = head+1; hd < image->heads; ++hd )
+    {
+        image->track_map[hd][cylinder] += (uint32_t) size_increment;
+    }
+
+    for ( uint8_t cyl = cylinder+1; cyl < image->cylinders ; ++cyl )
+    {
+        for ( uint8_t hd = 0; hd < image->heads; ++hd )
+        {
+            image->track_map[hd][cyl] += (uint32_t) size_increment;
+        }
+    }
+}
+
+static void imd_recalculate_track_info( imd_track_t *track, uint8_t sector )
+{
+    int size_increment = sizes[track->imd.data.size] - 1;
+
+    for ( uint8_t s = sector + 1; s < track->imd.data.sectors; ++s )
+    {
+        track->imd.sector_info[s].index += (uint32_t) size_increment;
+    }
+}
+
+static int imd_uncompress_sector( image_t *image, uint8_t sector )
+{
+    uint32_t idx, init_pos, sector_size, chunk_end, chunk_size, chunk_init, dest_pos;
+    static char buffer[1024];
+    int bufsiz = sizeof(buffer);
+
+    idx = image->current_track.imd.sector_info[sector].index;
+    init_pos = idx + 2;
+    sector_size = sizes[image->current_track.imd.data.size];
+
+    fseek( image->file, 0L, SEEK_END );
+    chunk_end = (uint32_t) ftell( image->file );
+
+    do
+    {
+        chunk_size = chunk_end - init_pos > bufsiz ? bufsiz : chunk_end - init_pos;
+        chunk_init = chunk_end - chunk_size > init_pos ? chunk_end - chunk_size : init_pos;
+        dest_pos = chunk_init + sector_size - 1;
+
+        if ( fseek_read( image->file, chunk_init, buffer, chunk_size ) ) 
+        {
+            return -1;
+        }
+
+        if ( fseek_write( image->file, dest_pos, buffer, chunk_size ) )
+        {
+            return -1;
+        }
+
+        chunk_end = chunk_init;
+
+    } while ( chunk_init != init_pos );
+
+
+    if ( fseek_read( image->file, idx + 1, &buffer[1], 1 ) )
+    {
+        return -1;
+    }
+
+    buffer[0] = image->current_track.imd.sector_info[sector].type - 1;
+
+    for ( int i = 2; i < sector_size + 1; ++i )
+    {
+        buffer[i] = buffer[1];
+    }
+
+    if ( fseek_write( image->file, idx, buffer, sector_size + 1 ) )
+    {
+        return -1;
+    }
+
+    // Recalculate disk track map
+
+    uint8_t cyl = image->current_track.imd.data.cylinder;
+    uint8_t head = image->current_track.imd.data.head;
+
+    imd_recalculate_track_map( image, head, cyl );
+
+    imd_recalculate_track_info( &image->current_track, sector );
 
     return 0;
 }
@@ -228,7 +388,7 @@ int imd_seek_track( image_t *image, uint8_t head, uint8_t cyl )
                                 1,
                                 image->file ) )
     {
-        fputs( "fread error\n", stderr );
+        fputs( "Track info: fread error\n", stderr );
         return -1;
     }
 
@@ -242,7 +402,7 @@ int imd_seek_track( image_t *image, uint8_t head, uint8_t cyl )
                                 1,
                                 image->file ) )
     {
-        fputs( "fread error\n", stderr );
+        fputs( "Sector map: fread error\n", stderr );
         return -1;
     }
 
@@ -319,24 +479,6 @@ static int imd_get_physical_sector( imd_track_t *track, uint8_t sect )
     return -1;
 }
 
-static int f_lseek_read( FILE *fp, long ofs, void *buff, size_t siz, size_t count )
-{
-
-    if ( fseek( fp, ofs, SEEK_SET ) )
-    {
-        fprintf( stderr, "fseek error: %s (%d)\n", strerror(errno), errno );
-        return -1;
-    }
-
-    // Reads  data
-    if ( 1 != fread( buff, siz, count, fp ) )
-    {
-        fputs( "fread error.\n", stderr );
-    }
-
-    return 0;
-}
-
 int imd_read_data( image_t *image, void *buf, int sect, int count )
 {
     int s;
@@ -376,7 +518,7 @@ int imd_read_data( image_t *image, void *buf, int sect, int count )
         //
         int rdsize = sector_info->type & IMD_TYPE_NORMAL_MASK ? sector_size : 1;
 
-        if ( f_lseek_read( image->file, sector_info->index+1, buffer, rdsize, 1 ) )
+        if ( fseek_read( image->file, sector_info->index+1, buffer, rdsize ) )
         {
             return -1;
         }
@@ -394,6 +536,212 @@ int imd_read_data( image_t *image, void *buf, int sect, int count )
         }
 
         buffer += sector_size;
+    }
+
+    return 0;
+}
+
+int imd_write_data( image_t *image, void *buf, int sect, int count )
+{
+    int s;
+    uint8_t *buffer = (uint8_t *)buf;
+    int sector_size = imd_get_sector_size( &image->current_track );
+
+    // assert( sect + count < image->current_track.imd.data.sectors );
+
+    for ( s= sect; s < sect + count; ++s )
+    {
+        // Get physical sector from interleave table
+
+        uint8_t phys = imd_get_physical_sector( &image->current_track, s );
+
+        if ( phys < 0 )
+        {
+            fprintf( stderr, "Sector %d not present in head %d, cyl %d\n",
+                        sect,
+                        image->current_track.imd.data.head,
+                        image->current_track.imd.data.cylinder );
+            return -1;
+        }
+
+        imd_sector_t *sector_info = &image->current_track.imd.sector_info[phys];
+
+        if ( ( sector_info->type & IMD_TYPE_NORMAL_MASK ) == 0 )
+        {
+            if ( imd_uncompress_sector( image, phys ) )
+            {
+                fprintf( stderr, "Error uncompressing physical sector %d\n", phys );
+                return -1;
+            }
+        }
+
+        // Write sector data
+        //
+        if ( fseek( image->file, sector_info->index, SEEK_SET ) )
+        {
+            fprintf( stderr, "fseek error: %s (%d)\n", strerror(errno), errno );
+            return -1;
+        }
+
+        // Put sector type
+        uint8_t sect_type = IMD_NORMAL;
+
+        // Writes sector type + sector data
+        if ( 1 != fwrite( &sect_type, 1, 1, image->file )
+            || 1 != fwrite( buffer, sector_size, 1, image->file ) )
+        {
+            fprintf( stderr, "fwrite error: %s (%d)\n", strerror(errno), errno );
+            return -1;
+        }
+
+        // Update sector type in current_track info
+        sector_info->type = buffer[0];
+
+        buffer += sector_size;
+    }
+
+    return 0;
+}
+
+static int imd_write_header( FILE *file )
+{
+    static const char header_fmt[] = "IMD 1.18: %s\r\nGenerated by codosdsk\x1a";
+    static const char time_fmt[] = "%d/%m/%y %H:%M:%S";
+    static char time_buf[20];
+    static char header_buf[60];
+    time_t now;
+ 
+    time( &now );
+    strftime( time_buf, sizeof(time_buf), time_fmt, localtime( &now ) );
+    sprintf( header_buf, header_fmt, time_buf );
+
+    if ( 1 != fwrite( header_buf, strlen(header_buf), 1, file ) )
+    {            
+        fprintf( stderr, "Error writing header: %s\n", strerror(errno) );
+        return -1;
+    }
+
+    return 0;
+}
+
+static int imd_write_track_info( FILE *file, imd_data_t *trinfo, uint8_t *smap )
+{
+    size_t dsize =sizeof( imd_data_t );
+
+
+    if ( 1 == fwrite( trinfo, dsize, 1, file ) )
+    {
+        dsize = trinfo->sectors;
+
+        if ( 1 != fwrite( smap, dsize, 1, file ) )
+        {
+            fprintf( stderr, "Error writing track info: %s\n", strerror(errno) );
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+static int imd_write_sectors( FILE *file, uint8_t sects, uint8_t *data, size_t size )
+{
+    for ( uint8_t s = 0; s < sects; ++s )
+    {
+        if ( 1 != fwrite( data, size, 1, file ) )
+        {            
+
+            fprintf( stderr, "Error writing sectors: %s\n", strerror(errno) );
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+static void imd_init_sector_map( uint8_t *smap, uint8_t track, uint8_t nsects, uint8_t interleave, uint8_t skew )
+{
+    uint8_t sect = 0;
+
+    for ( int ns = 0; ns < nsects; ++ns)
+    {
+        smap[sect] = (uint8_t) (ns + ( track * skew )) % nsects;
+        sect += interleave;
+        if ( sect >= nsects )
+        {
+            sect = 1;
+        } 
+    }
+    
+    return;
+}
+
+
+// TODO: 2 heads
+int imd_new(
+    image_t *image,
+    bool packed,
+    uint8_t nsects,
+    uint8_t bps,
+    uint8_t filler,
+    uint8_t interleave,
+    uint8_t skew,
+    uint8_t *buffer,
+    size_t bufsiz )
+{
+    imd_data_t trinfo;
+    int cyl;
+    size_t sectsiz;
+
+    assert( image->file != NULL );
+
+    if ( imd_write_header( image->file ) )
+    {
+        return -1;
+    }
+
+    // Initialize immutable track values
+
+    trinfo.mode     = 3;                    // 500 kbps MFM
+    trinfo.sectors  = nsects;
+    trinfo.size     = bps;                  // 256 bytes
+    trinfo.head     = 0;
+
+    // Initialize first sector
+
+    if ( packed )
+    {
+        buffer[nsects]   = 0x02;        // Packed data
+        buffer[nsects+1] = filler; 
+        sectsiz = 2;
+    }
+    else
+    {
+        buffer[nsects]   = 0x01;        // Normal data
+        for ( int b = 1; b < sizes[bps]+1; ++b )
+        {
+            buffer[nsects+b] = filler;
+        }
+        sectsiz = sizes[bps]+1;
+    }
+
+    for ( cyl = 0; cyl < image->cylinders; ++cyl )
+    {
+        trinfo.cylinder = cyl;
+        
+        // Initialize sector map for each track
+
+        imd_init_sector_map( buffer, cyl, nsects, interleave, skew );
+
+
+        if ( imd_write_track_info( image->file, &trinfo, buffer ) )
+        {
+            return -1;
+        }
+
+        if ( imd_write_sectors( image->file, trinfo.sectors, &buffer[trinfo.sectors], sectsiz ) )
+        {
+            return -1;
+        }
     }
 
     return 0;

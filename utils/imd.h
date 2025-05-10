@@ -89,7 +89,18 @@ typedef struct {
 int imd_parse_disk_img( image_t *image );
 int imd_seek_track( image_t *image, uint8_t head, uint8_t cyl );
 int imd_read_data( image_t *image, void *buf, int sect, int count );
+int imd_write_data( image_t *image, void *buf, int sect, int count );
 int imd_get_sector_size( imd_track_t *track );
+int imd_new(
+        image_t *image,
+        bool packed,
+        uint8_t nsects,
+        uint8_t bps,
+        uint8_t filler,
+        uint8_t interleave,
+        uint8_t skew,
+        uint8_t *buffer,
+        size_t bufsiz );
 
 
 #endif

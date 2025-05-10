@@ -42,13 +42,18 @@ typedef enum {
 #define CODOS_SECTOR_SIZE 256
 
 #define NUM_BLOCKS 247
+#define NUM_FILES NUM_BLOCKS
 #define SS_BLOCK_SIZE 2048
 #define DS_BLOCK_SIZE 4096
+
+#define CODOS_OVERLAYS_BLOCK    40
+#define CODOS_OVERLAYS_SIZE     DS_BLOCK_SIZE
 
 typedef struct {
     uint8_t blocks[NUM_BLOCKS+1];
     uint16_t unused2;
-    uint16_t volume_num;
+    uint8_t volume_num_l;
+    uint8_t volume_num_h;
     uint8_t unused3;
     uint8_t num_files;
     uint8_t unused4;
@@ -72,7 +77,7 @@ typedef struct {
     uint8_t sectors_track;
 
     BAT_t bat;
-    dir_entry_t dir_entry[(CODOS_SECTOR_SIZE/sizeof(dir_entry_t))*16];
+    dir_entry_t dir_entry[NUM_FILES];
     BAT_t bat2;
 
     BAT_t *active_bat;
@@ -100,8 +105,12 @@ static_assert( sizeof( file_header_t ) == 64 );
 #define DIRECTORY_SECT  0x01
 #define BAT_TABLE_SECT2 0x11
 
-int dir( disk_t *disk, uint8_t *buffer, int argc, char **argv );
-int extract( disk_t *disk, uint8_t *buffer, int argc, char **argv );
+int dir( disk_t *disk, uint8_t *buffer, size_t bufsiz, int argc, char **argv );
+int extract( disk_t *disk, uint8_t *buffer, size_t bufsiz, int argc, char **argv );
+int format( disk_t *disk, uint8_t *buffer, size_t bufsiz, int argc, char **argv );
+int copy( disk_t *disk, uint8_t *buffer, size_t bufsiz, int argc, char **argv );
+int delete( disk_t *disk, uint8_t *buffer, size_t bufsiz, int argc, char **argv );
+int overlays( disk_t *disk, uint8_t *buffer, size_t bufsiz, int argc, char **argv );
 int codos_parse_disk_image( disk_t *disk );
 
 #endif
