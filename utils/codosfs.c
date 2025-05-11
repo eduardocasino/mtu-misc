@@ -967,7 +967,7 @@ static int delete_file( disk_t *disk, dir_entry_t *dirent )
 
     } while (block < BLOCK_LAST );
 
-    disk->active_bat->num_files++;
+    disk->active_bat->num_files--;
  
     return 0;
 }
