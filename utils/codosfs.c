@@ -305,6 +305,7 @@ static uint8_t get_next_free_block( BAT_t *bat )
     // Marck block as last in the series
 
     bat->blocks[block] = BLOCK_LAST;
+    bat->last_block = block;
 
     return block;
 }
@@ -517,6 +518,11 @@ static int copy_to_disk( disk_t *disk, uint8_t *buffer, char *filename, char *in
         b = buffer;
     } 
  
+    if ( ! ret )
+    {
+        disk->active_bat->num_files++;
+    }
+
     fclose( file );
 
     return ret;
@@ -961,6 +967,8 @@ static int delete_file( disk_t *disk, dir_entry_t *dirent )
 
     } while (block < BLOCK_LAST );
 
+    disk->active_bat->num_files++;
+ 
     return 0;
 }
 
