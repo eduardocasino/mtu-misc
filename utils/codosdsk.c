@@ -57,7 +57,7 @@ static void usage( char *myname )
 
 static void dir_usage( char *myname )
 {
-    fprintf( stderr, "\nUsage: %s dir [--help] [--bat2] [--lowercase] <image> <pattern>\n", myname );
+    fprintf( stderr, "\nUsage: %s dir [--help] [--bat2] [--lowercase] <image> <pattern>\n\n", myname );
 
     fputs( "Arguments:\n", stderr );
     fputs( "    <image>          Name of the CODOS image file.\n", stderr );
@@ -71,7 +71,7 @@ static void dir_usage( char *myname )
 
 static void extract_usage( char *myname )
 {
-    fprintf( stderr, "\nUsage: %s extract [--help] [--bat2] [--lowercase] <image> <pattern>\n", myname );
+    fprintf( stderr, "\nUsage: %s extract [--help] [--bat2] [--lowercase] [-ascii] <image> <pattern>\n\n", myname );
 
     fputs( "Arguments:\n", stderr );
     fputs( "    <image>          Name of the CODOS image file.\n", stderr );
@@ -81,6 +81,7 @@ static void extract_usage( char *myname )
     fputs( "    --help|-h        Print this help\n", stderr );
     fputs( "    --bat2|-2        Use second copy of the disk BAT\n\n", stderr );
     fputs( "    --lowercase|-l   Generate lowercase names for the extracted files.\n", stderr );
+    fputs( "    --ascii|-a       Convert CODOS ASCII to host ASCII.\n", stderr );
 }
 
 static void format_usage( char *myname )
@@ -111,7 +112,7 @@ static void format_usage( char *myname )
 
 static void copy_usage( char *myname )
 {
-    fprintf( stderr, "\nUsage: %s copy [--help] [--bat2] <image> [0:]<orig> [0:]<dest>\n", myname );
+    fprintf( stderr, "\nUsage: %s copy [--help] [--bat2] [--date] [--ascii] <image> [0:]<orig> [0:]<dest>\n\n", myname );
 
     fputs( "Arguments:\n", stderr );
     fputs( "    <image>          Name of the CODOS image file.\n", stderr );
@@ -124,11 +125,12 @@ static void copy_usage( char *myname )
     fputs( "    --help|-h        Print this help\n", stderr );
     fputs( "    --bat2|-2        Use second copy of the disk BAT\n\n", stderr );
     fputs( "    --date|-d        Use date string instead of current date.\n", stderr );
+    fputs( "    --ascii|-a       Convert CODOS ASCII to host ASCII or vice-versa.\n", stderr );
 }
 
 static void delete_usage( char *myname )
 {
-    fprintf( stderr, "\nUsage: %s delete [--help] [--yes] [--bat2] <image> [0:]<pattern>\n", myname );
+    fprintf( stderr, "\nUsage: %s delete [--help] [--yes] [--bat2] <image> [0:]<pattern>\n\n", myname );
 
     fputs( "Arguments:\n", stderr );
     fputs( "    <image>          Name of the CODOS image file.\n", stderr );
@@ -143,7 +145,7 @@ static void delete_usage( char *myname )
 
 static void overlays_usage( char *myname )
 {
-    fprintf( stderr, "\nUsage: %s overlays [--help] <image> [<file>]\n", myname );
+    fprintf( stderr, "\nUsage: %s overlays [--help] <image> [<file>]\n\n", myname );
 
     fputs( "Arguments:\n", stderr );
     fputs( "    <image>          Name of the CODOS image file.\n", stderr );

@@ -45,6 +45,106 @@
 #include "codosfs.h"
 #include "hexdump.h"
 
+#define CODOS_NEWLINE   0x0d
+#define HOST_NEWLINE    0x0a
+static bool is_ascii( char *filename, char newline )
+{
+    FILE *file;
+    char c;
+    bool ascii = false;
+
+    if ( NULL == ( file = fopen( filename, "rb" ) ) )
+    {
+        fprintf( stderr, "Error opening file '%s': %s\n", filename, strerror( errno ) );
+    }
+    else
+    {
+        while ( 1 == fread( &c, 1, 1, file ) )
+        {
+            if ( c != newline && !isprint(c) )
+            {
+                break;
+            }
+        }
+
+        if ( feof( file ) )
+        {
+            ascii = true;
+        }
+        else if ( ferror( file ) )
+        {
+            perror("Error reading file" );
+        }
+    }
+    fclose( file );
+
+    return ascii;
+}
+
+static inline bool is_codos_ascii( char *filename )
+{
+    return is_ascii( filename, CODOS_NEWLINE );
+}
+
+static inline bool is_host_ascii( char *filename )
+{
+    return is_ascii( filename, HOST_NEWLINE );
+}
+
+static int change_ascii( char *filename, char from_nl, char to_nl )
+{
+    FILE *file;
+    char c;
+    int ret = 0;
+
+    if ( NULL == ( file = fopen( filename, "rb+" ) ) )
+    {
+        fprintf( stderr, "Error opening file '%s': %s\n", filename, strerror( errno ) );
+        return -1;
+    }
+
+    while ( 1 == fread( &c, 1, 1, file ) )
+    {
+        if ( c == from_nl )
+        {
+            if ( fseek( file, -1, SEEK_CUR ) )
+            {
+                fprintf( stderr, "Error accessing file '%s': %s\n", filename, strerror( errno) );
+                fclose( file );
+                return -1;
+            }
+            if ( 1 != fwrite( &to_nl, 1, 1, file ) )
+            {
+                break;
+            }
+        }
+    }
+
+    if ( ferror( file ) )
+    {
+        fprintf( stderr, "Error reading/writing file '%s': %s\n", filename, strerror( errno) );
+        ret = -1;
+    }
+
+    if ( fclose( file ) )
+    {
+        fprintf( stderr, "Error writing file '%s': %s\n", filename, strerror( errno) );
+        ret = -1;
+    }
+
+    return ret;
+}
+
+static inline int to_host_ascii( char *filename )
+{
+    return change_ascii( filename, CODOS_NEWLINE, HOST_NEWLINE );
+}
+
+static inline int to_codos_ascii( char *filename )
+{
+    return change_ascii( filename, HOST_NEWLINE, CODOS_NEWLINE );
+}
+
 // TODO: Support 2 sides!!!
 //
 static void get_block_sector( disk_t *disk, uint8_t block_num, uint8_t *track, uint8_t *sector )
@@ -205,7 +305,7 @@ static long get_free_space( disk_t *disk )
     return free_space;
 }
 
-static int extract_file( disk_t *disk, uint8_t *buffer, char *fname, dir_entry_t *dirent )
+static int extract_file( disk_t *disk, uint8_t *buffer, char *fname, dir_entry_t *dirent, bool ascii )
 {
     FILE *dest_file = fopen( fname, "wb" );
 
@@ -267,6 +367,14 @@ static int extract_file( disk_t *disk, uint8_t *buffer, char *fname, dir_entry_t
     {
         fprintf( stderr, "Error writing to file '%s': %s\n", fname, strerror(errno) );
         return -1;
+    }
+
+    if ( ascii && is_codos_ascii( fname ) )
+    {
+        if ( to_host_ascii( fname ) )
+        {
+            return -1;
+        }
     }
 
     return 0;
@@ -375,11 +483,12 @@ static char *lowercase( char *string )
 
 // FIXME: Check for file validity
 //
-static int copy_to_disk( disk_t *disk, uint8_t *buffer, char *filename, char *internal, char *date, bool boot, uint8_t dma )
+static int copy_to_disk( disk_t *disk, uint8_t *buffer, char *filename, char *internal, char *date, bool boot, uint8_t dma, bool ascii )
 {
     FILE *file;
     struct stat fs;
     int ret = 0;
+    bool is_ascii_file = false;
 
     uint8_t block = 0;
     dir_entry_t *dirent = NULL;
@@ -389,6 +498,11 @@ static int copy_to_disk( disk_t *disk, uint8_t *buffer, char *filename, char *in
     {
         fprintf( stderr, "Error getting '%s' size: %s\n", filename, strerror( errno ) );
         return -1;
+    }
+
+    if ( ascii )
+    {
+        is_ascii_file = is_host_ascii( filename );
     }
 
     if ( NULL == ( file = fopen( filename, "rb" ) ) )
@@ -473,6 +587,16 @@ static int copy_to_disk( disk_t *disk, uint8_t *buffer, char *filename, char *in
         {
             bread = fread( b, 1, buflen - ( b - buffer), file );
 
+            if ( is_ascii_file )
+            {
+                for ( int i = 0; i < bread; ++i )
+                {
+                    if ( b[i] == HOST_NEWLINE )
+                    {
+                        b[i] = CODOS_NEWLINE;
+                    }
+                }
+            }
             b += bread;
             nbytes += bread;
 
@@ -538,7 +662,7 @@ static int write_system( disk_t *disk, uint8_t *buffer, char *codos, char *inter
         return -1;
     }
 
-    return copy_to_disk( disk, buffer, codos, internal, date, true, dma );
+    return copy_to_disk( disk, buffer, codos, internal, date, true, dma, false );
 
 }
 
@@ -676,20 +800,26 @@ static int file_op( op_t op, disk_t *disk, uint8_t *buffer, size_t bufsiz, int *
 {
     int ret = 0;
     int filecount;
-    bool bat2 = false, locase = false;
+    bool bat2 = false, locase = false, ascii = false;
 
     int opt;
 
-    static const struct option long_opts[] = {
+    static struct option long_opts[] = {
         {"help",      no_argument, 0, 'h' },
         {"lowercase", no_argument, 0, 'l' },
         {"bat2",      no_argument, 0, '2' },
+        {"ascii",     no_argument, 0, 'a' },
         {0,           0,           0,  0  }
     };
 
+    if ( op == OP_DIR)
+    {
+        long_opts[3].name = 0;
+    }
+
     optind = 0;
 
-    while (( opt = getopt_long( argc, argv, "hl2", long_opts, NULL)) != -1 )
+    while (( opt = getopt_long( argc, argv, ( op == OP_DIR ) ? "hl2" : "hl2a", long_opts, NULL)) != -1 )
     {
         switch( opt )
         {
@@ -699,6 +829,10 @@ static int file_op( op_t op, disk_t *disk, uint8_t *buffer, size_t bufsiz, int *
 
             case 'l':
                 ++locase;
+                break;
+
+            case 'a':
+                ++ascii;
                 break;
 
             case 'h':
@@ -761,7 +895,7 @@ static int file_op( op_t op, disk_t *disk, uint8_t *buffer, size_t bufsiz, int *
         }
         else
         {
-            if ( 0 != extract_file( disk, buffer, filename, matches[f] ) )
+            if ( 0 != extract_file( disk, buffer, filename, matches[f], ascii ) )
             {
                 ret = -1;
                 break;
@@ -818,7 +952,7 @@ typedef enum { ORIG_IMAGE, ORIG_HOST } origin_t;
 int copy( disk_t *disk, uint8_t *buffer, size_t bufsiz, int argc, char **argv )
 {
     char ret = -1;
-    bool bat2 = false;
+    bool bat2 = false, ascii = false;
     char *date = NULL;
 
     int opt;
@@ -827,12 +961,13 @@ int copy( disk_t *disk, uint8_t *buffer, size_t bufsiz, int argc, char **argv )
         {"help", no_argument,       0, 'h' },
         {"bat2", no_argument,       0, '2' },
         {"date", required_argument, 0, 'd' },
+        {"ascii", no_argument,      0, 'a' },
         {0,      0,                 0,  0  }
     };
 
     optind = 0;
 
-    while (( opt = getopt_long( argc, argv, "h2d:", long_opts, NULL)) != -1 )
+    while (( opt = getopt_long( argc, argv, "h2ad:", long_opts, NULL)) != -1 )
     {
         switch( opt )
         {
@@ -842,6 +977,10 @@ int copy( disk_t *disk, uint8_t *buffer, size_t bufsiz, int argc, char **argv )
 
             case 'd':
                 date = optarg;
+                break;
+
+            case 'a':
+                ++ascii;
                 break;
 
                 case 'h':
@@ -915,7 +1054,7 @@ int copy( disk_t *disk, uint8_t *buffer, size_t bufsiz, int argc, char **argv )
         }
         else
         {
-            ret = extract_file( disk, buffer, second, *matches );
+            ret = extract_file( disk, buffer, second, *matches, ascii );
         }
     }
     else
@@ -924,7 +1063,7 @@ int copy( disk_t *disk, uint8_t *buffer, size_t bufsiz, int argc, char **argv )
 
         if ( *matches == NULL )
         {
-            ret = copy_to_disk( disk, buffer, first, uppercase( second ), date, false, 0 );
+            ret = copy_to_disk( disk, buffer, first, uppercase( second ), date, false, 0, ascii );
 
             if ( ! ret )
             {
