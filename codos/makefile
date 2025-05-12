@@ -56,6 +56,9 @@ $(foreach ver,$(VERSIONS),$(eval build/$(ver)/codos.bin:: build/$(ver)/codos.o b
 $(foreach ver,$(VERSIONS),$(eval build/$(ver)/codos.cfg: codos.cfg.in \
 	; @sed -e 's/%%VERSION%%/$(ver)/' < $$< > $$@))
 
+$(foreach ver,$(VERSIONS),$(eval build/$(ver)/overlay.cfg: overlay.cfg.in \
+	; @sed -e 's/%%VERSION%%/$(ver)/' < $$< > $$@))
+
 $(foreach ver,$(VERSIONS),$(eval build/$(ver)/%.o: %.asm \
 	; ca65 -U -D CODOS2_VER=$(ver) -l $(basename $$@).lst -o $$@ $$<))
 
@@ -81,8 +84,8 @@ OVERLAYS =	build/$(ver)/overlay01.bin \
 build/$(ver)/overlays.bin: $${OVERLAYS} \
 	; cat $$^ > $$@))
 
-$(foreach ver,$(VERSIONS),$(eval build/$(ver)/overlay%.bin: build/$(ver)/overlay%.o overlay.cfg \
-	; ld65 -C overlay.cfg -vm -m $(basename $$@).map -o $$@ $$<))
+$(foreach ver,$(VERSIONS),$(eval build/$(ver)/overlay%.bin: build/$(ver)/overlay%.o build/$(ver)/overlay.cfg \
+	; ld65 -C build/$(ver)/overlay.cfg -vm -m $(basename $$@).map -o $$@ $$<))
 
 $(foreach ver,$(VERSIONS),$(eval build/$(ver)/overlay%.o: overlay%.asm build/$(ver)/codos.bin \
 	; ca65 -U -D CODOS2_VER=$(ver) -I build/$(ver) -l $(basename $$@).lst -o $$@ $$<))
