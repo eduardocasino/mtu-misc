@@ -3,10 +3,10 @@
 ; Input file: command.bin
 ; Page:       1
 
-            .include "codos.inc"
+            .importzp MEMBUFF, MEMCOUNT, TMPBUFP, INPBUFP, P0SCRATCH, DESTBUFF
+            .importzp ERRNUM, SVCENB, PCSAVE, CMDLIDX, BYTRES
 
-            .importzp MEMBUFF, TMPBUFP, INPBUFP, P0SCRATCH, ERRNUM, SVCENB
-            .importzp PCSAVE, CMDLIDX
+            .include "codos.inc"
 
             .segment "scratch0"
 

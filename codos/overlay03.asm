@@ -4,154 +4,131 @@
 ; Page:       1
 
 
-        .setcpu "6502"
-        .segment "overlays"
+            .setcpu "6502"
 
-        .byte   $03
+            .include "symbols.inc"
+            .include "codos.inc"
 
-L2820           := $2820
-L2E32           := $2E32
-L372D           := $372D
-LE61B           := $E61B
-LE9DD           := $E9DD
-LE9E5           := $E9E5
-LF924           := $F924
-LF925           := $F925
-LF92F           := $F92F
-LF948           := $F948
-LFA50           := $FA50
-LFBCC           := $FBCC
-LFBE1           := $FBE1
-LFD6B           := $FD6B
-        bne     LFE06
-        jmp     LF948
+            .segment "overlays"
 
-LFE06:  cmp     #$50
-        bne     LFE21
-        jsr     LFE5D
-        ldx     #$19
-        sty     $EB
-        jsr     LFBE1
-        bcs     LFE19
-LFE16:  jsr     LE9E5
-LFE19:  jsr     LF925
-        sty     $EB
-        bne     LFE06
-        rts
+            .byte   $03             ; Overlay number
 
-LFE21:  ldx     #$04
-LFE23:  cmp     $F9CC,x
-        beq     LFE2E
-        dex
-        bpl     LFE23
-        jsr     LE9DD
-LFE2E:  jsr     LFE5D
-        cmp     #$27
-        beq     LFE39
-        cmp     #$22
-        bne     LFE52
-LFE39:  sta     $E792
-        jsr     LF92F
-        cmp     #$0D
-        beq     LFE16
-        sta     $E6C9,x
-        jsr     LF92F
-        cmp     $E792
-        bne     LFE16
-        iny
-        jmp     LFE19
+; REG Command
+;
+; DESCRIPTION:  Display or alter the contents of the user's 6502 registers
+;                   [             {"character" ...}]
+; SYNTAX:       REG [<register>[=]{<value>        }]
+;                   [             {'character' ...}]
+; ARGUMENTS:    <register>  = register name to be altered, A, X, Y, F, S, or P
+;               <value>     = numeric value or numeric expression
+;               <character> = an ASCII character to be deposited
+;
+REG:        bne     @PRINT          ; Any argument, go alter regs
+            jmp     OUTREGSLB       ; Print'em and return
+            ; Not reached
 
-LFE52:  jsr     LFBCC
-        bcc     LFE16
-        sta     $E6C9,x
-        jmp     LFE19
+@PRINT:     cmp     #'P'            ; Status register?
+            bne     @CHKVLD         ; No, go check if it is another valid reg
+            jsr     SKIPEQ          ; Skip optional '='
+            ldx     #_PCSAVE        ; Store result of expression in PCSAVE
+            sty     CMDLIDX         ; Update command line index
+            jsr     EVALEXP         ; Eval expression
+            bcs     @NEXT           ; if ok, go check if there are more resg to alter
+@ERROR:     jsr     ERROR24         ; <value> missing or illegal
+            ; Not reached
 
-LFE5D:  jsr     LF924
-        cmp     #$3D
-        bne     LFE67
-        jsr     LF924
-LFE67:  sty     $EB
-        rts
+@NEXT:      jsr     GETNEXTNB       ; Get next non-blank from command line
+            sty     CMDLIDX         ; Update command line index
+            bne     @PRINT          ; If any, process it
+            rts                     ; else, return
 
-        bne     LFED5
-        jsr     LFD6B
-        lda     $CB
-        sta     $F0
-        lda     $CC
-        sta     $F1
-        jsr     LFA50
-        ora     $4F43
-        .byte   $44
-        .byte   $4F
-        .byte   $53
-        jsr     L2E32
-        bmi     LFEA5
-        jsr     L2820
-        .byte   $43
-        and     #$20
-        and     ($39),y
-        sec
-        and     ($20),y
-        eor     $5554
-        brk
-        jsr     LFA50
-        ora     $4C50
-        eor     $41
-        .byte   $53
-        eor     $20
-        eor     $4E
-        .byte   $54
-        eor     $52
-        .byte   $20
-LFEA5:  .byte   $44
-        eor     ($54,x)
-        eor     $20
-        plp
-        eor     $58
-        eor     ($4D,x)
-        bvc     LFEFD
-        eor     $3A
-        bmi     LFEE9
-        and     $554A
-        jmp     L372D
+@CHKVLD:    ldx     #$04            ; Check if valid register name
+@CMPVLD:    cmp     REGDESC,x       ; Compare against string of valid register names
+            beq     @VALID          ; Found, it is a valid register name (x contains offset)
+            dex                     ; Check next
+            bpl     @CMPVLD         ;
+            jsr     ERROR28         ; Missing or illegal register name
+            ; Not reached
 
-        rol     $29,x
-        .byte   $3F
-        and     a:$20,x
-        jsr     LE61B
-        jsr     LF925
-        bne     LFED5
-        ldx     #$08
-LFECB:  lda     LFEEF,x
-        sta     $E6F3,x
-        dex
-        bpl     LFECB
-        rts
+@VALID:     jsr     SKIPEQ          ; Skip '='
+            cmp     #'''            ; Is it a single quote?
+            beq     @ISCHR          ; Yes, continue
+            cmp     #'"'            ; Is it a double quote?
+            bne     @ISVAL          ; No, it is a value
+@ISCHR:     sta     QUOTE           ; Save delimiter
+            jsr     GETNEXTCH1      ; Advance one pos and get next character
+            cmp     #$0D            ; End of line?
+            beq     @ERROR          ; Missing value
+            sta     STACKP,x        ; Save value in register
+            jsr     GETNEXTCH1      ; Advance and get next char
+            cmp     QUOTE           ; Is it the delimiter?
+            bne     @ERROR          ; No, invalid value
+            iny                     ; Advance one pos
+            jmp     @NEXT           ; And go check if there are more regs to alter
 
-LFED5:  ldx     #$00
-LFED7:  sta     $E6F3,x
-        inx
-        cpx     #$09
-        beq     LFEEE
-        jsr     LF92F
-        bne     LFED7
-LFEE4:  lda     #$20
-        sta     $E6F3,x
-LFEE9:  inx
-        cpx     #$09
-        bcc     LFEE4
-LFEEE:  rts
+@ISVAL:     jsr     GETBYTE         ; Get byte from command line
+            bcc     @ERROR          ; Error, not a valid number
+            sta     STACKP,x        ; Store register
+            jmp     @NEXT           ; Go check if there are more registers to alter
 
-LFEEF:  rol     a
-        eor     $4E,x
-        .byte   $44
-        eor     ($54,x)
-        eor     $44
-        rol     a
-        .byte   $D7
-        inc     $FE00,x
-        rts
+; Skip optional '=' in command line
+;
+SKIPEQ:     jsr     GETNEXTNB1      ; Advance one and get next non-blank
+            cmp     #'='            ; Is it the optional '='?
+            bne     @CONT           ; No, go on
+            jsr     GETNEXTNB1      ; Yes, skip it
+@CONT:      sty     CMDLIDX         ; Update command line index
+            rts
 
-LFEFD:  brk
-        brk
-        .byte   $1E
+
+; DATE Command
+;
+; DESCRIPTION:  Set the creation date for any new files generated
+;
+; SYNTAX:       DATE [<dd-mmm-yy>]
+;
+; ARGUMENTS:    <dd-mmm-yy> = desired date
+;
+; NOTE: If no date is passed, prompt the user
+;
+DATE:       bne     @SET            ; There are arguments, go set date
+            jsr     SETINPB         ; No arguments. Set input buffer to input line buffer
+            lda     INPBUFP         ; And set line-buffer used for INLINE and EDLINE
+            sta     QLN             ;
+            lda     INPBUFP+1       ;
+            sta     QLN+1           ;
+            jsr     OUTSTR          ; Print prompt
+            .byte   $0D, "CODOS 2.0   (C) 1981 MTU", $00
+            jsr     OUTSTR
+            .byte   $0D, "PLEASE ENTER DATE (EXAMPLE:04-JUL-76)?= ", $00
+            jsr     JINLINE         ; Input an entire line from the keyboard
+            jsr     GETNEXTNB       ; Get next non blank from input buffer
+            bne     @SET            ; There are arguments, go set the date
+            ldx     #$08            ; No arguments, set "*UNDATED*"
+@PRNC:      lda     UNDATED,x       ;
+            sta     TDATE,x         ;
+            dex                     ;
+            bpl     @PRNC           ;
+            rts                     ; And return
+
+@SET:       ldx     #$00            ; Just blindly copy what's in the buffer
+@CPYC:      sta     TDATE,x         ;
+            inx                     ;
+            cpx     #$09            ; Max length reached?
+            beq     @RETURN         ; Yes, return
+            jsr     GETNEXTCH1      ; No, advance and get next char from input buffer
+            bne     @CPYC           ; If any, copy it
+@CPSP:      lda     #' '            ; If not, fill with spaces
+            sta     TDATE,x         ;
+            inx                     ;
+            cpx     #$09            ;
+            bcc     @CPSP           ; Until length is reached
+@RETURN:    rts
+
+UNDATED:      .byte   "*UNDATED*"
+        
+            ; This block is just junk that was in the buffer when
+            ; writing it to disk. I leave it to facilitate checksum
+            ; comparisons with the original
+            ;
+            .byte   $D7, $FE, $00, $FE, $60, $00, $00, $1E

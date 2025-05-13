@@ -92,7 +92,7 @@ U7:         .res 3                  ; $BE  File position (3 bytes)
             ; is entered
 
             .export P0SCRATCH, MEMBUFF, MEMCOUNT, TMPBUFP, INPBUFP, OUTBUFP
-            .export PCSAVE, FILEPOS
+            .export DESTBUFF, BYTRES, PCSAVE, FILEPOS
 
 P0SCRATCH:  .res 2                  ; $C1-$C2 (word)
 MEMBUFF:    .res 2                  ; $C3-$C4 (word) Pointer to buffer for memory copy operations
@@ -111,9 +111,6 @@ L00D2:      .res 1                  ; $D2  $D2-$D9 is a temporary area
 BYTRES:     .res 2                  ; $D6-$D7 (word) Result for GETBYTE function
 TMPPTR:     .res 2                  ; $D8-$D9 (word) Temporary pointer
 PCSAVE:     .res 2                  ; $DA-$DB (word) Program counter
-
-_BYTRES     = BYTRES-P0SCRATCH
-_PCSAVE     = PCSAVE-P0SCRATCH
 
             .export CURFINFO, BATP
 
@@ -135,6 +132,8 @@ SVCENB:     .res 1                  ; $EE  ADDRESS OF SVC ENABLE FLAG
 SAVEACC:    .res 1                  ; $EF  TODO: Unknown
 
             ; $F0 - $FF : Scratch RAM for console I-0. 
+
+            .exportzp QLN
 
 QLN:        .res 2                  ; $F0 Ptr to line-buffer used for INLINE and EDLINE 
 UNKNWN4:    .res 1                  ; $F2
@@ -212,6 +211,9 @@ SAVEY6:     .res 1                  ; $02A2
             
             ; Jump table (page 179)
             ;
+
+            .export JINLINE
+
             jmp     COLDST
 JWARMST:    jmp     WARMST
 JGETKEY:    jmp     GETKEY          ; Console character input
@@ -3595,6 +3597,10 @@ LF9BA:      lda     PRGBANK
             ldx     DEFBNKCFG
             stx     BNKCTL
             rts
+
+; String of valid register names
+;
+            .export REGDESC
 
 REGDESC:    .byte   "SFYXA"
 

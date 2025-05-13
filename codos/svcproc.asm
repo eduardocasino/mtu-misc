@@ -6,10 +6,10 @@
 
             .setcpu "6502"
 
-            .include "codos.inc"
-
             .importzp PCSAVE, INPBUFP, OUTBUFP, U0, U3, U5, U7, P0SCRATCH, CMDLIDX
-            .importzp CURFINFO, TMPBUFP, FILEPOS
+            .importzp CURFINFO, TMPBUFP, FILEPOS, BYTRES, DESTBUFF, MEMBUFF, MEMCOUNT
+
+            .include "codos.inc"
 
             .segment "svcproc"
 
