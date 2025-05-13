@@ -28,104 +28,114 @@ SETCMD:     jsr     GADDRBNKMB      ; Get Address and bank and store into MEMBUF
             jsr     ERROR24         ; <value> missing or illegal
             ; Not reached
 @CONT:      cmp     #'='            ; Is it the optional '='
-            bne     LFE13           ; No, then go check the character delimiter
+            bne     @CHRDEL         ; No, then go check the character delimiter
             jsr     GETNEXTNB1      ; Yes, get the next non blank
-LFE13:      sty     CMDLIDX         ; Save pos
+@CHRDEL:    sty     CMDLIDX         ; Save pos
             cmp     #'''            ; Is it a single quote?
-            beq     LFE1D           ; Yes, continue
+            beq     @ISCHR          ; Yes, continue
             cmp     #'"'            ; Is it a double quote?
-            bne     LFE57           ; No, it is a value
-LFE1D:      sta     $E792
-            sty     $0298
-LFE23:      jsr     GETNEXTCH1
-            sty     CMDLIDX
-            bne     LFE32
-            cmp     $E78D
-            beq     LFE23
+            bne     @ISVAL          ; No, it is a value
+@ISCHR:     sta     QUOTE           ; Save delimiter
+            sty     SAVEY8          ; Save current position
+@GNEXT:     jsr     GETNEXTCH1      ; Get char from (INPBUFP),y+1
+            sty     CMDLIDX         ; Update command line index with pos after char
+            bne     @GOTCH          ; Got a char and is not a delimiter
+            cmp     SCOLON          ; Is it a semicolon?
+            beq     @GNEXT          ; Get next char
             jsr     ERROR26         ; Missing or illegal character string delimiter (' , ")
-LFE32:      cmp     $E792
-            bne     LFE23
-            dey
-            cpy     $0298
-            bne     LFE40
+@GOTCH:     cmp     QUOTE           ; Is it the char delimiter?
+            bne     @GNEXT          ; No, get next
+            dey                     ; Go to previous pos
+            cpy     SAVEY8          ; Is it the one of the first delimiter
+            bne     @CHVAL          ; No, so we got a character value
             jsr     ERROR26         ; Missing or illegal character string delimiter (' , ")
-LFE40:      ldy     $0298
-LFE43:      jsr     GETNEXTCH1
-            cpy     CMDLIDX
-            beq     LFE50
-            jsr     LFE65
-            jmp     LFE43
-
-LFE50:      iny
-LFE51:      jsr     GETNEXTNB
-            bne     LFE13
-            rts
-
-LFE57:      jsr     GETBYTE
-            bcs     LFE5F
-            jsr     ERROR24
+@CHVAL:     ldy     SAVEY8          ; Return to position of first delimiter
+@STCHAR:    jsr     GETNEXTCH1      ; Get char from next pos
+            cpy     CMDLIDX         ; Are we at the pos after the last char?
+            beq     @ADNEXT         ; Yes, go advance and get the next argument
+            jsr     SETBYTE         ; No, store the character
+            jmp     @STCHAR         ; And go store next
             ; Not reached
 
-LFE5F:      jsr     LFE65
-            jmp     LFE51
+@ADNEXT:    iny                     ; Advance pos
+@NXTARG:    jsr     GETNEXTNB       ; Get next non-blank
+            bne     @CHRDEL         ; Go check if delimiter
+            rts                     ; No more, return
 
-LFE65:      sta     $0296
-            lda     $E6D4
-            bne     LFE73
-            jsr     LFE9C
-            lda     $E6D4
-LFE73:      eor     $E6D8
-            sta     $BFE0
-            lda     $0296
-            stx     $0296
-            ldx     #$00
-            sta     ($C3,x)
-            cmp     ($C3,x)
-            php
-            lda     $E6D8
-            sta     $BFE0
-            plp
-            beq     LFE92
+@ISVAL:     jsr     GETBYTE         ; Get byte from command line
+            bcs     @STOR           ; Good, go store it
+            jsr     ERROR24         ; <value> missing or illegal
+            ; Not reached
+
+@STOR:      jsr     SETBYTE         ; Store byte
+            jmp     @NXTARG         ; And go get next char
+            ; Not reached
+
+
+;   Store byte into destination
+;
+SETBYTE:    sta     SAVEAX          ; Save byte
+            lda     NEWBNK          ; Get <from> bank
+            bne     @CONT           ; It is not bank 0
+            jsr     CHKVALID        ; Check if <from> is valid. Does not return if not.
+            lda     NEWBNK          ; Get <from> bank again (which is 0)
+@CONT:      eor     DEFBNKCFG       ; Switch to NEWBNK
+            sta     BNKCTL          ;
+            lda     SAVEAX          ; Recover byte
+            stx     SAVEAX          ; Save X
+            ldx     #$00            ; Store byte to destination
+            sta     (MEMBUFF,x)     ;
+            cmp     (MEMBUFF,x)     ; And verify there was no error
+            php                     ; Save comparison status
+            lda     DEFBNKCFG       ; Restore bank settings
+            sta     BNKCTL          ;
+            plp                     ; Recover comparison status
+            beq     @CHKOK          ; Same value, check ok
             jsr     ERROR23         ; Memory verify failure during SET or FILL
-LFE92:      inc     $C3
-            bne     LFE98
-            inc     $C4
-LFE98:      ldx     $0296
+@CHKOK:     inc     MEMBUFF         ; Advance to next memory position
+            bne     @RETURN         ;
+            inc     MEMBUFF+1       ;
+@RETURN:    ldx     SAVEAX          ; Recover X
             rts
 
-LFE9C:      lda     $C4
-            cmp     #$E0
-            bcc     LFEA5
-            jsr     LFEC4
-LFEA5:      cmp     #$02
-            bcs     LFEC3
-            cmp     #$01
-            bcc     LFEBA
-            txa
-            tsx
-            cpx     $C3
-            bcs     LFEB6
-            jsr     LFEC4
-LFEB6:      tax
-            jmp     LFEC3
+; Check if destination is a valid address.
+; Does not return if not.
+;
+CHKVALID:   lda     MEMBUFF+1       ; Is destination in SYSRAM?
+            cmp     #>SYSRAM        ;
+            bcc     @CONT           ; No, continue
+            jsr     CHKUNPROT         ; Yes, check if protected (does not return if not)
+@CONT:      cmp     #$02            ; Destination under $0200? FIXME: Address map dependent!
+            bcs     @RETURN         ; No, just return
+            cmp     #$01            ; Destination in stack?
+            bcc     @PAGE0          ; No, then in page 0
+            txa                     ; Save X
+            tsx                     ; Get stack pointer
+            cpx     MEMBUFF         ; Is destination inside current stack?
+            bcs     @XRET           ; No, recover X and return
+            jsr     CHKUNPROT       ; Yes, check if unprotected and fail if not
+@XRET:      tax                     ; Recover X
+            jmp     @RETURN         ; and return
 
-LFEBA:      lda     $C3
-            cmp     #$C1
-            bcc     LFEC3
-            jsr     LFEC4
-LFEC3:      rts
+@PAGE0:     lda     MEMBUFF         ; Check if destination is
+            cmp     #P0SCRATCH      ; in the CODOS reserved page 0 area
+            bcc     @RETURN         ; No, return
+            jsr     CHKUNPROT       ; Yes, check if unprotected and fail if not
+@RETURN:    rts
 
-LFEC4:      bit     IGNORWRP
-            bmi     LFECC
+; Check if IGNORWRP is set and fail if not
+;
+CHKUNPROT:  bit     IGNORWRP        ; Check ignore write protection flag
+            bmi     @RETURN         ; If set, just return
             jsr     ERROR17         ; Reserved or protected memory violation
-LFECC:      rts
+@RETURN:    rts
 
 
 ; UNPROTECT Command
 ;
 ; DESCRIPTION:  Disable the hardware write-protect on the top 8K of RAM on the disk
-;               controller board (addresses $E000-$FFFF in bank 0) and disable the
-;               system reserved memory checking for SET and FILL commands
+;               controller board (addresses SYSRAM-SYSRAM+$1FFF in bank 0) and disable
+;               the system reserved memory checking for SET and FILL commands
 ; SYNTAX:       UNPROTECT
 ; ARGUMENTS:    None.
 ; 
@@ -139,8 +149,8 @@ UNPROTECT:  nop
 ; PROTECT Command
 ;
 ; DESCRIPTION:  Enable the memory-protect hardware on the upper 8k block of memory on
-;               the disk controller board (addresses $E000-$FFFF in bank 0) and enable
-;               the reserved-memory checking for SET and FILL commands
+;               the disk controller board (addresses SYSRAM-SYSRAM+$1FFF in bank 0) and
+;               enable the reserved-memory checking for SET and FILL commands
 ; SYNTAX:       PROTECT
 ; ARGUMENTS:    None.
 ; 

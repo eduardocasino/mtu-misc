@@ -153,7 +153,7 @@ UNKNWN17:   .res 1                  ; $FF
 
             .segment "scratch1"
 
-            .export NFILES, TEMP4, SAVEY7
+            .export NFILES, TEMP4, SAVEY7, SAVEAX, SAVEY8
 
 TEMP1:      .res 1                  ; $0283
 TEMP2:      .res 1                  ; $0284
@@ -174,9 +174,9 @@ SAVEA2:     .res 1                  ; $0292
 SAVEY7:     .res 1                  ; $0293
 SAVEA3:     .res 1                  ; $0294
 SAVEX7:     .res 1                  ; $0295
-            .res 1                  ; $0296
+SAVEAX:     .res 1                  ; $0296
 SAVEX8:     .res 1                  ; $0297
-            .res 1                  ; $0298
+SAVEY8:     .res 1                  ; $0298
 SAVEA4:     .res 1                  ; $0299
 SAVEX9:     .res 1                  ; $029A
 NFILES:     .res 1                  ; $029B Used to navigate through disk file entries
@@ -589,7 +589,7 @@ DEFSVCFLAG: .byte   $00             ; Flag. If bit 7 = 1, SVC enabled by default
 ASSIGNFLAG: .byte   $00             ; Flag. If bit 6 = 1, it is a new file
                                     ;       If bit 7 = 1, it is an existing file
                                     ;       Clear: it is a device      
-            .export COLON
+            .export SCOLON, COLON, QUOTE
 
 SCANFLG:    .byte   $00             ; Flag for SVC #29 (FSCAN)
                                     ; If the name was a device name (Cy set) then:
@@ -612,7 +612,7 @@ PERIOD:     .byte   "."             ; .
 DOLLAR:     .byte   "$"             ; $
 COLON:      .byte   ":"             ; :
 CARET:      .byte   "^"             ; ^
-DQUOTE:     .byte   $22             ; "
+QUOTE:      .byte   $22             ; " May be modified to ' by the command processor
 DEFAULTEXT: .byte   "C"             ; Current ASCII default file extension character ("C").
 NUMOVL:     .byte   $11             ; Number of system overlays+1
 CURROVL:    .byte   $00             ; Current overlay number
