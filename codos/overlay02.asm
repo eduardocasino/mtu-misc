@@ -56,21 +56,21 @@ FILL:       jsr     GADDRBNKMB      ; Get Address and bank and store into MEMBUF
             cmp     QUOTE           ; Is it the string delimiter?
             bne     @ILLEG          ; No, illegal value
 @STOR:      txa                     ; Recover char
-            jsr     SETBYTE
-            lda     MEMCOUNT
-            sec
-            sbc     #$01
-            sta     MEMCOUNT
-            lda     MEMCOUNT+1
-            sbc     #$00
-            sta     MEMCOUNT+1
-            bcs     @STOR
+            jsr     SETBYTE         ; Store it
+            lda     MEMCOUNT        ; One less to go
+            sec                     ;
+            sbc     #$01            ;
+            sta     MEMCOUNT        ;
+            lda     MEMCOUNT+1      ;
+            sbc     #$00            ;
+            sta     MEMCOUNT+1      ;
+            bcs     @STOR           ; If count not reached, store into next location
             rts
 
-@ISVAL:     jsr     LFBCC
-            bcc     @ILLEG
-            tax
-            bcs     @STOR
+@ISVAL:     jsr     GETBYTE         ; Get byte value from command line
+            bcc     @ILLEG          ; Error if illegal value
+            tax                     ; Save into X
+            bcs     @STOR           ; And go store it
 
 
 ;   Store byte into destination
