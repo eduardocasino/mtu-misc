@@ -228,10 +228,10 @@ GETDRIVEOPND:
 ; Does not return on error
 ;
 GETDRIVE:   jsr     HEXDECOD        ; Converts drive number from ascii
-            bcs     LD95D           ; Continue if valid number
+            bcs     @CONT           ; Continue if valid number
             jsr     ERROR05         ; Missing or illegal disk drive number
             ; Not reached
-LD95D:      lda     P0SCRATCH       ; Get result number
+@CONT:      lda     P0SCRATCH       ; Get result number
             tax                     ; Store into CURRDRV (will be validated
             stx     CURRDRV         ; later on)
             sty     CMDLIDX         ; Save command line position
