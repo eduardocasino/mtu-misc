@@ -39,15 +39,15 @@ ASSIGNCMD:  bne     @CONT
             bit     ASSIGNFLAG      ; Check flag:
             bvc     @ISDEV          ;    If bit 6 is clear: it is a device
             bmi     @FEXIST         ;    If bit 7 is set: file exist
-            jsr     PRNSTR          ; Print "NEW FILE"
+            jsr     OUTSTR          ; Print "NEW FILE"
             .byte   "NEW", 00       ;
             jmp     @SKIP           ;
             ; Not reached
 
-@FEXIST:    jsr     PRNSTR          ; Print "OLD FILE "
+@FEXIST:    jsr     OUTSTR          ; Print "OLD FILE "
             .byte   "OLD", $00      ;
                                     ;
-@SKIP:      jsr     PRNSTR          ;
+@SKIP:      jsr     OUTSTR          ;
             .byte   " FILE ", $00   ;
 
             ldy     #$00            ; Copy file name to output buffer
@@ -91,7 +91,7 @@ DISPLAYCH:  jsr     SETOUTBCH       ; Set output buffe rand output channel to
             lda     IOCHTBL,x       ; Get channel's device
             beq     @NEXTCH         ; If not assigned, go check next
             sta     DEVICE          ; Store file/device
-            jsr     PRNSTR          ; Print assignment info:
+            jsr     OUTSTR          ; Print assignment info:
             .byte   "CHAN. ", $00   ;
 
             lda     TEMP4           ; Get channel

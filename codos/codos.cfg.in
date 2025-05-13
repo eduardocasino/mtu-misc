@@ -7,7 +7,7 @@ MEMORY {
     SYSRAM:     start = $E000, size = $2000, define = yes;
     CODOS:      start = $E54A, size = $19B6, file=%O;
     OVERLAYS:   start = $FE00, size = $100, define = yes;
-    BOOTPROM:   start = $FF00, size = $100;
+    BOOTPROM:   start = $FF00, size = $100, define = yes;
 }
 SEGMENTS {
     zp:         load = ZEROPAGE, type = zp, start = $B0;

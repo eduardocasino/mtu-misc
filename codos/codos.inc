@@ -37,6 +37,14 @@ FLUNUSED    = $00
 FLNORMAL    = $80
 FLLOCKED    = $20
 
+; P0SCRATCH offsets
+;
+_MEMBUFF    = 2
+_MEMCOUNT   = 4
+_TMPBUFP    = 6
+_DESTBUFF   = 8
+
+
 ; Current file info structure
 ; FINFO structure offsets:
 ;
@@ -76,3 +84,5 @@ _RSRVD      = 3
 _PNTRS      = 4
 SAVEDHDRLEN = 10
 
+; Saved file magic number
+SVDMAGIC    = $58

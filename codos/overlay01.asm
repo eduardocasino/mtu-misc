@@ -8,12 +8,6 @@
 
             .include "symbols.inc"
 
-; TODO: Move to include files
-;
-LD968       := $D968
-LD9B7       := $D9B7
-LF594       := $F594
-
             .segment "overlays"
 
             .byte $01               ; Overlay number
@@ -22,29 +16,29 @@ LF594       := $F594
 ;
 ; DESCRIPTION:  Set the value of memory locations
 ;                          {"character" ...}
-; SYNTAX:       SET <from>={<value>        }
+; SYNTAX:       SET <from>[=]{<value>        }
 ;                          {'character' ...}
 ; ARGUMENTS:    <from> = address at which to deposit the first value
 ;               <value> = numeric value to be deposited
 ;               <character> = an ASCII character to be deposited
 ;
-SETCMD:     jsr     LD9B7
-            jsr     GETNEXTNB
-            bne     @CONT
+SETCMD:     jsr     GADDRBNKMB      ; Get Address and bank and store into MEMBUF
+            jsr     GETNEXTNB       ; Advance to next non-blank
+            bne     @CONT           ; Any? Ok, continue
             jsr     ERROR24         ; <value> missing or illegal
             ; Not reached
-@CONT:      cmp     #$3D
-            bne     LFE13
-            jsr     GETNEXTNB1
-LFE13:      sty     $EB
-            cmp     #$27
-            beq     LFE1D
-            cmp     #$22
-            bne     LFE57
+@CONT:      cmp     #'='            ; Is it the optional '='
+            bne     LFE13           ; No, then go check the character delimiter
+            jsr     GETNEXTNB1      ; Yes, get the next non blank
+LFE13:      sty     CMDLIDX         ; Save pos
+            cmp     #'''            ; Is it a single quote?
+            beq     LFE1D           ; Yes, continue
+            cmp     #'"'            ; Is it a double quote?
+            bne     LFE57           ; No, it is a value
 LFE1D:      sta     $E792
             sty     $0298
 LFE23:      jsr     GETNEXTCH1
-            sty     $EB
+            sty     CMDLIDX
             bne     LFE32
             cmp     $E78D
             beq     LFE23
@@ -57,7 +51,7 @@ LFE32:      cmp     $E792
             jsr     ERROR26         ; Missing or illegal character string delimiter (' , ")
 LFE40:      ldy     $0298
 LFE43:      jsr     GETNEXTCH1
-            cpy     $EB
+            cpy     CMDLIDX
             beq     LFE50
             jsr     LFE65
             jmp     LFE43
@@ -67,7 +61,7 @@ LFE51:      jsr     GETNEXTNB
             bne     LFE13
             rts
 
-LFE57:      jsr     LFBCC
+LFE57:      jsr     GETBYTE
             bcs     LFE5F
             jsr     ERROR24
             ; Not reached

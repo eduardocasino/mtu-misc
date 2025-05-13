@@ -4,10 +4,14 @@
 ; Page:       1
 
 
-        .setcpu "6502"
-        .segment "overlays"
+            .setcpu "6502"
 
-        .byte   $09
+            .include "codos.inc"
+            .include "symbols.inc"
+
+            .segment "overlays"
+
+            .byte   $09
 
 LD968           := $D968
 LE9FB           := $E9FB
@@ -49,7 +53,7 @@ LFE23:  lda     $E6DE,x
         sta     ($CD),y
         iny
         ldx     #$05
-LFE3C:  lda     $E721,x
+LFE3C:  lda     SAVEDHDR+_PNTRS,x
         sta     $C1,x
         dex
         bpl     LFE3C

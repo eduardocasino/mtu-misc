@@ -34,7 +34,7 @@ FNPTRT:     .word   PRCODOS         ; Show registers, enter CODOS monitor
             .word   CODOS           ; Enter CODOS monitor
             .word   OUTMSG          ; Output inline message
             .word   GETCHAR         ; Input byte from channel
-            .word   PRNCHAR         ; Output byte over channel
+            .word   OUTCHAR         ; Output byte over channel
             .word   GETLINE         ; Input line of text from channel
             .word   POUTBUFFCR      ; Same as POUTBUFF, followed by a CR
             .word   POUTBUFF        ; Print Y characters from (OUTBUFP) to channel X
@@ -50,7 +50,7 @@ FNPTRT:     .word   PRCODOS         ; Show registers, enter CODOS monitor
             .word   WRRECORD        ; Write a record to a channel
 .else
             .word   GETMBUFF        ; Read a record from a channel
-            .word   PRNMBUFF        ; Write a record to a channel
+            .word   OUTMBUFF        ; Write a record to a channel
 .endif
             .word   FREWIND         ; Set file position for a channel to Beginning-of-Data
             .word   FEND            ; Set file position for a channel to End-of-File
@@ -232,7 +232,7 @@ OUTMSG:     lda     PCSAVE          ; Get program counter at BRK
 ; Arguments:            None
 ; Arguments returned:   None
 ;
-PRCODOS:    jsr     PRNREGSLB
+PRCODOS:    jsr     OUTREGSLB
             ; Fall through
 
 ; SVC 01 - Enter CODOS monitor
@@ -300,7 +300,7 @@ RDRECORD:   lda     DATBANK         ; Set data bank as destination bank
 ;
 WRRECORD:   lda     DATBANK         ; Set data bank as destination bank
             sta     DSTBANK         ;
-            jmp     PRNMBUFF        ; Print MEMCOUNT characters from (MEMBUFF) to channel X
+            jmp     OUTMBUFF        ; Print MEMCOUNT characters from (MEMBUFF) to channel X
             ; Not reached
 .endif
 

@@ -29,7 +29,7 @@ FILES:
             jsr     GETNEXTNB       ; More arguments?
             beq     @RETURN         ; No, we're done
             ldx     #$02            ; Yes, prints CR to console
-            jsr     PRNCR           ;
+            jsr     OUTCR           ;
             jmp     @GETDRV         ; And get next drive
 
 @RETURN:    rts
@@ -51,7 +51,7 @@ CONT:       jsr     INILINE         ; Inits line. Clears line and sets FPERLIN
             lda     (BATP),y        ; Get it
             sta     NFILES          ; And store
             bne     @SEARCH         ; If not empty, init search
-            jsr     PRNSTR          ; Empty, just say so
+            jsr     OUTSTR          ; Empty, just say so
             .byte   "(NONE)", $00
             ldx     CURRDRV         ; 
             rts
@@ -94,7 +94,7 @@ CONT2:      jsr     RDSECTNTR12     ; Read sector
             jmp     @NEXT           ; And go for next extry
             ; Not reached
 
-@RETURN:    jsr     PRNCLEAR        ; Prints output buffer and clears it
+@RETURN:    jsr     OUTCLEAR        ; Prints output buffer and clears it
             rts
 
 ADD2LINE:   tya                     ; Tabulate entry to 16 positions
@@ -102,14 +102,14 @@ ADD2LINE:   tya                     ; Tabulate entry to 16 positions
             clc                     ;
             adc     #$10            ;
             dec     FPERLIN         ; Room for more files on this line?
-            beq     PRNCLEAR        ; No, rints output buffer and clears it
+            beq     OUTCLEAR        ; No, rints output buffer and clears it
             ; Not reached
             tay                     ; Yes, update index
             rts                     ; and return
 
 ; Prints output buffer and clears it
 ;
-PRNCLEAR:   jsr     POUTBUFFCR02    ; Print output buffer to console (length in Y)
+OUTCLEAR:   jsr     POUTBUFFCR02    ; Print output buffer to console (length in Y)
             ; Fall through
 
 ; Init line.

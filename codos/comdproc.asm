@@ -3,14 +3,7 @@
 ; Input file: command.bin
 ; Page:       1
 
-
-LEB2F           := $EB2F
-LF592           := $F592
-LF8CE           := $F8CE
-LFBE1           := $FBE1
-LFC62           := $FC62
-LFD05           := $FD05
-LFF0E           := $FF0E
+            .include "codos.inc"
 
             .importzp MEMBUFF, TMPBUFP, INPBUFP, P0SCRATCH, ERRNUM, SVCENB
             .importzp PCSAVE, CMDLIDX
@@ -48,7 +41,7 @@ CMDPROC:    cld
             lda     CHANN1
             cmp     #$82            ; Console input?
             bne     @CONT           ; Nope
-            jsr     PRNSTR          ; Yes, print CODOS prompt
+            jsr     OUTSTR          ; Yes, print CODOS prompt
             .byte   $0D, "CODOS> ", $00
 
 @CONT:      ldx     #$01            ;
@@ -68,7 +61,7 @@ CMDEXEC:    jsr     GETNEXTNB       ; Get next non-blank from input buffer
             ror     INTCMDERR       ;    command processing
             sty     CMDLIDX         ; Save command line index
             jsr     ISALPHA         ; Check that char is alphabetic
-            bcs     @SEARCH
+            bcs     @SEARCH         ; No, must be a separator
 @LOOP:      iny
             jsr     GETNEXTCH       ; Get next char
             beq     @SEARCH         ; Nothing? We got the command
@@ -116,30 +109,32 @@ EXTERNAL:   ldy     #$00
             sty     CMDLIDX         ; And save where it is
             sec                     ; Mark that file to load is a command
             ror     ISCMDFLG        ;  (just used to display the correct error message)
-            jsr     LF592
+            jsr     FOPEN0          ; Assigns channel 0 to file (fails if not found)
             clc                     ; Clear the command flag
             ror     ISCMDFLG        ;
-            lda     #$00
-            sta     $E77B
-            sta     $E77C
-            ldx     #$00
-            txa
-            jsr     LFD05
-            bcc     LD8C7
+            lda     #$00            ; Inits flags:
+            sta     SAVDESTPF       ;   No <dest> specified
+            sta     SAVENTRYPF      ;   No <entry> specified
+            ldx     #$00            ; Set channel 0
+            txa                     ; Set overlay 0
+            jsr     LOADSVD         ; Load first block
+            bcc     @CONT           ; OK, continue
             jsr     ERROR13         ; Not a loadable ("SAVEd") file.
-LD8C7:      lda     $E721
-            sta     PCSAVE
-            lda     $E722
-            sta     PCSAVE+1
-            lda     $E6D2
-            sta     PRGBANK
-            sta     DATBANK
-LD8DA:      ldx     #$00
-            txa
-            jsr     LFD05
-            bcc     LD8DA
-            jsr     FREECH0
-            jmp     LEB2F
+@CONT:      lda     SAVEDHDR+_PNTRS ; Store entry point into PCSAVE
+            sta     PCSAVE          ;
+            lda     SAVEDHDR+_PNTRS+1 ;
+            sta     PCSAVE+1        ;
+            lda     DSTBANK         ; Sets program and data banks
+            sta     PRGBANK         ;
+            sta     DATBANK         ;
+@NEXT:      ldx     #$00            ; Get next block
+            txa                     ;
+            jsr     LOADSVD         ;
+            bcc     @NEXT           ; Go get next one while OK
+            jsr     FREECH0         ; Free channel
+            jmp     EXCMD           ; Execute program in memory
+            ; Not reached
+
 
 ; Search typed command in command name table
 ;
@@ -192,22 +187,24 @@ SEARCHCMD:  sty     CMDLIDX         ; Save command position
             bcs     @NEXTCMD        ; Yes, then the command does not match. Go next.
             ; Not reached
 
-@ENDOFTBL:  ldx     #$00
+@ENDOFTBL:  ldx     #$00            ; Not found
             rts
 
-; Get channel number from A and store it in CHANNEL
+
+; Get channel number from command line and store it in CHANNEL
+;
 ; Returns channel number in X
 ;
             .export GETCHANN
 
-GETCHANN:   jsr     LFBCC           ; Get channel number
-            bcs     @CONT
+GETCHANN:   jsr     GETBYTE         ; Get byte from command line
+            bcs     @CONT           ; Valid byte? Yes, continue
             jsr     ERROR08         ; Missing or illegal channel number
             ; Not reached
 
 @CONT:      sta     CHANNEL         ; Save channel
-            tax                     ; ANd also return it in X
-            sty     CMDLIDX         ; Save command line index
+            tax                     ; And also return it in X
+            sty     CMDLIDX         ; Update command line index
             cmp     #$0A            ; Valid channel numbers are 0-9
             bcc     @RETURN         ; OK
             jsr     ERROR08         ; Missing or illegal channel number
@@ -215,29 +212,32 @@ GETCHANN:   jsr     LFBCC           ; Get channel number
 
 @RETURN:    rts
 
+
 ; Get drive from command line and check that it is opened
 ; Does not return on error
 ;
                 .export GETDRIVEOPND
 
 GETDRIVEOPND:  
-            jsr     GETDRIVE
-            jmp     ISDRVOPEN
+            jsr     GETDRIVE        ; Get drive from command line
+            jmp     ISDRVOPEN       ; Checks if open and returns (or fails)
+
 
 ; Get drive from command line and sets CURRDRV
 ; Returns drive in X. Sets CURRDRV and updates CMDLIDX.
 ; Does not return on error
 ;
-GETDRIVE:   jsr     LF8CE
-            bcs     LD95D
-            jsr     ERROR05             ; Missing or illegal disk drive number
+GETDRIVE:   jsr     HEXDECOD        ; Converts drive number from ascii
+            bcs     LD95D           ; Continue if valid number
+            jsr     ERROR05         ; Missing or illegal disk drive number
             ; Not reached
-LD95D:      lda     P0SCRATCH
-            tax
-            stx     CURRDRV
-            sty     CMDLIDX             ; Save command line position
-            jmp     DRVVALID            ; Verify that drive is valid
+LD95D:      lda     P0SCRATCH       ; Get result number
+            tax                     ; Store into CURRDRV (will be validated
+            stx     CURRDRV         ; later on)
+            sty     CMDLIDX         ; Save command line position
+            jmp     DRVVALID        ; Verify that drive is valid and returns
             ; Not reached
+
 
 ; Get file and drive from command line and ensures that drive is open
 ; Returns drive in X. Sets CURRDRV, FNAMBUF and updates CMDLIDX.
@@ -256,16 +256,17 @@ GETFILNDRV: lda     INPBUFP         ; Copy command line pointer to
 @CONT:      jsr     GETNEXTNB       ; Get next non blank from command line
             cmp     COLON           ; Drive separator?
             bne     @USEDEF         ; No, use default drive
-            jsr     GETNEXTNB1      ; Yes, get next non blank from command line
+            jsr     GETNEXTNB1      ; Yes, advance one pos and get next non blank
             jmp     GETDRIVEOPND    ; Get drive and ensure that it is open.
                                     ; Sets CURRDRV and updates CMDLIDX.
             ; Not reached
 
 @USEDEF:    ldx     DEFDRV          ; Get default drive
             jsr     DRVVALIDO       ; Ensure that drive is valid and open
-            stx     CURRDRV
+            stx     CURRDRV         ; Set curret drive
             sty     CMDLIDX         ; Updates command line index
             rts
+
 
 ; Gets <device> or <file>:<drive> from command line
 ; If it is a file, uses GETFILNDRV and CURRDRV contains a valid drive.
@@ -284,7 +285,7 @@ GETDEVORFIL:
             jsr     VALFNCHR        ; Validate it is a valid file name char
             dey                     ; Go back
             bcs     @INVALID        ; Not valid
-            jmp     GETFILNDRV
+            jmp     GETFILNDRV      ; Valis, get file and drive and returns
             ; Not reached
 @INVALID:   jsr     GETNEXTCH       ; Get char
             sta     CURRDRV         ; Save into CURRDRV to force an invalid?
@@ -294,88 +295,113 @@ GETDEVORFIL:
             sty     CMDLIDX         ;
             rts
 
-; Get Address and bank from command line + 2
+
+; Get Address:bank from command line and store into MEMBUFF and NEWBNK
 ;
-LD9B7:      ldx     #$02
+            .export GADDRBNKMB
+
+GADDRBNKMB: ldx     #_MEMBUFF
             ; Fall through
 
-; Get Address and bank from command line + X
-; Returns addres in MEMBUFF, bank in NEWBNK
+
+; Get Address:bank from command line and store it into
+; P0SCRATCH + X and NEWBNK
 ;
-LD9B9:      jsr     LFBE1
-            bcs     @LD9C1
+GADDRBNK:   jsr     EVALEXP         ; Evaluate expression
+            bcs     @CONT           ; If OK, continue
             jsr     ERROR14         ; <from> address missing or illegal
-@LD9C1:     sty     CMDLIDX
+@CONT:      sty     CMDLIDX         ; Update command line index
             lda     #$00            ; Some initialization
-            sta     NEWBNK          ;
+            sta     NEWBNK          ; Inits NEWBNK to bank 0
             sta     CHGBNKFLG       ; Clears change bank flag
-            jsr     GETNEXTNB
-            beq     @RETURN
-            cmp     COLON
-            bne     @RETURN
-            jsr     GETNEXTNB1
-            sty     CMDLIDX
-            beq     @LD9E6
-            iny
-            sec
-            sbc     #$30
-            bcc     @LD9E6
-            cmp     #$04
-            bcc     @LD9E9
-@LD9E6:     jsr     ERROR51         ; Missing or illegal memory bank number
-@LD9E9:     sta     NEWBNK          ; New bank
-            sec                     ; And sets flag
+            jsr     GETNEXTNB       ; Get next non-blank
+            beq     @RETURN         ; Nothing? Then we're done
+            cmp     COLON           ; Is it the bank separator?
+            bne     @RETURN         ; No, we're done
+            jsr     GETNEXTNB1      ; Yes, advance one pos and get next non blank
+            sty     CMDLIDX         ; Update command line index
+            beq     @ERROR          ; Oops, we were expecting the bank number
+            iny                     ; Advance one pos
+            sec                     ; Check that the channel is a number from 0 to 3
+            sbc     #'0'            ; Convert from ascii to number
+            bcc     @ERROR          ; Invalid number          
+            cmp     #$04            ; Check if 0-3
+            bcc     @SETBNK         ; Yes, set new bank
+@ERROR:     jsr     ERROR51         ; Missing or illegal memory bank number
+@SETBNK:    sta     NEWBNK          ; New bank
+            sec                     ; And sets change bank flag
             ror     CHGBNKFLG       ;
 @RETURN:    rts
 
-LD9F1:      ldx     #$04
-            jsr     LFBE1
-            bcs     LD9FB
+
+; Get <to> address from command line and store to MEMCOUNT
+;
+GETTOP:     ldx     #_MEMCOUNT      ; Eval expression and store into MEMCOUNT
+            jsr     EVALEXP         ;
+            bcs     @CONT           ; If correct, return
             jsr     ERROR15         ; <to> address missing or illegal
-LD9FB:      sty     CMDLIDX
+@CONT:      sty     CMDLIDX         ; Recover command line index
             rts
 
+
+; Get program counter from command args
+;
             .export GETPC
 
-GETPC:      lda     #$00
-            sta     CHGBNKFLG       ; Clears bank switching flag
-            sta     NEWBNK
+GETPC:      lda     #$00            ; Clears bank switching flag
+            sta     CHGBNKFLG       ;
+            sta     NEWBNK          ; And sets bank 0 as new bank
             jsr     GETNEXTNB       ; Get next char from command line
             beq     @RETURN         ; If none, returns
-            jsr     LD9B7           ; Get address and bank
+            jsr     GADDRBNKMB      ; Get address and bank and store into MEMBUFF and NEWBNK
             lda     MEMBUFF         ; Place address into program counter
             sta     PCSAVE          ;
             lda     MEMBUFF+1       ;
             sta     PCSAVE+1        ;
 @RETURN:    rts
 
-LDA17:  lda     #$00
-        sta     $E77B
-        jsr     GETNEXTNB
-        cmp     #$3D
-        bne     LDA2D
-        iny
-        ldx     #$08
-        jsr     LD9B9
-        sec
-        ror     $E77B
-LDA2D:  sty     CMDLIDX
-        rts
 
-LDA30:  lda     #$00
-        sta     $E77C
-        jsr     GETNEXTNB
-        cmp     #$3D
-        bne     LDA4B
-        iny
-        ldx     #$06
-        jsr     LFBE1
-        bcs     LDA47
-        jsr     ERROR20         ; <entry> address missing or illegal
-LDA47:  sec
-        ror     $E77C
-LDA4B:  sty     CMDLIDX
-        rts
+; Get the <dest> address and bank from the command line
+;
+; Looks for pattern "=<address>"
+;
+; Y has the command line index on entry
+; 
+GETDESTP:   lda     #$00            ; Inits flag: no dest specified
+            sta     SAVDESTPF       ;
+            jsr     GETNEXTNB       ; Get next non blank
+            cmp     #'='            ;
+            bne     @NODEST         ; No '=', no dest specified
+            iny                     ; Advance one position
+            ldx     #_DESTBUFF      ; Evaluate address expression and store it
+            jsr     GADDRBNK        ; into TMPBU2. Bank into NEWBANK
+            sec                     ; Set flag, dest address specified
+            ror     SAVDESTPF       ;
+@NODEST:    sty     CMDLIDX         ; Update command line index
+            rts
+
+
+; Get the entry point address from the command line
+;
+; Looks for pattern "=<address>"
+;
+; Y has the command line index on entry
+; 
+GETENTRYP:  lda     #$00            ; Inits flag: no entry point specified
+            sta     SAVENTRYPF      ;
+            jsr     GETNEXTNB       ; Get next non blank
+            cmp     #'='            ; 
+            bne     @NOENT          ; No '=', no entry point specified
+            iny                     ; Advance one position
+            ldx     #_TMPBUFP       ; Evaluate address expression and store it
+            jsr     EVALEXP         ; into TMPBUF
+            bcs     @CONT           ; Continue if OK
+            jsr     ERROR20         ; <entry> address missing or illegal
+@CONT:      sec                     ; Set flag, entry point address specified
+            ror     SAVENTRYPF      ;
+@NOENT:     sty     CMDLIDX         ; Update command line index
+            rts
+
 
 ; BP Command
 ;
@@ -408,11 +434,11 @@ BREAKP:     jsr     GETNEXTNB       ; Get next char from command line
             sta     BNKCTL          ;
             lda     #$FF            ; Invalidate/clear BP
             sta     BPBANK,x        ;
-@NEXT:      dex
-            bpl     @LOOP           ; Continue until last BP
+@NEXT:      dex                     ; Advance to next BP
+            bpl     @LOOP           ; Continue until last
             rts
 
-@GETARGS:   jsr     LD9B7
+@GETARGS:   jsr     GADDRBNKMB      ; Get <from> address:bank and store into MEMBUFF and NEWBNK
             ldy     #$00
 
             ldx     #$02            ; Search for a free BP slot
@@ -449,8 +475,8 @@ BREAKP:     jsr     GETNEXTNB       ; Get next char from command line
             lda     (MEMBUFF),y     ; Get opcode at BP address
             bne     @SETBP          ; Not a BRK, set BP
             beq     @RSTBNK         ; Already a BRK, just restore bank and return
-@NEXT2:     dex
-            bpl     @LOOP2
+@NEXT2:     dex                     ; Advance to next slot
+            bpl     @LOOP2          ; And go check it
             jsr     ERROR31         ; Breakpoint table full (3 BP's already set)
             ; Not reached
 
@@ -462,13 +488,12 @@ BREAKP:     jsr     GETNEXTNB       ; Get next char from command line
 ; ARGUMENTS:    <channel> = channel number to free, 0 to 9.
 ; 
 FREE:       jsr     GETCHANN        ; Get channel from command line
-                                    ; (in fact, from A, which contains first NN
-                                    ;  char after the command name)
-            jsr     FREECH
+            jsr     FREECH          ; Free it
             ldy     CMDLIDX         ; Get command line index
             jsr     GETNEXTNB       ; Get next channel
             bne     FREE            ; Repeat until no more arguments
             rts
+
 
 ; OPEN Command
 ;
@@ -477,16 +502,17 @@ FREE:       jsr     GETCHANN        ; Get channel from command line
 ; ARGUMENTS:    <drive> = disk drive number to be opened, 0 to 3.
 ;               Defaults to drive 0.
 ; 
-OPEN:       beq     @NOPARAMS
+OPEN:       beq     @OPEN0          ; No parameters, open drive 0
 @GETDRV:    jsr     GETDRIVE        ; Get drive number in X and CURRDRV
 @OPENX:     jsr     OPENDRV         ; Open it
-            jsr     GETNEXTNB
+            jsr     GETNEXTNB       ; Get next non-blank
             bne     @GETDRV         ; Repeat until no more arguments
             rts
 
-@NOPARAMS:  ldx     #$00            ; Set default drive (0)
+@OPEN0:     ldx     #$00            ; Set default drive (0)
             beq     @OPENX          ; Always jumps
             ; Not reached
+
 
 ; CLOSE Command
 ;
@@ -496,22 +522,24 @@ OPEN:       beq     @NOPARAMS
 ; ARGUMENTS:    <drive> = disk drive number to be closed, 0 to 3.
 ;               Defaults to drive 0.
 ; 
-CLOSE:      beq     @NOARGS
-@LOOP:      jsr     GETDRIVE
-@CLOSEONE:  jsr     CLOSEDRV
+CLOSE:      beq     @CLOSE0         ; No args, close disk 0
+@LOOP:      jsr     GETDRIVE        ; Get drive from command line (into X)
+@CLOSEX:    jsr     CLOSEDRV        ; And close it
             ldy     CMDLIDX         ; Get command line index
-            jsr     GETNEXTNB
+            jsr     GETNEXTNB       ; Get next non-blank
             bne     @LOOP           ; Repeat until no more arguments
             rts
 
-@NOARGS:    ldx     #$00
-            beq     @CLOSEONE
-            rts
+@CLOSE0:    ldx     #$00            ; Set drive 0
+            beq     @CLOSEX         ; And go close it (always jumps)
+            ; Not reached
+            rts                     ; Dead code
+
 
 ; SAVE Command
 ;
 ; DESCRIPTION:  Save one or more blocks of memory on a file.
-; SYNTAX:       SAVE <file>[:<drive>][=<entry>]<from>[=<dest>] <to> ... 
+; SYNTAX:       SAVE <file>[:<drive>] [=<entry>] <from> [=<dest>] <to> ... 
 ; ARGUMENTS:
 ;               <file>  = file name.
 ;               <drive> = drive name, 0 to 3. Defaults to the default drive,
@@ -524,28 +552,32 @@ CLOSE:      beq     @NOARGS
 ; 
 SAVE:       jsr     GETFILNDRV      ; Get file and drive from command line
             jsr     ASSIGN0         ; Assign to channel 0
-            bit     $E786
-            bpl     @LDB28          ; Bit 7 clear
-            bit     $E77A
-            bmi     @LDB28
+            bit     ASSIGNFLAG      ; Flag. If bit 6 = 1, it is a new file
+                                    ;       If bit 7 = 1, it is an existing file
+                                    ;       Clear: it is a device    
+            bpl     @OVERWR         ; Bit 7 clear, it is new or a device
+            bit     SAVEOVERWR      ; Flag. If bit 7 = 1 then permits overwrite 
+            bmi     @OVERWR         ;
             jsr     ERROR25         ; New file name is already on selected diskette 
-@LDB28:     ldy     CMDLIDX
-            jsr     LDA30
-@LDB2D:     jsr     LD9B7
-            lda     NEWBNK
-            sta     $E6D6
-            jsr     LDA17
-            lda     NEWBNK
-            sta     $E6D7
-            jsr     LD9F1
-            lda     #$00
-            tax
-            jsr     LFC62
+@OVERWR:    ldy     CMDLIDX         ; Recover command line index
+            jsr     GETENTRYP       ; Get =<entry> address
+@MEMBLK:    jsr     GADDRBNKMB      ; Get <from> address:bank and store into MEMBUFF and NEWBNK
+            lda     NEWBNK          ; Store bank for saved file <from>
+            sta     SVDFROMBNK      ;
+            jsr     GETDESTP        ; Get =<dest> address
+            lda     NEWBNK          ; Store bank for <dest>
+            sta     SVDDESTBNK      ;
+            jsr     GETTOP          ; Get TO address and store into MEMCOUNT
+            lda     #$00            ; Set overlay as 0
+            tax                     ; This seems useless, as X is modified before use
+            jsr     SAVEBLK         ; Save memory block into file's current position
             ldy     CMDLIDX         ; Get cmd line index
-            jsr     GETNEXTNB
-            bne     @LDB2D
-            jsr     FTRUNC
-            jmp     FREECH0
+            jsr     GETNEXTNB       ; Next non-blank
+            bne     @MEMBLK         ; Any? Get next memory block
+            jsr     FTRUNC          ; No more, just truncates output file at current pos
+            jmp     FREECH0         ; Frees channel and returns
+            ; Not reached
+
 
 ; GET Command
 ;
@@ -559,32 +591,33 @@ SAVE:       jsr     GETFILNDRV      ; Get file and drive from command line
 ;                         lieu of the from address which was specified when the
 ;                         file was saved. 
 ; 
-GETCMD:     jsr     GETFILNDRV
-            jsr     LF592
+GETCMD:     jsr     GETFILNDRV      ; Get file and drive from command line
+            jsr     FOPEN0          ; Assigns channel 0 to file (fails if not found)
             ldy     CMDLIDX         ; Get command line index
-            jsr     LDA17
-            lda     NEWBNK
-            sta     $E6D7
-            ldx     #$00
-            txa
-            jsr     LFD05
-            bcc     @LDB71
+            jsr     GETDESTP        ; Get =<dest> address (if specified)
+            lda     NEWBNK          ; Store bank for <dest>
+            sta     SVDDESTBNK      ;
+            ldx     #$00            ; Set channel 0
+            txa                     ; Set overlay 0
+            jsr     LOADSVD         ; Loads $58 segment from file
+            bcc     @CONT           ; Continue if no error
             jsr     ERROR13         ; Not a loadable ("SAVEd") file
-@LDB71:     lda     P0SCRATCH
-            sta     PCSAVE
-            lda     P0SCRATCH+1
-            sta     PCSAVE+1
-            lda     $E6D2
-            sta     PRGBANK
-            sta     DATBANK
-@LDB82:     ldy     CMDLIDX
-            jsr     LDA17
-            ldx     #$00
-            txa
-            jsr     LFD05
-            bcc     @LDB82
-            jmp     FREECH0
+@CONT:      lda     P0SCRATCH       ; Store entry address into PCSAVE
+            sta     PCSAVE          ;
+            lda     P0SCRATCH+1     ;
+            sta     PCSAVE+1        ;
+            lda     DSTBANK         ; Set DATBANK and PRGBANK from header (or <dest> if set)
+            sta     PRGBANK         ;
+            sta     DATBANK         ;
+@NEXT:      ldy     CMDLIDX         ; Recover command line index
+            jsr     GETDESTP        ; Get <dest>, if set
+            ldx     #$00            ; Set channel 0
+            txa                     ; Set overlay 0
+            jsr     LOADSVD         ; Loads $58 segment from file
+            bcc     @NEXT           ; If OK, go load next
+            jmp     FREECH0         ; No more, free channel 0 and return
             ; Not reached
+
 
 ; RESAVE Command
 ;
@@ -600,11 +633,12 @@ GETCMD:     jsr     GETFILNDRV
 ;                         subsequent GET commands. Defaults to <from>.
 ;               <to>    = final address of the memory block. 
 ; 
-RESAVE:     sec
-            ror     $E77A
-            jsr     SAVE
-            asl     $E77A
+RESAVE:     sec                     ; Allow overwrite
+            ror     SAVEOVERWR      ;
+            jsr     SAVE            ; Execute SAVE
+            asl     SAVEOVERWR      ; Clean flag
             rts
+
 
 ; DRIVE Command
 ;
@@ -613,9 +647,10 @@ RESAVE:     sec
 ; SYNTAX:       DRIVE <drive>
 ; ARGUMENTS:    <drive> = disk drive number, 0 to 3.
 ; 
-DRIVE:      jsr     GETDRIVEOPND
-            sta     DEFDRV
+DRIVE:      jsr     GETDRIVEOPND    ; Get drive from command line and ensures it's open
+            sta     DEFDRV          ; Set as default
             rts
+
 
 ; DELETE Command
 ;
@@ -626,12 +661,13 @@ DRIVE:      jsr     GETDRIVEOPND
 ;               <drive> = disk drive, 0 to 3. Defaults to the default drive,
 ;                         usually 0.
 ; 
-DELETE:     jsr     GETFILNDRV
-            jsr     LF62D
+DELETE:     jsr     GETFILNDRV      ; Get file and drive from command line
+            jsr     FDELETE         ; Delete file in FNAMBUF from drive X
             ldy     CMDLIDX         ; Get command line index
-            jsr     GETNEXTNB
+            jsr     GETNEXTNB       ; Get next non-blank
             bne     DELETE          ; Repeat until last argument
             rts
+
 
 ; BOOT Command
 ;
@@ -642,47 +678,49 @@ DELETE:     jsr     GETFILNDRV
 BOOT:       ldx     #$FF            ; Init stack pointer
             txs                     ;
             cld
-            jmp     LFF0E           ; Boot from PROM
+            jmp     BOOTP           ; Boot from PROM
 
 
             ; Command name table
-
-CMDNAMTBL:  .byte   "ASSIGN", $07
-            .byte   "FREE", $00
-            .byte   "OPEN", $00
-            .byte   "CLOSE", $00
-            .byte   "SAVE", $00
-            .byte   "GET", $00
-            .byte   "DUMP", $04
-            .byte   "DRIVE", $00
-            .byte   "DELETE", $00
-            .byte   "LOCK", $06
-            .byte   "UNLOCK", $06
-            .byte   "FILES", $08
-            .byte   "DISK", $10
-            .byte   "SET", $01
-            .byte   "UNPROTECT", $01
-            .byte   "BEGINOF", $05
-            .byte   "ENDOF", $05
-            .byte   "GO", $00
-            .byte   "REG", $03
-            .byte   "PROTECT", $01
-            .byte   "FILL", $02
-            .byte   "NEXT", $00
-            .byte   "TYPE", $05
-            .byte   "DATE", $03
-            .byte   "GETLOC", $09
-            .byte   "COPY", $0A
-            .byte   "RENAME", $0B
-            .byte   "SVC", $06
-            .byte   "BOOT", $00
-            .byte   "DO", $07
-            .byte   "HUNT", $0C
-            .byte   "COMPARE", $0F
-            .byte   "ONKEY", $0E
-            .byte   "BP", $00
-            .byte   "RESAVE", $00
-            .byte   "MSG", $06
+            ;
+            ;       Name:       Overlay:
+            ;
+CMDNAMTBL:  .byte   "ASSIGN",   $07
+            .byte   "FREE",     $00
+            .byte   "OPEN",     $00
+            .byte   "CLOSE",    $00
+            .byte   "SAVE",     $00
+            .byte   "GET",      $00
+            .byte   "DUMP",     $04
+            .byte   "DRIVE",    $00
+            .byte   "DELETE",   $00
+            .byte   "LOCK",     $06
+            .byte   "UNLOCK",   $06
+            .byte   "FILES",    $08
+            .byte   "DISK",     $10
+            .byte   "SET",      $01
+            .byte   "UNPROTECT",$01
+            .byte   "BEGINOF",  $05
+            .byte   "ENDOF",    $05
+            .byte   "GO",       $00
+            .byte   "REG",      $03
+            .byte   "PROTECT",  $01
+            .byte   "FILL",     $02
+            .byte   "NEXT",     $00
+            .byte   "TYPE",     $05
+            .byte   "DATE",     $03
+            .byte   "GETLOC",   $09
+            .byte   "COPY",     $0A
+            .byte   "RENAME",   $0B
+            .byte   "SVC",      $06
+            .byte   "BOOT",     $00
+            .byte   "DO",       $07
+            .byte   "HUNT",     $0C
+            .byte   "COMPARE",  $0F
+            .byte   "ONKEY",    $0E
+            .byte   "BP",       $00
+            .byte   "RESAVE",   $00
+            .byte   "MSG",      $06
 
             ; Reserved for new commands
 
@@ -691,7 +729,8 @@ CMDNAMTBL:  .byte   "ASSIGN", $07
             .byte   $00, $00, $00, $00, $00, $00, $00, $00
 
             ; Command function table
-
+            ;
+            ;       Entry point:
 CMDFUNTBL:  .word   $0000
             .word   $FE01           ; Assign
             .word   FREE

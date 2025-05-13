@@ -5,6 +5,9 @@
 
 
         .setcpu "6502"
+
+        .include "symbols.inc"
+
         .segment "overlays"
 
         .byte   $0B
@@ -16,7 +19,6 @@ LEA07           := $EA07
 LEE9B           := $EE9B
 LEEAA           := $EEAA
 LEEE3           := $EEE3
-LF088           := $F088
 LF09C           := $F09C
 LF592           := $F592
 LF5C3           := $F5C3
@@ -73,7 +75,7 @@ LFE67:  lda     $E6DE,x
         cpx     #$0E
         bne     LFE67
         jsr     LEEE3
-        jsr     LF088
+        jsr     WRFPSECT
         jsr     LEEAA
         jmp     LF5C3
 
