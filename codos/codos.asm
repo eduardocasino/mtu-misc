@@ -91,7 +91,8 @@ U7:         .res 3                  ; $BE  File position (3 bytes)
             ; The first positions hold a copy of pseudo registers when an SVC
             ; is entered
 
-            .export P0SCRATCH, MEMBUFF, TMPBUFP, INPBUFP, OUTBUFP, PCSAVE, FILEPOS
+            .export P0SCRATCH, MEMBUFF, MEMCOUNT, TMPBUFP, INPBUFP, OUTBUFP
+            .export PCSAVE, FILEPOS
 
 P0SCRATCH:  .res 2                  ; $C1-$C2 (word)
 MEMBUFF:    .res 2                  ; $C3-$C4 (word) Pointer to buffer for memory copy operations

@@ -336,6 +336,8 @@ GADDRBNK:   jsr     EVALEXP         ; Evaluate expression
 
 ; Get <to> address from command line and store to MEMCOUNT
 ;
+            .export GETTOP
+
 GETTOP:     ldx     #_MEMCOUNT      ; Eval expression and store into MEMCOUNT
             jsr     EVALEXP         ;
             bcs     @CONT           ; If correct, return
