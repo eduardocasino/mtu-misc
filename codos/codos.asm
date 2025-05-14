@@ -534,7 +534,7 @@ RCERRCNT:   .byte   $00             ; Cumulative count of recalibrate commands i
 SECERRNUM:  .byte   $FF             ; Sector number for last disk error causing a recalibrate.
 TRKERRNUM:  .byte   $FF             ; Track number for last disk error causing a recalibrate.
 
-            .export SECTNUM
+            .export CSECT, SECTNUM
 
 RETRIES:    .byte   $00             ; uPD765 read/write retries
 N765ECNT:   .byte   $00             ; uPD765 error count
@@ -586,15 +586,16 @@ NOPRREGS:   .byte   $00             ; Flag. If bit 7 = 1 then don't print regs o
 PERRPFLG:   .byte   $00             ; Flag. If bit 7 = 1, we are here as part of the
                                     ; print error process. Cleared by the command processor.
 
-            .export ASSIGNFLAG
+            .export DEFSVCFLAG, ASSIGNFLAG
 
 IRQFLAG:    .byte   $00             ; Flag. If bit 7 = 1, interrupt is IRQ (0 is BRK)
 NMIFLAG:    .byte   $00             ; Flag. If bit 7 = 1, interrupt is NMI
 DEFSVCFLAG: .byte   $00             ; Flag. If bit 7 = 1, SVC enabled by default
 ASSIGNFLAG: .byte   $00             ; Flag. If bit 6 = 1, it is a new file
                                     ;       If bit 7 = 1, it is an existing file
-                                    ;       Clear: it is a device      
-            .export SCOLON, COLON, QUOTE
+                                    ;       Clear: it is a device    
+  
+            .export SCOLON, COLON, QUOTE, CARET
 
 SCANFLG:    .byte   $00             ; Flag for SVC #29 (FSCAN)
                                     ; If the name was a device name (Cy set) then:
@@ -1577,6 +1578,8 @@ EXRDWR:     lda     CURFINFO+_DMABF ; Set DMA buffer
 
 ; Write sector A
 ;
+            .export WRITSECT
+
 WRITSECT:   sta     RWRSECTR        ; Set sector for write command
             lda     #$45            ; Set command to write
             sta     RDWRD           ;
@@ -1786,6 +1789,8 @@ CPYCFINFO:  ldy     DEVICE          ; Get current device (file)
 ; Copies back current finfo structure to file's FINFO, except for the
 ;    immutable data (buffer info and ???)
 ;
+            .export UPDCFINFO
+
 UPDCFINFO:  ldy     DEVICE          ; Get current device (file)
             ldx     #$00
 @LOOP:      lda     CURFINFO,x      ; From current FINFO structure

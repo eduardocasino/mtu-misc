@@ -76,6 +76,10 @@ _BLAST      = $FF                   ; Last allocated block number
 ;
 FHDRLEN     = $40
 
+; Offsets in file header
+;
+_FLAG       = 16
+
 ; Saved (loadable) files header
 ;
 _MAGIC      = 0
