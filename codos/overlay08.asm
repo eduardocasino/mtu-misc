@@ -24,8 +24,8 @@ FILES:
             jsr     GETNEXTNB       ;
             beq     @DEFDRV         ; null or semicolon, use default drive
             jsr     GETDRIVEOPND    ; Get drive from command line and check that it is opened
-@DEFDRV:    jsr     FILESDRV
-            ldy     CMDLIDX
+@DEFDRV:    jsr     FILESDRV        ; Display files for drive X
+            ldy     CMDLIDX         ; Get command line index
             jsr     GETNEXTNB       ; More arguments?
             beq     @RETURN         ; No, we're done
             ldx     #$02            ; Yes, prints CR to console
