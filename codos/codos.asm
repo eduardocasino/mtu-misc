@@ -494,6 +494,8 @@ ST1:        .byte   $00
             .byte   $00
             .byte   $00
 
+            .export NDRIVES
+
 NDRIVES:    .byte   $02             ; Number of disk drives in system, 1 to 4
 
 DRVNFO:     .byte   $00             ; Drive info table (one byte per drive)
@@ -3349,6 +3351,8 @@ RETVAL:     rts                     ; Yes, return CC; No, return CS
 
 ; Check if character is numeric
 ;
+            .export ISNUM
+
 ISNUM:      cmp     #'0'            ; Is it a number?
             bcc     NOVAL           ; No, return CS
             cmp     #'9'+1          ; Is it '9' or lower
