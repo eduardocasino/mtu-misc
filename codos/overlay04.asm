@@ -4,145 +4,181 @@
 ; Page:       1
 
 
-        .setcpu "6502"
-        .segment "overlays"
+            .setcpu "6502"
 
-        .byte   $04
+            .include "symbols.inc"
+            .include "codos.inc"
 
-LD939           := $D939
-LD9B7           := $D9B7
-LD9F1           := $D9F1
-LE9F5           := $E9F5
-LF4A0           := $F4A0
-LF5C3           := $F5C3
-LF89B           := $F89B
-LF8A2           := $F8A2
-LF8AB           := $F8AB
-LF925           := $F925
-LF9D3           := $F9D3
-        ldx     #$00
-        stx     $CA
-        inx
-        stx     $C9
-        inx
-        stx     $E79A
-        jsr     LD9B7
-        lda     $C3
-        sta     $C7
-        lda     $C4
-        sta     $C8
-        jsr     LF925
-        beq     LFE4B
-        jsr     LD9F1
-        lda     $C5
-        cld
-        sec
-        sbc     $C7
-        sta     $C9
-        lda     $C6
-        sbc     $C8
-        sta     $CA
-        bcs     LFE32
-        jsr     LE9F5
-LFE32:  jsr     LF925
-        beq     LFE4B
-        cmp     #$41
-        bcc     LFE45
-        sta     $E6DC
-        jsr     LF4A0
-        ldx     #$00
-        beq     LFE48
-LFE45:  jsr     LD939
-LFE48:  stx     $E79A
-LFE4B:  jsr     LFEC4
-        ldy     #$06
-        lda     $C7
-        and     #$0F
-        tax
-        dex
-LFE56:  inx
-        cpx     #$10
-        bcc     LFE5D
-        ldx     #$00
-LFE5D:  txa
-        jsr     LF8AB
-        iny
-        iny
-        jsr     LFEF3
-        bne     LFE56
-        ldx     $E79A
-        jsr     LF9D3
-LFE6E:  jsr     LFEC4
-        ldx     #$06
-        jsr     LF89B
-        iny
-LFE77:  iny
-        jsr     LFED9
-        jsr     LF8A2
-        jsr     LFEED
-        bne     LFE77
-        lda     $C7
-        sec
-        sbc     $E799
-        sta     $C7
-        lda     $C8
-        sbc     #$00
-        sta     $C8
-        jsr     LFECE
-        iny
-        iny
-LFE96:  jsr     LFED9
-        cmp     #$21
-        bcc     LFEA1
-        cmp     #$7F
-        bcc     LFEA3
-LFEA1:  lda     #$2E
-LFEA3:  sta     ($CD),y
-        iny
-        jsr     LFEED
-        bne     LFE96
-        ldx     $E79A
-        jsr     LF9D3
-        lda     $C9
-        sec
-        sbc     $E799
-        sta     $C9
-        lda     $CA
-        sbc     #$00
-        sta     $CA
-        bcs     LFE6E
-        jmp     LF5C3
+            .segment "overlays"
 
-LFEC4:  ldy     #$47
-        lda     #$20
-LFEC8:  sta     ($CD),y
-        dey
-        bpl     LFEC8
-        iny
-LFECE:  lda     $E799
-        sta     LFEFD
-        lsr     a
-        sta     LFEFE
-        rts
+            .byte   $04             ; Overlay number
 
-LFED9:  lda     $E6D4
-        eor     $E6D8
-        sta     $BFE0
-        ldx     #$00
-        lda     ($C7,x)
-        ldx     $E6D8
-        stx     $BFE0
-        rts
+DUMPLINELEN = $47                   ; Length of dump lines    
 
-LFEED:  inc     $C7
-        bne     LFEF3
-        inc     $C8
-LFEF3:  dec     LFEFE
-        bne     LFEF9
-        iny
-LFEF9:  dec     LFEFD
-        rts
+; DUMP Command
+;
+; DESCRIPTION:  Display the contents of a block of memory in hexadecimal and
+;               as ASCII characters. 
+;
+; SYNTAX:       DUMP <from> [<to> [<device> ]]
+;                           [     [<channel>]]
+; ARGUMENTS:    <from> = desired starting address
+;               <to> = desired ending address. Default is from +15
+;               <device> = desired device on which to display the output
+;                          Defaults to the console
+;               <channel> = desired channel on which to display the output
+;
+DUMP:       ldx     #$00            ;
+            stx     DESTBUFF+1      ; Set default count 
+            inx                     ; Init to 1, but a line with 16 bytes is
+            stx     DESTBUFF        ; printed anyways
+            inx                     ; 
+            stx     DUMPCHANN       ; Output channel (default 2)
+            jsr     GADDRBNKMB      ; Get Address:bank from command line and
+                                    ; store into MEMBUFF and NEWBNK
+            lda     MEMBUFF         ; Store addr in TMPBUF
+            sta     TMPBUFP         ;
+            lda     MEMBUFF+1       ;
+            sta     TMPBUFP+1       ;
+            jsr     GETNEXTNB       ; Get next non-blank from command line
+            beq     @DODUMP         ; No more, exec with default args 
+            jsr     GETTOP          ; Get TO address and store into MEMCOUNT
+            lda     MEMCOUNT        ; Convert the <to> address into a byte count
+            cld                     ; from TMPBUFF and store it back into DESTBUFF
+            sec                     ;
+            sbc     TMPBUFP         ;
+            sta     DESTBUFF        ;
+            lda     MEMCOUNT+1      ;
+            sbc     TMPBUFP+1       ;
+            sta     DESTBUFF+1      ;
+            bcs     @DSTOK          ; <to> is greater or equal than <from>
+            jsr     ERROR16         ; <from> address greater than to address
+            ; Not reached
 
-LFEFD:  brk
-LFEFE:  brk
-        .byte   $1E
+@DSTOK:     jsr     GETNEXTNB       ; Get next non-blank from command line
+            beq     @DODUMP         ; No more arguments, exec to default channel
+            cmp     #'A'            ; Devices are letters, channels are numbers
+            bcc     @ISCHAN         ; Not a device
+            sta     CURRDRV         ; Store device name in CURRDRV
+            jsr     ASSIGN0         ; Assign to channel 0
+            ldx     #$00            ; Set channel to 0
+            beq     @SETCH          ; Always jump to set channel number
+@ISCHAN:    jsr     GETCHANN        ; Get channel number from command line
+@SETCH:     stx     DUMPCHANN       ;
+@DODUMP:    jsr     CLRINITLN       ; Clear output buffer and init dump line
+
+            ; Print first line with byte index
+
+            ldy     #$06            ; Skip 6 positions (address + 2 spaces)
+            lda     TMPBUFP         ; Get low byte of address to dump
+            and     #$0F            ; Get low nibble (modulo 16)
+            tax                     ; Set print index         
+            dex                     ; Decrement X as it is incremented entering the loop
+@DUMPN:     inx                     ; Next byte index
+            cpx     #$10            ; Past $F?
+            bcc     @OUTN           ; No, go print it
+            ldx     #$00
+@OUTN:      txa                     ; Transfer to A (where NIBBLE expects it)
+            jsr     NIBBLE          ; And print to (OUTBUFP),y
+            iny                     ; Advance two positions (spaces)
+            iny                     ;
+            jsr     ONELESS         ; Decrement bytes to print
+            bne     @DUMPN          ; Continue if more bytes left
+            ldx     DUMPCHANN       ; Get output channel
+            jsr     POUTBUFFCR      ; Output Y chars + CR from (OUTBUFP) to channel X
+@DUMPL:     jsr     CLRINITLN       ; Clear and init next dump line
+            ldx     #_TMPBUFP       ; Write hex address of current byte to (OUTBUFP),y
+            jsr     HEXWORD         ;
+            iny                     ; Advance position in the output buffer
+@DUMPB:     iny                     ; And another one in the loop
+            jsr     GETDUMPBYT      ; Get byte to dump
+            jsr     HEXBYTE         ; Converts into 2-byte ascii hex at (OUTBUFP),y 
+            jsr     NXTBYTE         ; Advance to next byte and decrement bytes left
+            bne     @DUMPB          ; While there are bytes to print, loop
+            lda     TMPBUFP         ; Go back to the start address
+            sec                     ; to print the ascii chars
+            sbc     DUMPBYTES       ;
+            sta     TMPBUFP         ;
+            lda     TMPBUFP+1       ;
+            sbc     #$00            ;
+            sta     TMPBUFP+1       ;
+            jsr     INITLN          ; Init bytes left and bytes til space
+            iny                     ; A couple of spaces
+            iny                     ;
+@DUMPA:     jsr     GETDUMPBYT      ; Get byte to dump
+            cmp     #'!'            ; Check printable
+            bcc     @PDOT           ; No, go print a dot
+            cmp     #'~'+1          ; Maybe, check against last printable
+            bcc     @OUTC           ; Yes, print to the output buffer
+@PDOT:      lda     #'.'            ; Not printable, print a dot instead
+@OUTC:      sta     (OUTBUFP),y     ; Output char
+            iny                     ; Advance one position in the buffer
+            jsr     NXTBYTE         ; Advance to next byte and decrement bytes left
+            bne     @DUMPA          ; While there are chars to print, loop
+            ldx     DUMPCHANN       ; Get output channel
+            jsr     POUTBUFFCR      ; Output Y chars + CR from (OUTBUFP) to channel X
+            lda     DESTBUFF        ; Get bytes left to dump and decrement
+            sec                     ; by the dumped bytes number
+            sbc     DUMPBYTES       ;
+            sta     DESTBUFF        ;
+            lda     DESTBUFF+1      ;
+            sbc     #$00            ;
+            sta     DESTBUFF+1      ;
+            bcs     @DUMPL          ; If there are bytes, left, go print next line
+            jmp     FREECH0         ; No more, free channel and return
+
+; Clear and init dump line
+;
+CLRINITLN:  ldy     #DUMPLINELEN    ; Clear output buffer
+            lda     #' '            ; with spaces
+@LOOP:      sta     (OUTBUFP),y     ;
+            dey                     ;
+            bpl     @LOOP           ;
+            iny                     ; Y now is 0
+            ; Fall through
+
+; Init dump line
+;
+INITLN:     lda     DUMPBYTES       ; Init number of bytes to dump per display line
+            sta     BYTESLEFT       ;
+            lsr     a               ; Init bytes left until extra space
+            sta     BYTESPACE       ;
+            rts
+
+; Get byte from address (TMPBUFP) at bank NEWBANK
+;
+; Returns byte in A and restores bank
+;
+GETDUMPBYT: lda     NEWBNK          ; Switch to <from> bank
+            eor     DEFBNKCFG       ;
+            sta     BNKCTL          ;
+            ldx     #$00            ; Get byte
+            lda     (TMPBUFP,x)     ;
+            ldx     DEFBNKCFG       ; Switch back to default bank
+            stx     BNKCTL          ;
+            rts
+
+; Advance to next byte to dump and decrement bytes left
+;
+NXTBYTE:    inc     TMPBUFP         ; Go to address of next byte to dump
+            bne     @CONT           ;
+            inc     TMPBUFP+1       ;
+@CONT:
+            ; Fall through
+
+; Decrement bytes left. Adds extra space if needed.
+;
+ONELESS:    dec     BYTESPACE       ; Check if an extra space is needed
+            bne     @NOEXTRA        ; Not yet
+            iny                     ; Yes, increment pos in output buffer
+@NOEXTRA:   dec     BYTESLEFT       ; Decrement bytes left
+            rts
+
+BYTESLEFT:  .byte   $00             ; Bytes left to print in current line
+BYTESPACE:  .byte   $00             ; Bytes left until extra space
+
+            ; This byte is just junk that was in the buffer when
+            ; writing it to disk. I leave it to facilitate checksum
+            ; comparisons with the original
+            ;
+            .byte   $1E

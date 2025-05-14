@@ -620,13 +620,13 @@ DEFAULTEXT: .byte   "C"             ; Current ASCII default file extension chara
 NUMOVL:     .byte   $11             ; Number of system overlays+1
 CURROVL:    .byte   $00             ; Current overlay number
 
-            .export DEFDRV, NUMFNAMES
+            .export DEFDRV, NUMFNAMES, DUMPBYTES, DUMPCHANN
 
 DEFDRV:     .byte   $00             ; Current default drive number (Set by DRIVE command).
 TOPASSIGTB: .byte   $4F             ; Top of active files table (6 active files max)
 NUMFNAMES:  .byte   $05             ; Number of file names per line for FILES command (5 or less).
 DUMPBYTES:  .byte   $10             ; Number of bytes to dump per display line.
-            .byte   $02
+DUMPCHANN:  .byte   $02             ; Default output channel for dump command
 
 ARITHTBLLEN = 5
 ARITHMOP:   .byte   $2B             ; "+"   (List of arithmetic operators)
@@ -3374,6 +3374,8 @@ HEXWORD0:   ldx     #$00
 ; Converts word at P0SCRATCH,x into its 4-char ascii hex representation
 ; at  (OUTBUFP),y
 ;
+            .export HEXWORD
+
 HEXWORD:    lda     P0SCRATCH+1,x   ; Gets most significant byte
             jsr     HEXBYTE         ; Converts it
             lda     P0SCRATCH,x     ; Gets less significant byte
@@ -3389,9 +3391,16 @@ HEXBYTE:    pha                     ; Save byte
             lsr     a               ;
             lsr     a               ;
             lsr     a               ;
-            jsr     @NIBBLE         ; Convert it
+            jsr     NIBBLE          ; Convert it
             pla                     ; Recover byte
-@NIBBLE:    and     #$0F            ; and get lower nibble
+            ; Fall through
+
+; Converts nibble in lower half of A into its 1-char ascii hex
+; representation at  (OUTBUFP),y
+;
+            .export NIBBLE
+
+NIBBLE:     and     #$0F            ; and get lower nibble
             clc
             adc     #$30            ; Adds "0"
             cmp     #$3A            ; Is it "9" or lower?
