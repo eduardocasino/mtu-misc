@@ -4,136 +4,167 @@
 ; Page:       1
 
 
-        .setcpu "6502"
-        .segment "overlays"
+            .setcpu "6502"
 
-        .byte   $0A
+            .include "symbols.inc"
+            .include "codos.inc"
 
-LD9B7           := $D9B7
-LD9F1           := $D9F1
-LE9DF           := $E9DF
-LE9F5           := $E9F5
-LF925           := $F925
-LFBCC           := $FBCC
-LFBE1           := $FBE1
-        jsr     LD9B7
-        jsr     LD9F1
-        ldx     #$06
-        jsr     LFBE1
-        bcs     LFE11
-LFE0E:  jsr     LE9DF
-LFE11:  lda     $E6D4
-        eor     $E6D8
-        sta     LFEFA
-        sta     LFEFB
-        jsr     LF925
-        beq     LFE37
-        cmp     $E790
-        bne     LFE0E
-        iny
-        jsr     LFBCC
-        bcc     LFE0E
-        cmp     #$04
-        bcs     LFE0E
-        eor     $E6D8
-        sta     LFEFB
-LFE37:  jsr     LFEBC
-        bcs     LFE3F
-        jsr     LE9F5
-LFE3F:  lda     $C7
-        sec
-        sbc     $C3
-        sta     $C9
-        lda     $C8
-        sbc     $C4
-        sta     $CA
-        bcc     LFE94
-        lda     $C9
-        clc
-        adc     $C5
-        sta     $C3
-        lda     $CA
-        adc     $C6
-        sta     $C4
-        ldy     #$00
-        ldx     LFEFD
-        beq     LFE75
-LFE62:  jsr     LFECC
-        dey
-        dec     $C6
-        dec     $C4
-LFE6A:  jsr     LFECC
-        dey
-        bne     LFE6A
-        dec     LFEFD
-        bne     LFE62
-LFE75:  ldx     LFEFC
-        beq     LFE90
-        jsr     LFECC
-        dey
-        dec     $C6
-        dec     $C4
-        dec     LFEFC
-        beq     LFE90
-LFE87:  jsr     LFECC
-        dey
-        dec     LFEFC
-        bne     LFE87
-LFE90:  jsr     LFECC
-        rts
+            .segment "overlays"
 
-LFE94:  ldy     #$00
-        ldx     LFEFD
-        beq     LFEAA
-LFE9B:  jsr     LFEE3
-        iny
-        bne     LFE9B
-        inc     $C4
-        inc     $C8
-        dec     LFEFD
-        bne     LFE9B
-LFEAA:  ldx     LFEFC
-        beq     LFEB8
-LFEAF:  jsr     LFEE3
-        iny
-        dec     LFEFC
-        bne     LFEAF
-LFEB8:  jsr     LFEE3
-        rts
+            .byte   $0A             ; Overlay number
 
-LFEBC:  lda     $C5
-        sec
-        sbc     $C3
-        sta     LFEFC
-        lda     $C6
-        sbc     $C4
-        sta     LFEFD
-        rts
+; COPY Command
+;
+; DESCRIPTION:  Copy a block of memory to another memory location. 
+;
+; SYNTAX:       COPY <from><to><dest> 
+;
+; ARGUMENTS:    <from> = starting address of block to be copied
+;               <to> = ending address of block to be copied
+;               <dest> = starting address of destination of copy
+;
+COPY:       jsr     GADDRBNKMB      ; Get address and bank and store into MEMBUFF and NEWBNK
+            jsr     GETTOP          ; Get TO address and store into MEMCOUNT
+            ldx     #_TMPBUFP       ; Get <dest> address and store into TMPBUFP
+            jsr     EVALEXP         ;
+            bcs     @CONT           ; Expression OK, continue
+@BADDST:    jsr     ERROR27         ; <destination> address missing or illegal
+            ; Not reached
 
-LFECC:  ldx     LFEFA
-        stx     $BFE0
-        lda     ($C5),y
-        ldx     LFEFB
-        stx     $BFE0
-        sta     ($C3),y
-        ldx     $E6D8
-        stx     $BFE0
-        rts
+@CONT:      lda     NEWBNK          ; Get bank of starting address
+            eor     DEFBNKCFG       ;
+            sta     FROMBANK        ; Save it
+            sta     DESTBANK        ; And set also as default for destination
+            jsr     GETNEXTNB       ; Get next non-blank from command line
+            beq     @ARGSDONE       ; If no more, continue
+            cmp     COLON           ; Is it the bank delimiter? 
+            bne     @BADDST         ; No, bad destination address
+            iny                     ; Yes, get it
+            jsr     GETBYTE         ;
+            bcc     @BADDST         ; Not a number, bad destination
+            cmp     #$04            ; Check if a valid bank number
+            bcs     @BADDST         ; No, bad destination
+            eor     DEFBNKCFG       ; Set as destination bank
+            sta     DESTBANK        ;
 
-LFEE3:  ldx     LFEFA
-        stx     $BFE0
-        lda     ($C3),y
-        ldx     LFEFB
-        stx     $BFE0
-        sta     ($C7),y
-        ldx     $E6D8
-        stx     $BFE0
-        rts
+@ARGSDONE:  jsr     GETCOUNT        ; Get number of bytes to copy
+            bcs     @CDIST          ; If not negative, continue
+            jsr     ERROR16         ; <from> address greater than <to> address
+            ; Not reached
 
-LFEFA:  .byte   $7F
-LFEFB:  .byte   $7F
-LFEFC:  rts
+            ; Calculate <from> to <dest> distance
 
-LFEFD:  brk
-        brk
-        .byte   $1E
+@CDIST:     lda     TMPBUFP         ; Substract <from> address from <dest> address
+            sec                     ;
+            sbc     MEMBUFF         ;
+            sta     DESTBUFF        ; and store into DESTBUFF
+            lda     TMPBUFP+1       ;
+            sbc     MEMBUFF+1       ;
+            sta     DESTBUFF+1      ;
+            bcc     @CPFWD          ; Jump if result is negative, (dest is lower than from)
+
+            ; Calculate <dest> + count and store into MEMBUFF
+
+            lda     DESTBUFF        ; Add <to> address to DESTBUFF
+            clc                     ;
+            adc     MEMCOUNT        ;
+            sta     MEMBUFF         ; And store into MEMBUFF
+            lda     DESTBUFF+1      ;
+            adc     MEMCOUNT+1      ;
+            sta     MEMBUFF+1       ;
+
+            ; Copy backwards from <to> to <dest>+count
+
+            ldy     #$00            ; init index for indirect addressing in COPYBCK
+            ldx     BYTCOUNT+1      ; Get byte count MSB
+            beq     @CHKLSB         ; If zero, go check LSB
+@CPPAGE:    jsr     COPYBCK         ; Not zero, copy one byte
+            dey                     ; Decrement index (now $FF)
+            dec     MEMCOUNT+1      ; Decrement source and dest pages
+            dec     MEMBUFF+1       ;
+@BYTBK:     jsr     COPYBCK         ; Copy one page
+            dey                     ;
+            bne     @BYTBK          ;
+            dec     BYTCOUNT+1      ; Decrement 256 bytes of bytecount
+            bne     @CPPAGE         ; While more pages, repeat
+@CHKLSB:    ldx     BYTCOUNT        ; Any more bytes to copy?
+            beq     @CBRET          ; No, copy last and return
+            jsr     COPYBCK         ; Yes, copy
+            dey                     ; Decrement index (now $FF)
+            dec     MEMCOUNT+1      ; Decrement source and dest pages
+            dec     MEMBUFF+1       ;
+            dec     BYTCOUNT        ; Any more bytes?
+            beq     @CBRET          ; No, copy last and return
+@BYTBK2:    jsr     COPYBCK         ; Yes, copy backwards until no more bytes
+            dey                     ;
+            dec     BYTCOUNT        ;
+            bne     @BYTBK2         ;
+@CBRET:     jsr     COPYBCK         ; Copy last byte
+            rts
+
+            ; Copy forwards from <from> to <dest>
+
+@CPFWD:     ldy     #$00
+            ldx     BYTCOUNT+1      ; Get byte count MSB
+            beq     @CHKLSB2        ; If 0, go check LSB
+@CPPAGE2:   jsr     COPYFWD         ; Not zero, copy one page
+            iny                     ;
+            bne     @CPPAGE2        ;
+            inc     MEMBUFF+1       ; Advance to next page
+            inc     TMPBUFP+1       ;
+            dec     BYTCOUNT+1      ; Decrement 256 bytes of bytecount
+            bne     @CPPAGE2        ; While more pages, repeat
+@CHKLSB2:   ldx     BYTCOUNT        ; Any more bytes to copy;
+            beq     @CFRET          ; No, copy last and return
+@BYTFW:     jsr     COPYFWD         ; Yes, copy forwards until no more bytes
+            iny                     ;
+            dec     BYTCOUNT        ;
+            bne     @BYTFW          ;
+@CFRET:     jsr     COPYFWD         ; Copy last byte
+            rts
+
+
+; Get number of bytes to copy
+;
+GETCOUNT:   lda     MEMCOUNT        ; Get ending address
+            sec                     ; Substract memory origin
+            sbc     MEMBUFF         ;
+            sta     BYTCOUNT        ; And store byte count
+            lda     MEMCOUNT+1      ;
+            sbc     MEMBUFF+1       ;
+            sta     BYTCOUNT+1      ;
+            rts
+
+; Copy byte backwards from <to> bank:address,y to <dest>+count bank:address,y
+;
+COPYBCK:    ldx     FROMBANK        ; Switch to source bank
+            stx     BNKCTL          ;
+            lda     (MEMCOUNT),y    ; Read byte from address,y
+            ldx     DESTBANK        ; Switch to dest bank
+            stx     BNKCTL          ;
+            sta     (MEMBUFF),y     ; Store byte into address,y
+            ldx     DEFBNKCFG       ; Switch to default bank
+            stx     BNKCTL          ;
+            rts
+
+; Copy byte forwards from <from> bank:address to dest bank:address
+;
+COPYFWD:    ldx     FROMBANK        ; Switch to source bank
+            stx     BNKCTL          ;
+            lda     (MEMBUFF),y     ; Read byte from source address,y
+            ldx     DESTBANK        ; Switch to dest bank
+            stx     BNKCTL          ;
+            sta     (TMPBUFP),y     ; Store byte into dest address,y
+            ldx     DEFBNKCFG       ; Switch to default bank
+            stx     BNKCTL          ;
+            rts
+
+FROMBANK:      .byte   $7F
+DESTBANK:      .byte   $7F
+BYTCOUNT:      .word   $0060
+
+            ; These two bytes are just junk that was in the buffer when
+            ; writing it to disk. I leave it to facilitate checksum
+            ; comparisons with the original
+            ;
+            .byte   $00, $1E
