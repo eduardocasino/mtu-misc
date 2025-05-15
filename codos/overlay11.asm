@@ -4,145 +4,114 @@
 ; Page:       1
 
 
-        .setcpu "6502"
+            .setcpu "6502"
 
-        .include "symbols.inc"
+            .include "symbols.inc"
+            .include "codos.inc"
 
-        .segment "overlays"
+            .segment "overlays"
 
-        .byte   $0B
+            .byte   $0B             ; Overlay number
 
-LD968           := $D968
-LE9B1           := $E9B1
-LE9E3           := $E9E3
-LEA07           := $EA07
-LEE9B           := $EE9B
-LEEAA           := $EEAA
-LEEE3           := $EEE3
-LF09C           := $F09C
-LF592           := $F592
-LF5C3           := $F5C3
-LF77A           := $F77A
-        jsr     LD968
-        ldx     $E6DC
-        stx     LFE7E
-        jsr     LF592
-        lda     $DC
-        and     #$20
-        beq     LFE16
-        jsr     LEA07
-LFE16:  ldy     $EB
-        jsr     LD968
-        ldx     LFE7E
-        stx     $E6DC
-        jsr     LF77A
-        bne     LFE29
-        jsr     LE9E3
-LFE29:  ldx     #$00
-        jsr     LF09C
-        ldy     #$15
-        lda     ($E5),y
-        jsr     LEE9B
-        ldy     #$14
-        lda     ($E5),y
-        tax
-        sta     $E6DB
-        ldy     #$01
-LFE3F:  lda     $E500,x
-        cmp     #$2E
-        beq     LFE52
-        cmp     ($E5),y
-        beq     LFE4D
-        jsr     LE9B1
-LFE4D:  iny
-        inx
-        jmp     LFE3F
+; RENAME Command
+;
+; DESCRIPTION:  Change the name of an existing file
+;
+; SYNTAX:       RENAME <file>[:<drive>] <newfile> 
+;
+; ARGUMENTS:    <file> = the existing file name
+;               <drive> = disk drive number for the file. Defaults to current
+;                         default drive, usually 0
+;               <newfile> = new file name. 
+;
+RENAME:     jsr     GETFILNDRV      ; Get file and drive from the command line
+            ldx     CURRDRV         ; Get and store the current drive
+            stx     RENAMEDRV       ;
+            jsr     FOPEN0          ; Assign channel 0 to file
+            lda     CURFINFO+_FLAGS ; Get file flags
+            and     #FLLOCKED       ; Check if locked
+            beq     @CONT           ; No, continue
+            jsr     ERROR07         ; Locked file violation
+            ; Not reached
 
-LFE52:  ldx     $E6DB
-        ldy     #$00
-LFE57:  lda     $E6DE,y
-        sta     $E500,x
-        inx
-        iny
-        cpy     #$0E
-        bne     LFE57
-        ldx     #$00
-        ldy     #$01
-LFE67:  lda     $E6DE,x
-        sta     ($E5),y
-        iny
-        inx
-        cpx     #$0E
-        bne     LFE67
-        jsr     LEEE3
-        jsr     WRFPSECT
-        jsr     LEEAA
-        jmp     LF5C3
+@CONT:      ldy     CMDLIDX         ; Get command line index
+            jsr     GETFILNDRV      ; Get destination file and drive
+            ldx     RENAMEDRV       ; Set current drive to the source file's
+            stx     CURRDRV         ;
+            jsr     FEXIST          ; Check if destination file exists
+            bne     @NEXIST         ; No, continue
+            jsr     ERROR25         ; New file name is already on selected diskette
+            ; Not reached
 
-LFE7E:  brk
-        dec     $C6
-        cpy     $CE
-        .byte   $FC
-        inc     $09F0,x
-LFE87:  jsr     LFECC
-        dey
-        dec     LFEFC
-        bne     LFE87
-        jsr     LFECC
-        rts
+@NEXIST:    ldx     #$00            ; Rewind source file
+            jsr     FREWIND         ;
+            ldy     #_NSEC          ; Get the sector on track 12 of the directory entry
+            lda     (CURFINFO+_BUFF),y ;
+            jsr     RDSECTATR12     ; Read sector A from track 12
+            ldy     #_NENT          ; Get the entry offset in the sector
+            lda     (CURFINFO+_BUFF),y ;
+            tax                     ;
+            sta     DIRPOINT        ; Store it into DIRPOINT
+            ldy     #_FNAM          ; Compare names
+@CMPLOOP:   lda     DIRBUF,x        ; 
+            cmp     #'.'            ; Have we reached the extension?
+            beq     @RENAM           ; Yes, jump
+            cmp     (CURFINFO+_BUFF),y ; No, char is thr same?
+            beq     @SAME           ; Yes, continue
+            jsr     ERROR50         ; System crash: Directory redundancy check failed
+            ; Not reached
 
-        ldy     #$00
-        ldx     LFEFD
-        beq     LFEAA
-LFE9B:  jsr     LFEE3
-        iny
-        bne     LFE9B
-        inc     $C4
-        inc     $C8
-        dec     LFEFD
-        bne     LFE9B
-LFEAA:  ldx     LFEFC
-        beq     LFEB8
-LFEAF:  jsr     LFEE3
-        iny
-        dec     LFEFC
-        bne     LFEAF
-LFEB8:  jsr     LFEE3
-        rts
+@SAME:      iny                     ; Advance to next char
+            inx                     ;
+            jmp     @CMPLOOP        ; And continue loop
 
-        lda     $C5
-        sec
-        sbc     $C3
-        sta     LFEFC
-        lda     $C6
-        sbc     $C4
-        sta     LFEFD
-        rts
+            ; Rename dir entry
 
-LFECC:  ldx     LFEFA
-        stx     $BFE0
-        lda     ($C5),y
-        ldx     LFEFB
-        stx     $BFE0
-        sta     ($C3),y
-        ldx     $E6D8
-        stx     $BFE0
-        rts
+@RENAM:     ldx     DIRPOINT        ; Get pointer to entry in sector
+            ldy     #$00            ; Init FNAMBUF index
+@RNLOOP:    lda     FNAMBUF,y       ; Copy new name
+            sta     DIRBUF,x        ;
+            inx                     ;
+            iny                     ;
+            cpy     #FNAMLEN        ; Have we reached the file name length?
+            bne     @RNLOOP         ; No, continue copying
 
-LFEE3:  ldx     LFEFA
-        stx     $BFE0
-        lda     ($C3),y
-        ldx     LFEFB
-        stx     $BFE0
-        sta     ($C7),y
-        ldx     $E6D8
-        stx     $BFE0
-        rts
+            ; Rename dir entry copy in file header
 
-LFEFA:  .byte   $7F
-LFEFB:  .byte   $7F
-LFEFC:  rts
+            ldx     #$00            ;
+            ldy     #_FNAM          ;
+@RNLOOP2:   lda     FNAMBUF,x       ;
+            sta     (CURFINFO+_BUFF),y ;
+            iny                     ;
+            inx                     ;
+            cpx     #FNAMLEN        ; Have we reached the file name length?
+            bne     @RNLOOP2        ; No, continue copying
+            jsr     CPYCFINFO       ; Copies file info structure to CURFINFO struct
+                                    ; in page zero
+            jsr     WRFPSECT        ; Update file header info on disk
+            jsr     WRTRCK12        ; Update dir entry on disk
+            jmp     FREECH0         ; Free channel and return
 
-LFEFD:  brk
-        brk
-        .byte   $1E
+RENAMEDRV:  .byte   $00
+
+            ; This block is just junk that was in the buffer when
+            ; writing it to disk. I leave it to facilitate checksum
+            ; comparisons with the original
+            ;
+            .byte                                      $C6 
+            .byte   $C6, $C4, $CE, $FC, $FE, $F0, $09, $20
+            .byte   $CC, $FE, $88, $CE, $FC, $FE, $D0, $F7
+            .byte   $20, $CC, $FE, $60, $A0, $00, $AE, $FD
+            .byte   $FE, $F0, $0F, $20, $E3, $FE, $C8, $D0
+            .byte   $FA, $E6, $C4, $E6, $C8, $CE, $FD, $FE
+            .byte   $D0, $F1, $AE, $FC, $FE, $F0, $09, $20
+            .byte   $E3, $FE, $C8, $CE, $FC, $FE, $D0, $F7
+            .byte   $20, $E3, $FE, $60, $A5, $C5, $38, $E5
+            .byte   $C3, $8D, $FC, $FE, $A5, $C6, $E5, $C4
+            .byte   $8D, $FD, $FE, $60, $AE, $FA, $FE, $8E
+            .byte   $E0, $BF, $B1, $C5, $AE, $FB, $FE, $8E
+            .byte   $E0, $BF, $91, $C3, $AE, $D8, $E6, $8E
+            .byte   $E0, $BF, $60, $AE, $FA, $FE, $8E, $E0
+            .byte   $BF, $B1, $C3, $AE, $FB, $FE, $8E, $E0
+            .byte   $BF, $91, $C7, $AE, $D8, $E6, $8E, $E0
+            .byte   $BF, $60, $7F, $7F, $60, $00, $00, $1E

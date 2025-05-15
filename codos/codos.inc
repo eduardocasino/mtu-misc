@@ -27,7 +27,7 @@ SYSTEM          = 1                 ; MTU-130 with 8-inch floppy disk(s)
 NSECTS          = 26                ; Sectors per track/side
 
 MAXFILES        = 247               ; Maximum number of files per disk
-FNAMLEN         = 12                ; Max file name length
+FNAMLEN         = 14                ; Max file name length
 
 NUMSVCS         = $1F               ; Number of available SVCs
 
@@ -76,9 +76,16 @@ _BLAST      = $FF                   ; Last allocated block number
 ;
 FHDRLEN     = $40
 
+; Offsets in directory entry
+;
+_FNAM       = 1
+_FBATP      = 15
+
 ; Offsets in file header
 ;
 _FLAG       = 16
+_NENT       = 20                    ; Offset to entry in directory sector
+_NSEC       = 21                    ; Sector in track 12 of the directory
 
 ; Saved (loadable) files header
 ;

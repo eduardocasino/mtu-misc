@@ -1718,6 +1718,8 @@ SETNEXTBLK: stx     SAVEX7          ; Save X
 ;    If sector == 0, loads BAT into BAT area
 ;    If sector != 0, into directory buffer
 ;
+            .export RDSECTATR12
+
 RDSECTATR12:
             sta     SECTNUM         ; Set sector from track 12 to read
             ; Fall through
@@ -1741,6 +1743,8 @@ WRTBAT:     lda     #$00
 
 ; Write to sector A of TRACK 12
 ;
+            .export WRTRCK12
+
 WRTRCK12:   jsr     PREPRDTR12      ; Prepare the current FINFO struct for writing
                                     ; to TRACK 12
             jsr     WRITSECT        ; Write to sector SECTNUM
@@ -3172,6 +3176,8 @@ SETFLG:     ora     SCANFLG         ; Set flag
 ;    A != 0 if file does not exist, DRCTRYPNT point to the first empty
 ;           entry in the directory table
 ;
+            .export FEXIST
+
 FEXIST:     jsr     SETBATP         ; Set BATP to the current drive's BAT
             ldx     #$00            ; Init
             stx     DRCTRYPNT+1     ;   sector and
@@ -3292,7 +3298,7 @@ FNAMFROMBUF:
             sta     FNAMBUF,x       ; Yes, store
             iny                     ; And advance
             inx                     ;
-            cpx     #FNAMLEN+1      ; Are we past max filename lenght?
+            cpx     #FNAMLEN-1      ; Have we reached max filename lenght?
             bcc     @LOOP           ; No, copy next char
             bcs     @RETURN         ; Yes, return with CS (error)
             ; Not reached
@@ -3320,7 +3326,7 @@ FNAMFROMBUF:
             jsr     VALFNCHR        ; No, check it is a valid file name char
             bcs     @RETURN         ; If not, return with CS (error)
             inx                     ; Advance to next char
-            cpx     #FNAMLEN+1      ; Are we past max filename lenght?
+            cpx     #FNAMLEN-1      ; Have we reached the max filename lenght?
             bcc     @LOOP2          ; No, continue with next char
             bcs     @RETURN         ; Yesm return with CS (error)
             ; Not reached
