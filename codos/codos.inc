@@ -87,6 +87,10 @@ _OVLAY      = 1
 _MEMBK      = 2
 _RSRVD      = 3
 _PNTRS      = 4
+_ENTRY      = _PNTRS
+_LOAD       = 6
+_SIZE       = 8
+
 SAVEDHDRLEN = 10
 
 ; Saved file magic number

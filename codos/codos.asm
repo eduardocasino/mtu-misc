@@ -3624,7 +3624,7 @@ REGDESC:    .byte   "SFYXA"
 
 ; Output Y characters from (OUTBUFP) to channel 2 (console output)
 ; followed by a CR
-;;
+;
 POUTBUFFCR02:
             .export POUTBUFFCR02
 
@@ -4163,8 +4163,10 @@ LOADSVD:    sta     SAVEA3              ; Save A in temporary storage
 @RETCS:     sec
             rts
 
-; Load "saved file" header from file at current position
+; Load "saved file" header from chanel X at current position
 ;
+            .export LD58HDR
+
 LD58HDR:    jsr     SVDRWPREP       ; Prepare read/write of "saved file" header
             lda     #$00            ; Set destination bank
             sta     DSTBANK         ;
