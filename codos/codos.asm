@@ -955,7 +955,7 @@ ERROR31:  	inc     ERRNUM          ; Breakpoint table full (3 BP's already set).
 ERROR30:  	inc     ERRNUM          ; Unformatted disk or irrecoverable read/write error
 ERROR29:  	inc     ERRNUM          ; All buffers in use (free a chan. assigned to a file)
 ERROR28:  	inc     ERRNUM          ; Missing or illegal register name
-ERROR27:  	inc     ERRNUM          ; <destinatiom address missing or illegal
+ERROR27:  	inc     ERRNUM          ; <destination> address missing or illegal
 ERROR26:  	inc     ERRNUM          ; Missing or illegal character string delimiter (' , ")
 ERROR25:  	inc     ERRNUM          ; New file name is already on selected diskette
 ERROR24:  	inc     ERRNUM          ; <value> missing or illegal
@@ -3982,7 +3982,7 @@ GETBYTE:    stx     SAVEX8          ; Save X
 
 ; X is the position at P0SCRATCH
 ;
-; EValuate expression
+; Evaluate expression
 ;
             .export EVALEXP
 
