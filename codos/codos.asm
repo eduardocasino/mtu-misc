@@ -3655,6 +3655,8 @@ OUTCR:      lda     #$0D
 
 ; Output Y characters from (OUTBUFP) to channel 2 (console output)
 ;
+            .export POUTBUFF02
+
 POUTBUFF02: ldx     #$02
             ; Fall through
 
