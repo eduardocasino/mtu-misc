@@ -92,7 +92,7 @@ U7:         .res 3                  ; $BE  File position (3 bytes)
             ; is entered
 
             .export P0SCRATCH, MEMBUFF, MEMCOUNT, TMPBUFP, INPBUFP, OUTBUFP
-            .export DESTBUFF, BYTRES, PCSAVE, FILEPOS
+            .export DESTBUFF, L00D2, BYTRES, PCSAVE, FILEPOS
 
 P0SCRATCH:  .res 2                  ; $C1-$C2 (word)
 MEMBUFF:    .res 2                  ; $C3-$C4 (word) Pointer to buffer for memory copy operations
@@ -106,8 +106,7 @@ FILEPOS:    .res 3                  ; $CF-$D1 (24 bit) File position. Also used 
 
 L00D2:      .res 1                  ; $D2  $D2-$D9 is a temporary area
             .res 1                  ; $D3       with different uses, like
-            .res 1                  ; $D4       the switch and jump routine
-            .res 1                  ; $D5
+TMPVAL:     .res 2                  ; $D4-$D5       the switch and jump routine
 BYTRES:     .res 2                  ; $D6-$D7 (word) Result for GETBYTE function
 TMPPTR:     .res 2                  ; $D8-$D9 (word) Temporary pointer
 PCSAVE:     .res 2                  ; $DA-$DB (word) Program counter
@@ -212,7 +211,7 @@ SAVEY6:     .res 1                  ; $02A2
             ; Jump table (page 179)
             ;
 
-            .export JINLINE
+            .export JCPSEUDREGS, JINLINE
 
             jmp     COLDST
 JWARMST:    jmp     WARMST
@@ -221,7 +220,7 @@ JOUTCH:     jmp     OUTCH           ; Console character output
 JTSTKEY:    jmp     TSTKEY          ; Console Key-depressed test subroutine
             jmp     NMIPROC
             jmp     IRQPROC
-CPSEUDREGSP:jmp     CPSEUDREGS      ; Jump to copy pseudo-registers to scratch RAM
+JCPSEUDREGS:jmp     CPSEUDREGS      ; Jump to copy pseudo-registers to scratch RAM
 JERROR37:   jmp     ERROR37         ; Jump to "Required software package not loaded" error message
 JINLINE:    jmp     INLINE          ; Jump to input an entire line from the keyboard
             jmp     CIN
@@ -3835,7 +3834,7 @@ LFACB:      lda     LFB05,x
             sta     TMPPTR+1
             stx     $028D
             ldx     #$17
-            jsr     LFB70
+            jsr     UDIV
             lda     P0SCRATCH
             bne     LFAE8
             bit     $029F
@@ -3844,7 +3843,7 @@ LFACB:      lda     LFB05,x
 LFAE8:      sec
             ror     $029F
 LFAEC:      jsr     LFAFE
-LFAEF:      jsr     LFBAA
+LFAEF:      jsr     UNU0
             ldx     $028D
             dex
             dex
@@ -3862,116 +3861,164 @@ LFB05:      .word   $000A
             .word   $03E8
             .word   $2710
 
-LFB0D:  clc
-        lda     P0SCRATCH,x
-        adc     P0SCRATCH
-        sta     P0SCRATCH
-        lda     P0SCRATCH+1,x
-        adc     P0SCRATCH+1
-        sta     P0SCRATCH+1
-        rts
+; 16-bit add. UADD n for SVC 27
+; 
+; UO = UO + Un
+;  
+; X contains index to pseudo-reg ( X = n + 2 )
+;
+            .export UADD
 
-LFB1B:  sec
-        lda     P0SCRATCH
-        sbc     P0SCRATCH,x
-        sta     P0SCRATCH
-        lda     P0SCRATCH+1
-        sbc     P0SCRATCH+1,x
-        sta     P0SCRATCH+1
-        rts
+UADD:       clc                     ; Clears carry
+            lda     P0SCRATCH,x     ; Get Un
+            adc     P0SCRATCH       ; Add U0
+            sta     P0SCRATCH       ; And store into U0
+            lda     P0SCRATCH+1,x   ;
+            adc     P0SCRATCH+1     ;
+            sta     P0SCRATCH+1     ;
+            rts
 
-LFB29:  jsr     LFB35
-        lda     L00D2+1
-        ora     L00D2
-        bne     LFB6D
-        lda     P0SCRATCH+1
-LFB34:  rts
+; 16-bit substract. USUB n for SVC 27
+;
+; U0 = U0 -Un
+;
+; X contains index to pseudo-reg ( X = n + 2 )
+;
+            .export USUB
 
-LFB35:  stx     $029C
-        lda     #$00
-        sta     L00D2
-        sta     L00D2+1
-        lda     P0SCRATCH,x
-        sta     $D4
-        lda     P0SCRATCH+1,x
-        sta     $D5
-        ldx     #$11
-        clc
-LFB49:  ror     L00D2+1
-        ror     L00D2
-        ror     P0SCRATCH+1
-        ror     P0SCRATCH
-        dex
-        beq     LFB65
-        bcc     LFB49
-        lda     L00D2
-        clc
-        adc     $D4
-        sta     L00D2
-        lda     L00D2+1
-        adc     $D5
-        sta     L00D2+1
-        bcc     LFB49
-LFB65:  ldx     $029C
-        rts
+USUB:       sec                     ; Sets carry for sub
+            lda     P0SCRATCH       ; Get U0
+            sbc     P0SCRATCH,x     ; Substract Un
+            sta     P0SCRATCH       ; Store into U0
+            lda     P0SCRATCH+1     ;
+            sbc     P0SCRATCH+1,x   ;
+            sta     P0SCRATCH+1     ;
+            rts
 
-LFB69:  lda     P0SCRATCH+1,x
-        bne     LFB7B
-LFB6D:  jsr     ERROR19         ; Arithmetic overflow.
-LFB70:  sty     $028E
-        lda     P0SCRATCH,x
-        sta     $D4
-        beq     LFB69
-        lda     P0SCRATCH+1,x
-LFB7B:  sta     $D5
-        lda     #$00
-        sta     P0SCRATCH,x
-        sta     P0SCRATCH+1,x
-        ldy     #$11
-        clc
-        bcc     LFB9F
-LFB88:  rol     P0SCRATCH,x
-        rol     P0SCRATCH+1,x
-        lda     P0SCRATCH,x
-        sec
-        sbc     $D4
-        sta     L00D2
-        lda     P0SCRATCH+1,x
-        sbc     $D5
-        bcc     LFB9F
-        sta     P0SCRATCH+1,x
-        lda     L00D2
-        sta     P0SCRATCH,x
-LFB9F:  rol     P0SCRATCH
-        rol     P0SCRATCH+1
-        dey
-        bne     LFB88
-        ldy     $028E
-        rts
+LFB29:      jsr     MULT16
+            lda     L00D2+1
+            ora     L00D2
+            bne     LFB6D
+            lda     P0SCRATCH+1
+LFB34:      rts
+
+; 
+; Multiplies two 16 bit numbers using a shift-and-add algorithm
+;   P0SCRATCH * P0SCRATCH,x -> L00D2:P0SCRATCH
+;
+            .export MULT16
+
+MULT16:     stx     SAVEX10         ; Save X
+            lda     #$00            ; Init result
+            sta     L00D2           ;
+            sta     L00D2+1         ;
+            lda     P0SCRATCH,x     ; Store mutiplier
+            sta     TMPVAL          ;
+            lda     P0SCRATCH+1,x   ;
+            sta     TMPVAL+1        ;
+            ldx     #$11            ; Init iteration counter (16bits+1 for carry)
+
+            clc                     ; Clear carry
+@SUMLOOP:   ror     L00D2+1         ; Shift right result and multiplicand
+            ror     L00D2           ;
+            ror     P0SCRATCH+1     ;
+            ror     P0SCRATCH       ;
+            dex                     ;
+            beq     @RETURN         ; If last iteration, return
+            bcc     @SUMLOOP        ; If not carry, don't iterate
+            lda     L00D2           ; Add multiplier to the result
+            clc                     ;
+            adc     TMPVAL          ;
+            sta     L00D2           ;
+            lda     L00D2+1         ;
+            adc     TMPVAL+1        ;
+            sta     L00D2+1         ;
+            bcc     @SUMLOOP        ;
+@RETURN:    ldx     SAVEX10         ; Restore X 
+            rts
+
+LFB69:      lda     P0SCRATCH+1,x
+            bne     LFB7B
+LFB6D:      jsr     ERROR19         ; Arithmetic overflow.
 
 
-LFBAA:  lda     P0SCRATCH,x
-        sta     P0SCRATCH
-        lda     P0SCRATCH+1,x
-        sta     P0SCRATCH+1
-        rts
+; 16-bit divide. UDIV n for SVC 27
+;
+; U0 = U0 / Un.
+; 
+; X contains index to pseudo-reg ( X = n + 2 )
+;
+; Result: Quotient in U0, remainder in Un
+;
+            .export UDIV
 
-LFBB3:  lda     P0SCRATCH
-        sta     P0SCRATCH,x
-        lda     P0SCRATCH+1
-        sta     P0SCRATCH+1,x
-        rts
+UDIV:       sty     SAVEY4          ; Save Y
+            lda     P0SCRATCH,x
+            sta     TMPVAL
+            beq     LFB69
+            lda     P0SCRATCH+1,x
+LFB7B:      sta     TMPVAL+1
+            lda     #$00
+            sta     P0SCRATCH,x
+            sta     P0SCRATCH+1,x
+            ldy     #$11
+            clc
+            bcc     LFB9F
+LFB88:      rol     P0SCRATCH,x
+            rol     P0SCRATCH+1,x
+            lda     P0SCRATCH,x
+            sec
+            sbc     TMPVAL
+            sta     L00D2
+            lda     P0SCRATCH+1,x
+            sbc     TMPVAL+1
+            bcc     LFB9F
+            sta     P0SCRATCH+1,x
+            lda     L00D2
+            sta     P0SCRATCH,x
+LFB9F:      rol     P0SCRATCH
+            rol     P0SCRATCH+1
+            dey
+            bne     LFB88
+            ldy     SAVEY4
+            rts
 
-LFBBC:  lda     P0SCRATCH+1,x
-        pha
-        lda     P0SCRATCH,x
-        pha
-        jsr     LFBB3
-        pla
-        sta     P0SCRATCH
-        pla
-        sta     P0SCRATCH+1
-        rts
+; 16-bit move, UN to U0. UNU0 n for SVC 27
+;
+            .export UNU0
+
+UNU0:       lda     P0SCRATCH,x     ; Just copy P0SCRATCH,x to P0SCRATCH
+            sta     P0SCRATCH       ;
+            lda     P0SCRATCH+1,x   ;
+            sta     P0SCRATCH+1     ;
+            rts
+
+; 16-bit move, U0 to UN. U0UN n for SVC 27
+;
+            .export U0UN
+
+U0UN:       lda     P0SCRATCH       ; Just copy P0SCRATCH to P0SCRATCH,x
+            sta     P0SCRATCH,x     ;
+            lda     P0SCRATCH+1     ;
+            sta     P0SCRATCH+1,x   ;
+            rts
+
+; 16-bit exchange. USWP n for SVC 27
+;
+; U0 exchanged with Un
+;
+            .export USWP
+
+USWP:       lda     P0SCRATCH+1,x   ; Save Un
+            pha                     ;
+            lda     P0SCRATCH,x     ;
+            pha                     ;
+            jsr     U0UN            ; Copy U0 to Un
+            pla                     ; Restore old Un into U0
+            sta     P0SCRATCH       ;
+            pla                     ;
+            sta     P0SCRATCH+1     ;
+            rts
 
 ; Get a byte from the command line and returns in A
 ;
@@ -4014,11 +4061,11 @@ EVALEXP:    lda     #$00
             jsr     GETNEXTNB1      ; Get next non-blank (first value digit)
 @LFC0A:     jsr     HEXDECOD        ; Decode hex value
             bcc     @LFC61
-@LFC0F:     jsr     LFBBC
+@LFC0F:     jsr     USWP
             lda     $0291
             bne     @LFC32
-            jsr     LFB0D
-@LFC1A:     jsr     LFBBC
+            jsr     UADD
+@LFC1A:     jsr     USWP
 @LFC1D:     jsr     GETNEXTNB
             ldx     #ARITHTBLLEN-1  ; Check if it is
 @NXOP:      cmp     ARITHMOP,x      ; an arithmetic operator
@@ -4032,7 +4079,7 @@ EVALEXP:    lda     #$00
 
 @LFC32:     dec     $0291
             bne     @LFC3D
-            jsr     LFB1B
+            jsr     USUB
             jmp     @LFC1A
 
 @LFC3D:     dec     $0291
@@ -4042,10 +4089,10 @@ EVALEXP:    lda     #$00
 
 @LFC48:     dec     $0291
             bne     @LFC53
-            jsr     LFB70
+            jsr     UDIV
             jmp     @LFC1A
 
-@LFC53:     jsr     LFB70
+@LFC53:     jsr     UDIV
             jmp     @LFC1D
 
 @LFC59:     jsr     GETNEXTNB1
@@ -4088,7 +4135,7 @@ LFC9D:      ldx     #$02
             bit     SAVENTRYPF
             bpl     LFCA6
             ldx     #$06
-LFCA6:      jsr     LFBAA
+LFCA6:      jsr     UNU0
             ldx     #$05
 LFCAB:      lda     P0SCRATCH,x
             sta     SAVEDHDR+_PNTRS,x
