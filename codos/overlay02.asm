@@ -42,7 +42,7 @@ FILL:       jsr     GADDRBNKMB      ; Get Address and bank and store into MEMBUF
             bne     @CHKCHR         ; No, go check if character or value
             jsr     GETNEXTNB1      ; Advance and get next non blank (ignore)
 @CHKCHR:    sty     CMDLIDX         ; Update command line index
-            cmp     #$27            ; Is it a single quote?
+            cmp     #'''            ; Is it a single quote?
             beq     @ISCHAR         ; Yes, it is a char string
             cmp     #'"'            ; Is it a double quote?
             bne     @ISVAL          ; No, it is a value
