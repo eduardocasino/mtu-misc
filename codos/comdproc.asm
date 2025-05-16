@@ -734,42 +734,42 @@ CMDNAMTBL:  .byte   "ASSIGN",   $07
             ;
             ;       Entry point:
 CMDFUNTBL:  .word   $0000
-            .word   $FE01           ; Assign
+            .word   OVLORG+$01      ; Assign
             .word   FREE
             .word   OPEN
             .word   CLOSE
             .word   SAVE
             .word   GETCMD
-            .word   $FE01           ; Dump
+            .word   OVLORG+$01      ; Dump
             .word   DRIVE
             .word   DELETE
-            .word   $FE01           ; Lock
-            .word   $FE1F           ; Unlock
-            .word   $FE01           ; Files
-            .word   $FE01           ; Disk
-            .word   $FE01           ; Set
-            .word   $FECD           ; Unprotect
-            .word   $FEBF           ; Beginof
-            .word   $FECD           ; Endof
+            .word   OVLORG+$01      ; Lock
+            .word   OVLORG+$1F      ; Unlock
+            .word   OVLORG+$01      ; Files
+            .word   OVLORG+$01      ; Disk
+            .word   OVLORG+$01      ; Set
+            .word   OVLORG+$CD      ; Unprotect
+            .word   OVLORG+$BF      ; Beginof
+            .word   OVLORG+$CD      ; Endof
             .word   GOCMD
-            .word   $FE01           ; Reg
-            .word   $FED7           ; Protect
-            .word   $FE01           ; Fill
+            .word   OVLORG+$01      ; Reg
+            .word   OVLORG+$D7      ; Protect
+            .word   OVLORG+$01      ; Fill
             .word   NEXT
-            .word   $FE01           ; Type
-            .word   $FE6A           ; Date
-            .word   $FE01           ; Getloc
-            .word   $FE01           ; Copy
-            .word   $FE01           ; Rename
-            .word   $FEA7           ; SCV
+            .word   OVLORG+$01      ; Type
+            .word   OVLORG+$6A      ; Date
+            .word   OVLORG+$01      ; Getloc
+            .word   OVLORG+$01      ; Copy
+            .word   OVLORG+$01      ; Rename
+            .word   OVLORG+$A7      ; SCV
             .word   BOOT
-            .word   $FEF0           ; Do
-            .word   $FE01           ; Hunt
-            .word   $FE01           ; Compare
-            .word   $FE01           ; Onkey
+            .word   OVLORG+$F0      ; Do
+            .word   OVLORG+$01      ; Hunt
+            .word   OVLORG+$01      ; Compare
+            .word   OVLORG+$01      ; Onkey
             .word   BREAKP
             .word   RESAVE
-            .word   $FEB3           ; Msg
+            .word   OVLORG+$B3      ; Msg
             .word   $0000           ; Reserved
             .word   $0000           ; Reserved
             .word   $0000           ; Reserved
