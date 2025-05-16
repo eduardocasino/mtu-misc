@@ -10,7 +10,7 @@
 
     BANKSW          := $0100
 
-                    .export YLNLIM
+                    .export YLNLIM, DRWLEG, KEYSTR, LEGTBL
     
     YLNLIM          := $0238        ; Line size limit for INLINE and EDLINE entry points.
     SEEIO           := $02F9        ; I-O space enable semaphore
@@ -25,8 +25,10 @@
     OUTCH           := $0309        ; Display printable character or interpret control character.
     TSTKEY          := $030C        ; Test if a key is pressed
     INITIO          := $030F        ; Clear screen and set default values of display parameters.
+    DRWLEG          := $0315        ; Draw legends
     INLINE          := $031E        ; Input an entire line from the keyboard
-    
+    KEYSTR          := $0400        ; (256 bytes) Function key substitute string table
+    LEGTBL          := $05C0        ; (64 bytes) Function key legend table
 
                     .export SVIA1PORT, SVIA1DIR, BNKCTL
 
@@ -152,7 +154,7 @@ UNKNWN17:   .res 1                  ; $FF
 
             .segment "scratch1"
 
-            .export NFILES, TEMP4, SAVEY7, SAVEAX, SAVEY8
+            .export NFILES, TEMP4, SAVEY7, SAVEAX, SAVEA5, SAVEA6, SAVEY8
 
 TEMP1:      .res 1                  ; $0283
 TEMP2:      .res 1                  ; $0284
@@ -180,8 +182,8 @@ SAVEA4:     .res 1                  ; $0299
 SAVEX9:     .res 1                  ; $029A
 NFILES:     .res 1                  ; $029B Used to navigate through disk file entries
 SAVEX10:    .res 1                  ; $029C
-            .res 1                  ; $029D
-            .res 1                  ; $029E
+SAVEA5:     .res 1                  ; $029D
+SAVEA6:     .res 1                  ; $029E
 UNKFLAG1:   .res 1                  ; $029F
             .res 1                  ; $02A0
 SAVEY5:     .res 1                  ; $02A1
