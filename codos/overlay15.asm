@@ -4,134 +4,140 @@
 ; Page:       1
 
 
-        .setcpu "6502"
-        .segment "overlays"
+            .setcpu "6502"
 
-        .byte   $0F
+            .include "symbols.inc"
+            .include "codos.inc"
 
-L203D           := $203D
-LD9B7           := $D9B7
-LD9F1           := $D9F1
-LE9DF           := $E9DF
-LE9F5           := $E9F5
-LF89B           := $F89B
-LF8A2           := $F8A2
-LF925           := $F925
-LF9DB           := $F9DB
-LFA50           := $FA50
-LFBCC           := $FBCC
-LFBE1           := $FBE1
-        ldx     #$02
-        jsr     LD9B7
-        lda     $E6D4
-        sta     LFEF1
-        sta     LFEF2
-        eor     $E6D8
-        sta     LFEF3
-        sta     LFEF4
-        lda     $C3
-        sta     $C9
-        lda     $C4
-        sta     $CA
-        jsr     LD9F1
-        ldx     #$06
-        jsr     LFBE1
-        bcs     LFE2D
-LFE2A:  jsr     LE9DF
-LFE2D:  lda     $C5
-        cmp     $C9
-        lda     $C6
-        sbc     $CA
-        bcs     LFE3A
-        jsr     LE9F5
-LFE3A:  jsr     LF925
-        beq     LFE57
-        cmp     $E790
-        bne     LFE2A
-        iny
-        jsr     LFBCC
-        bcc     LFE2A
-        cmp     #$04
-        bcs     LFE2A
-        sta     LFEF2
-        eor     $E6D8
-        sta     LFEF4
-LFE57:  ldy     #$00
-LFE59:  ldx     LFEF3
-        stx     $BFE0
-        lda     ($C9),y
-        ldx     LFEF4
-        stx     $BFE0
-        cmp     ($C7),y
-        php
-        ldx     $E6D8
-        stx     $BFE0
-        plp
-        bne     LFE97
-        lda     $C9
-        cmp     $C5
-        beq     LFE87
-LFE79:  inc     $C9
-LFE7B:  bne     LFE7F
-        inc     $CA
-LFE7F:  inc     $C7
-        bne     LFE59
-        inc     $C8
-        bne     LFE59
-LFE87:  lda     $CA
-        cmp     $C6
-        bne     LFE79
-        jsr     LFA50
-        .byte   $53
-        eor     ($4D,x)
-        eor     $2E
-LFE95:  brk
-        rts
+            .segment "overlays"
 
-LFE97:  ldx     #$08
-        jsr     LFED5
-        ldx     LFEF3
-        stx     $BFE0
-        lda     ($C9),y
-        ldx     $E6D8
-        stx     $BFE0
-        jsr     LF8A2
-        jsr     LF9DB
-        jsr     LFA50
-        bit     a:$20
-        ldx     #$06
-        lda     LFEF2
-        sta     LFEF1
-        jsr     LFED5
-        ldx     LFEF4
-        stx     $BFE0
-        lda     ($C7),y
-        ldx     $E6D8
-        stx     $BFE0
-        jsr     LF8A2
-        jmp     LF9DB
+            .byte   $0F             ; Overlay number
 
-LFED5:  jsr     LF89B
-        lda     #$3A
-        sta     ($CD),y
-        iny
-        lda     LFEF1
-        clc
-        adc     #$30
-        sta     ($CD),y
-        iny
-        jsr     LF9DB
-        jsr     LFA50
-        jsr     L203D
-        brk
-        rts
+; COMPARE Command
+;
+; DESCRIPTION:  Determine if two blocks of memory are identical.
+;
+; SYNTAX:       OCOMPARE <from> <to> <dest>
+;
+; ARGUMENTS:    <from> = starting address for first block
+;               <to> = ending address for first block
+;               <dest> = starting address for second block
+;
+COMPARE:    ldx     #_MEMBUFF       ; Redundant, GADDRBNKMB also sets it
+            jsr     GADDRBNKMB      ; Get address and bank and store into MEMBUFF and NEWBNK
+            lda     NEWBNK          ; Get from bank
+            sta     FROMBNK         ; Store it as from and dest bank
+            sta     DESTBNK         ;
+            eor     DEFBNKCFG       ; Default <from> memory config
+            sta     FBNKCFG         ; Store as from and dest config
+            sta     DBNKCFG         ;
+            lda     MEMBUFF         ; Store <from> address into DESTBUFF
+            sta     DESTBUFF        ;
+            lda     MEMBUFF+1       ;
+            sta     DESTBUFF+1      ;
+            jsr     GETTOP          ; Get <to> from command line and store into MEMCOUNT
+            ldx     #_TMPBUFP       ; Evaluate <dest> expression from command line and
+            jsr     EVALEXP         ; store into TMPBUFP
+            bcs     @CHKADDR        ; If OK, continue
+@ERR27:     jsr     ERROR27         ; <destination> address missing or illegal
+            ; Not reached
 
-LFEF1:  brk
-LFEF2:  brk
-LFEF3:  .byte   $7F
-LFEF4:  .byte   $7F
-        inc     LFE7B,x
-        dey
-        inc     LFE95,x
-        ldy     $FE,x
-        cpx     #$FE
+@CHKADDR:   lda     MEMCOUNT        ; Check if <from> address is greater than <to>
+            cmp     DESTBUFF        ;
+            lda     MEMCOUNT+1      ;
+            sbc     DESTBUFF+1      ;
+            bcs     @ADDROK         ; Not greater, that's OK
+            jsr     ERROR16         ; <from> address greater than <to> address
+            ; Not reached
+
+@ADDROK:    jsr     GETNEXTNB       ; Get next non-blank from command line
+            beq     @COMP           ; If not, no bank specified, use <from> bank
+            cmp     COLON           ; Is it the bank separator?
+            bne     @ERR27          ; No, error
+            iny                     ; Advance one pos in command line
+            jsr     GETBYTE         ; Get byte from command line
+            bcc     @ERR27          ; Not OK, error
+            cmp     #$04            ; Is a valid bank number?
+            bcs     @ERR27          ; No, error
+            sta     DESTBNK         ; Yes, store <dest> bank
+            eor     DEFBNKCFG       ; and <dest> bank config
+            sta     DBNKCFG         ;
+@COMP:      ldy     #$00            ; Init Y for comparison
+@CMPBYT:    ldx     FBNKCFG         ; Set <from> bank
+            stx     BNKCTL          ;
+            lda     (DESTBUFF),y    ; Get byte from <from> block
+            ldx     DBNKCFG         ; Set <dest> bank
+            stx     BNKCTL          ;
+            cmp     (TMPBUFP),y     ; Compare with byte from <dest> bank 
+            php                     ; Save flags
+            ldx     DEFBNKCFG       ; Switch to defaulk bank
+            stx     BNKCTL          ;
+            plp                     ; Recover flags
+            bne     @DIFFER         ; Not equal
+            lda     DESTBUFF        ; Compare <from> address lower byte
+            cmp     MEMCOUNT        ; with <to> address lower byte
+            beq     @CHKEND         ; Equal, check if we have reached the end
+@NXTADD:    inc     DESTBUFF        ; Different, increment <from> and <dest> addresses
+            bne     @INCDST         ;
+            inc     DESTBUFF+1      ;
+@INCDST:    inc     TMPBUFP         ;
+            bne     @CMPBYT         ;
+            inc     TMPBUFP+1       ;
+            bne     @CMPBYT         ;
+@CHKEND:    lda     DESTBUFF+1      ; Compare <from> address higher byte 
+            cmp     MEMCOUNT+1      ; with <to> address higher byte
+            bne     @NXTADD         ; Not yet the end, increment <from> and <dest>
+            jsr     OUTSTR          ; If we are here, blocks are identical
+            .byte   "SAME.", $00    ;
+            rts
+
+@DIFFER:    ldx     #_DESTBUFF      ; Print <from> address
+            jsr     PRADDR          ;
+            ldx     FBNKCFG         ; Switch to <from> bank
+            stx     BNKCTL          ;
+            lda     (DESTBUFF),y    ; Get byte at <from> address
+            ldx     DEFBNKCFG       ; Switch to default bank
+            stx     BNKCTL          ;
+            jsr     HEXBYTE         ; Print byte as ascii hex into output buffer
+            jsr     POUTBUFF02      ; Print buffer to console
+            jsr     OUTSTR          ; Print a comma before printing <dest> content
+            .byte   ", ", $00       ;
+            ldx     #_TMPBUFP       ; Index to <dest> address
+            lda     DESTBNK         ; Copy DESTBNK into FROMBNK so PRADDR prints
+            sta     FROMBNK         ; the correct bank
+            jsr     PRADDR          ; Print <dest> address
+            ldx     DBNKCFG         ; Switch to <dest> bank
+            stx     BNKCTL          ;
+            lda     (TMPBUFP),y     ; Get byte at <dest> address
+            ldx     DEFBNKCFG       ; Switch to default bank
+            stx     BNKCTL          ;
+            jsr     HEXBYTE         ; Print byte as ascii hex into output buffer
+            jmp     POUTBUFF02      ; Print buffer to console and return
+
+; Print address pointed at P0SCRATCH,x
+;
+PRADDR:     jsr     HEXWORD         ; Outputs word at P0SCRATCH,x as 4-char ascii hex
+            lda     #':'            ; Output the bank separator
+            sta     (OUTBUFP),y     ;
+            iny                     ; Advance one pos in output buffer
+            lda     FROMBNK         ; Get bank
+            clc                     ; Convert to ascii
+            adc     #'0'            ;
+            sta     (OUTBUFP),y     ; And store to output buffer
+            iny                     ; Advance one pos
+            jsr     POUTBUFF02      ; Output buffer to console
+            jsr     OUTSTR          ; Print equal sign before byte
+            .byte   " = ", $00
+            rts
+
+FROMBNK:    .byte   $00             ; Bank of the <from> address
+DESTBNK:    .byte   $00             ; Bank of the <dest> address
+FBNKCFG:    .byte   $7F             ; From bank config
+DBNKCFG:    .byte   $7F             ; Dest bank config
+
+            ; This block is just junk that was in the buffer when
+            ; writing it to disk. I leave it to facilitate checksum
+            ; comparisons with the original
+            ;
+            .byte                            $FE, $7B, $FE
+            .byte   $88, $FE, $95, $FE, $B4, $FE, $E0, $FE
