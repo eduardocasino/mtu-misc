@@ -495,7 +495,7 @@ ST1:        .byte   $00
             .byte   $00
             .byte   $00
 
-            .export NDRIVES
+            .export NDRIVES, DRVNFO, ODRIVES
 
 NDRIVES:    .byte   $02             ; Number of disk drives in system, 1 to 4
 
@@ -3822,7 +3822,8 @@ CHRWRPREP:  stx     SAVEX3          ; Save X
 
 JCOUTP:     jmp     (COUTP)             ; Jump to console output routine
 
-; Encode 16-bit value to decimal ASCII string.
+; Encode 16-bit value in P0SCRATCH to decimal ASCII string into
+; (OUTBUFP),Y
 ;
             .export DECWORD
 

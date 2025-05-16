@@ -4,145 +4,111 @@
 ; Page:       1
 
 
-        .setcpu "6502"
-        .segment "overlays"
+            .setcpu "6502"
 
-        .byte   $10
+            .include "symbols.inc"
+            .include "codos.inc"
 
-L2000           := $2000
-L203D           := $203D
-L4946           := $4946
-L5246           := $5246
-L5345           := $5345
-L5628           := $5628
-LEE78           := $EE78
-LEF90           := $EF90
-LF899           := $F899
-LF89B           := $F89B
-LF8A2           := $F8A2
-LF8AB           := $F8AB
-LF9DB           := $F9DB
-LFA50           := $FA50
-LFAC1           := $FAC1
-LFD76           := $FD76
-        ldx     #$00
-LFE03:  lda     $E754,x
-        bpl     LFE11
-        stx     LFEA8
-        jsr     LFE18
-        ldx     LFEA8
-LFE11:  inx
-        cpx     $E74F
-        bcc     LFE03
-        rts
+            .segment "overlays"
 
-LFE18:  stx     $E6DC
-        jsr     LEF90
-        jsr     LFD76
-        jsr     LEE78
-        ldy     #$FD
-        lda     ($E9),y
-        sta     $C1
-        lda     #$00
-        sta     $C2
-        ldy     #$00
-        jsr     LFAC1
-        jsr     LF9DB
-        jsr     LFA50
-        jsr     L4946
-        jmp     L5345
+            .byte   $10             ; Overlay number
 
-        .byte   $3A
-        brk
-        lda     $E6DC
-        jsr     LF8AB
-        jsr     LF9DB
-        jsr     LFA50
-        jsr     L5628
-        .byte   $53
-        lsr     a:$3D
-        ldy     #$FA
-        lda     ($E9),y
-        sta     $C1
-        iny
-        lda     ($E9),y
-        sta     $C2
-        ldy     #$00
-        jsr     LF899
-        jsr     LF9DB
-        jsr     LFA50
-        and     #$2C
-        jsr     L2000
-        .byte   $9B
-        inc     a:$A9,x
-        sta     $C2
-        txa
-        asl     a
-        rol     $C2
-        sta     $C1
-LFE7B:  ldx     $E6DC
-        lda     $E750,x
-        bpl     LFE87
-        asl     $C1
-        rol     $C2
-LFE87:  ldy     #$00
-        jsr     LFAC1
-        jsr     LF9DB
-        jsr     LFA50
-        .byte   $4B
-        .byte   $20
-        .byte   $46
-LFE95:  .byte   $52
-        eor     $45
-        ora     $6000
-        ldx     #$00
-        ldy     #$F8
-LFE9F:  lda     ($E9),y
-        bne     LFEA4
-        inx
-LFEA4:  dey
-        bne     LFE9F
-        rts
+; DISK Command
+;
+; DESCRIPTION:  Display the number of files, remaining space, and volume
+;               serial number on all open disk drives. 
+;
+; SYNTAX:       DISK
+;
+; ARGUMENTS:    None.
+;
+DISK:       ldx     #$00            ; Init drives loop
+@CHKOPN:    lda     ODRIVES,x       ; Check if drive is open
+            bpl     @NXTDRV         ; No, go check next
+            stx     DRIVE           ; Yes, store drive
+            jsr     @PRINFO         ; Go print info
+            ldx     DRIVE           ; Recover drive
+@NXTDRV:    inx                     ; Next drive
+            cpx     NDRIVES         ; Have we reached the maximum drive?
+            bcc     @CHKOPN         ; No, loop
+            rts                     ; Yes, return
 
-LFEA8:  brk
-        .byte   $BF
-        jsr     LF8A2
-        jsr     LF9DB
-        jsr     LFA50
-        bit     a:$20
-        ldx     #$06
-        lda     LFEF2
-        sta     LFEF1
-        jsr     LFED5
-        ldx     LFEF4
-        stx     $BFE0
-        lda     ($C7),y
-        ldx     $E6D8
-        stx     $BFE0
-        jsr     LF8A2
-        jmp     LF9DB
+@PRINFO:    stx     CURRDRV         ; Sets drive as current
+            jsr     DRVVALIDO       ; Ensure it is open
+            jsr     SETOUTBCH       ; Set output buffer to output line buffer
+            jsr     SETBATP         ; Set BATP to the current drive's BAT
+            ldy     #_BNENT         ; Get number of entries
+            lda     (BATP),y        ;
+            sta     P0SCRATCH       ; Store into P0SCRATCH
+            lda     #$00            ;
+            sta     P0SCRATCH+1     ; High byte is always 0
+            ldy     #$00            ; Init index to output buffer
+            jsr     DECWORD         ; Encode as ascii decimal number
+            jsr     POUTBUFF02      ; Print output buffer to console
+            jsr     OUTSTR          ; Print string
+            .byte    " FILES:", $00
+            lda     CURRDRV         ; Get current drive
+            jsr     NIBBLE          ; Convert lower nibble to ascii number
+            jsr     POUTBUFF02      ; Print output buffer to console
+            jsr     OUTSTR          ; Print string
+            .byte   " (VSN=", $00
+            ldy     #_BTVSN         ; Get VSN
+            lda     (BATP),y        ;
+            sta     P0SCRATCH       ; And store into P0SCRATCH
+            iny                     ;
+            lda     (BATP),y        ;
+            sta     P0SCRATCH+1     ;
+            ldy     #$00            ; Init output buffer index
+            jsr     HEXWORD0        ; Convert VSN to ascii hex
+            jsr     POUTBUFF02      ; Print output buffer to console
+            jsr     OUTSTR          ; Print string
+            .byte   "), ", $00
+            jsr     GETFREE         ; Get free blocks
+            lda     #$00            ; Convert blocks to kilobytes. Init result.
+            sta     P0SCRATCH+1     ; 
+            txa                     ; Transfer free blocks to A
+            asl     a               ; Multiply by 2 ( blocks are 2K for SS, 4K for DS)
+            rol     P0SCRATCH+1     ; Inject carry into high byte
+            sta     P0SCRATCH       ; store low byte
+            ldx     CURRDRV         ; Recover current drive
+            lda     DRVNFO,x        ; Check if two sides
+            bpl     @PRFREE         ; No, skip
+            asl     P0SCRATCH       ; Yes, block size is twice the size
+            rol     P0SCRATCH+1     ;
+@PRFREE:    ldy     #$00            ; Set index to output buffer
+            jsr     DECWORD         ; Convert bytes free to decimal ascii into output buf
+            jsr     POUTBUFF02      ; Print output buffer to console
+            jsr     OUTSTR          ; Print string
+            .byte   "K FREE", $0D, $00
+            rts                     ; And return
 
-LFED5:  jsr     LF89B
-        lda     #$3A
-        sta     ($CD),y
-        iny
-        lda     LFEF1
-        clc
-        adc     #$30
-        sta     ($CD),y
-        iny
-        jsr     LF9DB
-        jsr     LFA50
-        jsr     L203D
-        brk
-        rts
+; Get free blocks
+;
+; Returns number in X
+;
+GETFREE:    ldx     #$00            ; Inits number of free blocks
+            ldy     #_BTOPB         ; Y points to last block slot
+@LOOP:      lda     (BATP),y        ; Get block info
+            bne     @NEXT           ; If not free, go check the next
+            inx                     ; Increment free block count
+@NEXT:      dey                     ; Decrement block slot
+            bne     @LOOP           ; If there are more, loop
+            rts
 
-LFEF1:  brk
-LFEF2:  brk
-        .byte   $7F
-LFEF4:  .byte   $7F
-        inc     LFE7B,x
-        dey
-        inc     LFE95,x
-        ldy     $FE,x
-        cpx     #$FE
+DRIVE:      .byte   $00             ; Drive we are processing
+
+            ; This block is just junk that was in the buffer when
+            ; writing it to disk. I leave it to facilitate checksum
+            ; comparisons with the original
+            ;
+            .byte        $BF, $20, $A2, $F8, $20, $DB, $F9
+            .byte   $20, $50, $FA, $2C, $20, $00, $A2, $06
+            .byte   $AD, $F2, $FE, $8D, $F1, $FE, $20, $D5
+            .byte   $FE, $AE, $F4, $FE, $8E, $E0, $BF, $B1
+            .byte   $C7, $AE, $D8, $E6, $8E, $E0, $BF, $20
+            .byte   $A2, $F8, $4C, $DB, $F9, $20, $9B, $F8
+            .byte   $A9, $3A, $91, $CD, $C8, $AD, $F1, $FE
+            .byte   $18, $69, $30, $91, $CD, $C8, $20, $DB
+            .byte   $F9, $20, $50, $FA, $20, $3D, $20, $00
+            .byte   $60, $00, $00, $7F, $7F, $FE, $7B, $FE
+            .byte   $88, $FE, $95, $FE, $B4, $FE, $E0, $FE

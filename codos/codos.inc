@@ -68,6 +68,7 @@ BLKUNUS     = $FF                   ; Unusable block
 
 ; Offsets in BAT:
 ;
+_BTOPB      = $F8                   ; Last block slot
 _BTVSN      = $FA                   ; (word) Disk volume number
 _BNENT      = $FD                   ; Number of files on disk
 _BLAST      = $FF                   ; Last allocated block number
