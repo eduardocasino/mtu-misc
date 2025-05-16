@@ -125,7 +125,7 @@ DATE:       bne     @SET            ; There are arguments, go set date
             bcc     @CPSP           ; Until length is reached
 @RETURN:    rts
 
-UNDATED:      .byte   "*UNDATED*"
+UNDATED:    .byte   "*UNDATED*"
         
             ; This block is just junk that was in the buffer when
             ; writing it to disk. I leave it to facilitate checksum
