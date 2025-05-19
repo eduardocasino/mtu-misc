@@ -33,7 +33,7 @@ CMDPROC:    cld
             sta     SVCENB          ; Disable SVCs
         
             jsr     INIMMAP         ; Set default memory config
-            jsr     CPYBNKSW        ; Copy bank switching routine to page zero
+            jsr     CPYEXINBNK      ; Copy execute in bank routine to page zero
             lda     UNPROTFLG       ; Get status of memory protection flag
             sta     IGNORWRP        ; And copy to the ignore protection flag
             jsr     SETOUTBCH       ; Set output buffer to output line buffer
@@ -554,9 +554,9 @@ CLOSE:      beq     @CLOSE0         ; No args, close disk 0
 ; 
 SAVE:       jsr     GETFILNDRV      ; Get file and drive from command line
             jsr     ASSIGN0         ; Assign to channel 0
-            bit     ASSIGNFLAG      ; Flag. If bit 6 = 1, it is a new file
+            bit     ASSIGNFLAG      ; Flag. If bit 6 = 1, it is a file
+                                    ;       If bit 6 = 0, it is a device
                                     ;       If bit 7 = 1, it is an existing file
-                                    ;       Clear: it is a device    
             bpl     @OVERWR         ; Bit 7 clear, it is new or a device
             bit     SAVEOVERWR      ; Flag. If bit 7 = 1 then permits overwrite 
             bmi     @OVERWR         ;

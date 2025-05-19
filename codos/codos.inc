@@ -28,14 +28,16 @@ NSECTS          = 26                ; Sectors per track/side
 
 MAXFILES        = 247               ; Maximum number of files per disk
 FNAMLEN         = 14                ; Max file name length
+DATELEN         = 9                 ; Date string length (excluding null terminator)
 
 NUMSVCS         = $1F               ; Number of available SVCs
 
 ; FINFO flags definitions
 ;
 FLUNUSED    = $00
-FLNORMAL    = $80
-FLLOCKED    = $20
+FLNORMAL    = $80                   ; Normal file
+FISDIRTY    = $40                   ; There are pending changes in the file buffer
+FLLOCKED    = $20                   ; File is locked
 
 ; P0SCRATCH offsets
 ;
@@ -84,9 +86,11 @@ _FBATP      = 15
 
 ; Offsets in file header
 ;
-_FLAG       = 16
+_FLAG       = 16                    ; File flags
+_FLEN       = 17                    ; File length
 _NENT       = 20                    ; Offset to entry in directory sector
 _NSEC       = 21                    ; Sector in track 12 of the directory
+_DATE       = 22                    ; Date of creation
 
 ; Saved (loadable) files header
 ;
@@ -103,3 +107,15 @@ SAVEDHDRLEN = 10
 
 ; Saved file magic number
 SVDMAGIC    = $58
+
+.macro dma reg, addr
+    .if ((addr >= SYSRAM) && (addr < SYSRAM + $2000) && (SYSRAM .MOD $2000 = 0) && (addr < SYSRAM + $1000)) || ((addr >= SYSRAM) && (addr < SYSRAM + $2000) && (SYSRAM .MOD $2000 <> 0) && (addr >= SYSRAM + $1000))
+        lda #((addr >> 6) & $BF) | $80
+    .elseif ((addr >= SYSRAM) && (addr < SYSRAM + $2000) && (SYSRAM .MOD $2000 = 0) && (addr >= SYSRAM + $1000)) || ((addr >= SYSRAM) && (addr < SYSRAM + $2000) && (SYSRAM .MOD $2000 <> 0) && (addr < SYSRAM + $1000))
+        lda #(addr >> 6) | $C0
+    .elseif ((addr >= USRRAM) && (addr < USRRAM + $2000) && (USRRAM .MOD $2000 = 0) && (addr < USRRAM + $1000)) || ((addr >= USRRAM) && (addr < USRRAM + $2000) && (USRRAM .MOD $2000 <> 0) && (addr >= USRRAM + $1000))
+        lda #(addr >> 6) & $3F
+    .else
+        lda #((addr >> 6) & $7F) | $40
+    .endif
+.endmacro

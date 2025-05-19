@@ -68,7 +68,7 @@ LOCKCH:     jsr     ASSIGNED        ; Get assigned device/file to channel X
                                     ; copies it into CURFINFO in page zero
                                     ; and sets CURRDRV
             jsr     ZEROFILEP       ; Zeroes file pointer
-            lda     #$94            ; Set transfer buffer to $E500 (Directory buffer)
+            dma     A, DIRBUF       ; Set transfer buffer to DIRBUF (Directory buffer)
             sta     CURFINFO+_DMABF ;
             jsr     GETFPSECT       ; Get sector of current file pointer
             jsr     READSECT        ; Read sector
@@ -96,7 +96,7 @@ UNLCKCH:    jsr     ASSIGNED        ; Get assigned device/file to channel X
                                     ; copies it into CURFINFO in page zero
                                     ; and sets CURRDRV
             jsr     ZEROFILEP       ; Zeroes file pointer
-            lda     #$94            ; Set transfer buffer to $E500 (Directory buffer)
+            dma     A, DIRBUF       ; Set transfer buffer to DIRBUF (Directory buffer)
             sta     CURFINFO+_DMABF ;
             jsr     GETFPSECT       ; Get sector of current file pointer
             jsr     READSECT        ; Read sector

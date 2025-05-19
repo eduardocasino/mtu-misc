@@ -8,7 +8,7 @@
 
                     .include "codos.inc"
 
-    BANKSW          := $0100
+    EXINBNK         := $0100        ; Location of the exec in bank routine
 
                     .export YLNLIM, DRWLEG, KEYSTR, LEGTBL
     
@@ -106,11 +106,19 @@ OUTBUFP:    .res 2                  ; $CD-$CE (word) Pointer to output buffer
 FILEPOS:    .res 3                  ; $CF-$D1 (24 bit) File position. Also used to
                                     ;    calculate remaining file size from file pos
 
+            ; This memory area is shared by the switch bank and exec routine and as
+            ; a temporary storage space for different routines
+
+SWITCHNJMP:
 L00D2:      .res 1                  ; $D2  $D2-$D9 is a temporary area
             .res 1                  ; $D3       with different uses, like
 TMPVAL:     .res 2                  ; $D4-$D5       the switch and jump routine
 BYTRES:     .res 2                  ; $D6-$D7 (word) Result for GETBYTE function
 TMPPTR:     .res 2                  ; $D8-$D9 (word) Temporary pointer
+
+            ; This is where the Switch and exec routine jumps after switching
+            ; banks
+
 PCSAVE:     .res 2                  ; $DA-$DB (word) Program counter
 
             .export CURFINFO, BATP
@@ -184,7 +192,7 @@ NFILES:     .res 1                  ; $029B Used to navigate through disk file e
 SAVEX10:    .res 1                  ; $029C
 SAVEA5:     .res 1                  ; $029D
 SAVEA6:     .res 1                  ; $029E
-UNKFLAG1:   .res 1                  ; $029F
+            .res 1                  ; $029F
             .res 1                  ; $02A0
 SAVEY5:     .res 1                  ; $02A1
 SAVEY6:     .res 1                  ; $02A2
@@ -203,10 +211,10 @@ SAVEY6:     .res 1                  ; $02A2
             .res 1                  ; $02AF
 
 
-    YOUT            := $D27D        ; "Y" output (console and printer) entry point
+    YOUT            := USRRAM+$127D ; "Y" output (console and printer) entry point
                                     ; Must be set by hand at STARTUP.J with
                                     ; SET D27D=20 21 E6 (jsr JCOUT)
-    PRTOUT          := $D280        ; Printer output entry point
+    PRTOUT          := USRRAM+$1280 ; Printer output entry point
 
             .segment "codos"
             
@@ -287,45 +295,45 @@ CHANN2:     .byte   $82             ; Channel 2: Output from system monitor
             .export FINFOTBL
 
 FINFOTBL:   .byte   $06, $00, $00, $00, $00, $00, $00, $00, $00, $00
-            .word   $E200           ; File buffer
-            .byte   $88             ; $E200 K-1013 DMA encoded
+            .word   SYSRAM+$200     ; File buffer
+            .byte   $88             ; SYSRAM+$200 K-1013 DMA encoded
 
             .byte   $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
-            .word   $E100           ; File buffer
-            .byte   $84             ; $E100 K-1013 DMA encoded
+            .word   SYSRAM+$100     ; File buffer
+            .byte   $84             ; SYSRAM+$100 K-1013 DMA encoded
 
             .byte   $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
-            .word   $E000           ; File buffer           
-            .byte   $80             ; $E000 K-1013 DMA encoded
+            .word   SYSRAM          ; File buffer           
+            .byte   $80             ; SYSRAM K-1013 DMA encoded
 
             .byte   $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
-            .word   $D700           ; File buffer
-            .byte   $5C             ; $D700 K-1013 DMA encoded
+            .word   USRRAM+$1700    ; File buffer
+            .byte   $5C             ; USRRAM+$1700 K-1013 DMA encoded
 
             .byte   $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
-            .word   $D600           ; File buffer
-            .byte   $58             ; $D600 K-1013 DMA encoded
+            .word   USRRAM+$1600    ; File buffer
+            .byte   $58             ; USRRAM+$1600 K-1013 DMA encoded
 
             .byte   $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
-            .word   $D500           ; File buffer
-            .byte   $54             ; $D500 K-1013 DMA encoded
+            .word   USRRAM+$1500    ; File buffer
+            .byte   $54             ; USRRAM+$1500 K-1013 DMA encoded
 
             .byte   $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
-            .word   $D400           ; File buffer
-            .byte   $50             ; $D400 K-1013 DMA encoded
+            .word   USRRAM+$1400    ; File buffer
+            .byte   $50             ; USRRAM+$1400 K-1013 DMA encoded
 
             .byte   $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
-            .word   $D300           ; File buffer
-            .byte   $4C             ; $D300 K-1013 DMA encoded
+            .word   USRRAM+$1300    ; File buffer
+            .byte   $4C             ; USRRAM+$1300 K-1013 DMA encoded
 
             .byte   $00             ; ?? END OF TABLE MARKER ???
 
 ; K-1013 DMA encoded addresses for drive BATs
 ;
-BATDMAT:    .byte   $90             ; $E400
-            .byte   $8C             ; $E300
-            .byte   $88             ; $E200
-            .byte   $84             ; $E100
+BATDMAT:    .byte   $90             ; SYSRAM+$400
+            .byte   $8C             ; SYSRAM+$300
+            .byte   $88             ; SYSRAM+$200
+            .byte   $84             ; SYSRAM+$100
 
             .export STACKP, PROCST, YREG, XREG, ACCUM
 
@@ -482,18 +490,18 @@ RWREOSEC:   .byte   $00             ; EOT sector
 
             .byte   $02             ; Command length 2
             .byte   $04             ; Sense drive status command   
-SENDRVHD:   .byte   $00
+SENDRVHD:   .byte   $00             ;
 
 ; Disk status registers
 ;
 DSKSTAT:
-ST0:        .byte   $00
-ST1:        .byte   $00
-            .byte   $00
-            .byte   $00
-            .byte   $00
-            .byte   $00
-            .byte   $00
+ST0:        .byte   $00             ;
+ST1:        .byte   $00             ;
+            .byte   $00             ;
+            .byte   $00             ;
+            .byte   $00             ;
+            .byte   $00             ;
+            .byte   $00             ;
 
             .export NDRIVES, DRVNFO, ODRIVES
 
@@ -501,22 +509,22 @@ NDRIVES:    .byte   $02             ; Number of disk drives in system, 1 to 4
 
 DRVNFO:     .byte   $00             ; Drive info table (one byte per drive)
             .byte   $00             ;     0b10000000 : Two sides
-            .byte   $00
-            .byte   $00
+            .byte   $00             ;
+            .byte   $00             ;
 
             ; Open drives flag table
 
-ODRIVES:    .byte   $00
-            .byte   $00
-            .byte   $00
-            .byte   $00
+ODRIVES:    .byte   $00             ;
+            .byte   $00             ;
+            .byte   $00             ;
+            .byte   $00             ;
 
             ; BAT changes flag table
 
 BATCHG:     .byte   $00             ; Bit 7 = 1 if BAT has been modified
-            .byte   $00
-            .byte   $00
-            .byte   $00
+            .byte   $00             ; Same for drive 1
+            .byte   $00             ; Same for drive 2
+            .byte   $00             ; Same for drive 3
 
             ; Error recovery
 
@@ -535,7 +543,7 @@ RCERRCNT:   .byte   $00             ; Cumulative count of recalibrate commands i
 SECERRNUM:  .byte   $FF             ; Sector number for last disk error causing a recalibrate.
 TRKERRNUM:  .byte   $FF             ; Track number for last disk error causing a recalibrate.
 
-            .export CSECT, SECTNUM
+            .export CSECT, CHEAD, SECTNUM
 
 RETRIES:    .byte   $00             ; uPD765 read/write retries
 N765ECNT:   .byte   $00             ; uPD765 error count
@@ -592,11 +600,11 @@ PERRPFLG:   .byte   $00             ; Flag. If bit 7 = 1, we are here as part of
 IRQFLAG:    .byte   $00             ; Flag. If bit 7 = 1, interrupt is IRQ (0 is BRK)
 NMIFLAG:    .byte   $00             ; Flag. If bit 7 = 1, interrupt is NMI
 DEFSVCFLAG: .byte   $00             ; Flag. If bit 7 = 1, SVC enabled by default
-ASSIGNFLAG: .byte   $00             ; Flag. If bit 6 = 1, it is a new file
+ASSIGNFLAG: .byte   $00             ; Flag. If bit 6 = 1, it is file
+                                    ;       If bit 6 = 0, it is adevice
                                     ;       If bit 7 = 1, it is an existing file
-                                    ;       Clear: it is a device    
   
-            .export SCOLON, COLON, QUOTE, CARET
+            .export ULINE, SCOLON, COLON, QUOTE, CARET, DEFAULTEXT, NUMOVL
 
 SCANFLG:    .byte   $00             ; Flag for SVC #29 (FSCAN)
                                     ; If the name was a device name (Cy set) then:
@@ -883,8 +891,8 @@ INTCONT:    sta     PCSAVE+1        ; Save program counter (high)
             .byte   $0d, "BP", $00
             jmp     @OUTSTAT        ; Print status (Registers, pointers) and warm-start
             ; Not reached
-@NEXT:      dex
-            bpl     @LOOP
+@NEXT:      dex                     ; Decrement BP
+            bpl     @LOOP           ; And repeat
 
             ; If we are here, either it is an SVC or just a BRK
 
@@ -905,15 +913,15 @@ INTCONT:    sta     PCSAVE+1        ; Save program counter (high)
             bpl     @NOTNMI         ; No, print IRQ
             jsr     OUTSTR          ; Yes, print NMI
             .byte   "NMI)", $00     ;
-            jmp     @OUTSTAT
+            jmp     @OUTSTAT        ; Go print status
             ; Not reached
 
 @NOTNMI:    jsr     OUTSTR          ; Print IRQ
             .byte   "IRQ)", $00     ;
-            jmp     @OUTSTAT
+            jmp     @OUTSTAT        ; Go print status
 
 @DOBRK:     jsr     OUTSTR          ; Print BRK
-            .byte   $0D, "BRK", $00
+            .byte   $0D, "BRK", $00 ;
 
 @OUTSTAT:   jsr     OUTSTR          ; Print registers at interrupt
             .byte   ", ", $00       ;
@@ -983,11 +991,11 @@ ERROR04:  	inc     ERRNUM          ; Syntax error in command argument
 ERROR03:  	inc     ERRNUM          ; Drive needed is not open
 ERROR02:  	inc     ERRNUM          ; File not found
 ERROR01:  	inc     ERRNUM          ; Command not found
-            jmp     (ERRRCVRYP)
+            jmp     (ERRRCVRYP)     ; ANd go to error recovery routine
 
 ; Error recovery routine
 ;
-ERRRCVRY:   pha
+ERRRCVRY:   pha                     ; Save accumulator
             lda     #$00            ; Unprotect K-1013 SYSRAM
             sta     HSRCW           ;
             cld
@@ -997,15 +1005,15 @@ ERRRCVRY:   pha
             pla                     ; Yes, just do a warm start
             jmp     WARMST          ;
 
-@OUTERR:    pla                     ; Save registers at error
+@OUTERR:    pla                     ; Recover A. Save registers at error:
             sta     ERRORA          ; Save A
             stx     ERRORX          ; Save X
             sty     ERRORY          ; Save Y
-            tsx
-            stx     ERRORS          ; Save SP
-            php
-            pla
-            sta     ERRORP          ; Save processor status reg
+            tsx                     ; Save SP
+            stx     ERRORS          ;
+            php                     ; Save processor status reg
+            pla                     ;
+            sta     ERRORP          ;
             pla                     ; Get return address
             sec                     ; Point to where error occurred
             sbc     #$02            ; and save it 
@@ -1101,7 +1109,7 @@ JPOSTERR:   nop                     ;
 
             .export WARMST
 
-WARMST:     cld
+WARMST:     cld                     ;
             lda     #$00            ; Unprotect K-1013 SYSRAM
             sta     HSRCW           ;
             jsr     CKCMDPR         ; Load command processor if not loaded yet
@@ -1149,36 +1157,45 @@ NEXT:       jsr     GETPC           ; Get program counter from command args
             .export GOCMD
 
 GOCMD:      jsr     GETPC           ; Get program counter from command args
-            lda     NEWBNK          ; Switches 
-            sta     PRGBANK
-            sta     DATBANK
+            lda     NEWBNK          ; Switches to new bank
+            sta     PRGBANK         ;
+            sta     DATBANK         ;
             ; Fall through
 
 ; Execute program in memory (common to GO and external commands)
 ;
             .export EXCMD
 
-EXCMD:      ldx     #$7F
-            stx     DEFBNKCFG
+EXCMD:      ldx     #$7F            ; Set default bank configuration
+            stx     DEFBNKCFG       ;
             ldx     DEFSVCFLAG      ; Get default SVC state (enabled or disabled)
             stx     SVCSTAT         ; And set it as current
             ldx     #$FF            ; Discard stack
-            bit     SVC13FLG        ; Was the GO invoked by an SVC?
-            bpl     NOSVCGO         ; No, skip
+            bit     SVC13FLG        ; Was this invoked by SVC 13?
+            bpl     EXEC            ; No, skip and go to normal command exec
             ; Fall through
 
 ; Common code for NEXT and GO commands, continue after BP
 ;
             .export CONTBP
 
-CONTBP:     jsr     RESTORE
-            jmp     L00D2           ; Switch bank and jump
+CONTBP:     jsr     PREPEXEC        ; Sets stack pointer, memory bank config and
+                                    ; memory protection, sets registers at invocation,
+                                    ; copies the switch and jump routine to its page 0
+                                    ; location.
+            jmp     SWITCHNJMP      ; Switch bank and jump to saved PC to continue
+                                    ; execution
 
-NOSVCGO:    stx     STACKP          ; Set stack (Discarded in case of GO)
-            jsr     RESTORE
-            jsr     BANKSW          ; TODO: Understand what it does
-            php
-            cld                     
+; Continuation of EXCMD, normal command execution
+;
+EXEC:       stx     STACKP          ; Discard stack
+            jsr     PREPEXEC        ; Sets stack pointer, memory bank config and
+                                    ; memory protection, sets registers at invocation,
+                                    ; copies the switch and jump routine to its page 0
+                                    ; location.
+            jsr     EXINBNK         ; Switches to bank, execs code and restore bank
+            php                     ; Save flags
+            cld                     ;
             lda     #$00            ; Unprotect K-1013 SYSRAM
             sta     HSRCW           ;
 .if  CODOS2_VER = 17
@@ -1197,14 +1214,14 @@ NOSVCGO:    stx     STACKP          ; Set stack (Discarded in case of GO)
             sta     DEFBNKCFG       ;
             jmp     WARMST          ; And fo a warm start
 
-; Set/Restores stack pointer, memory bank config, memory protection
-; restore registers and copies the switch and jump routine to its page 0
-; location.
+; Sets stack pointer, memory bank config and memory protection,
+; sets registers at invocation, and copies the switch and jump routine to
+; its page 0 location.
 ;
-RESTORE:    pla                     ; Get return address (low)
+PREPEXEC:   pla                     ; Get return address (low)
             tay                     ; and save it in Y
-            pla                     ; Get return address (hugh)
-            bit     SVC13FLG        ; Was this invoked by an SVC?
+            pla                     ; Get return address (high)
+            bit     SVC13FLG        ; Was this invoked by SVC 13?
             bmi     @SKIP           ; Yes, skip
             ldx     STACKP          ; Set stack pointer
             txs                     ;
@@ -1230,19 +1247,19 @@ RESTORE:    pla                     ; Get return address (low)
 @SKIP2:     sta     HSRCW           ;
             lda     SVCSTAT         ; Restore SVC status
             sta     SVCENB          ;
-            lda     ACCUM           ; Get and save A
+            lda     ACCUM           ; Get and save A at invocation
 .if  CODOS2_VER = 17
             sta     SAVEACC         ;
 .else
             sta     INTSVA          ;
 .endif
-            ldy     YREG            ; Get Y
-            ldx     XREG            ; Get X
-            lda     PROCST          ; Get Status register
+            ldy     YREG            ; Get Y at invocation
+            ldx     XREG            ; Get X at invocation
+            lda     PROCST          ; Get Status register at invocation
             pha                     ; Save it (so next operation does not alter it)
-            lda     BNKCFG          ; Get memory bank status
-            plp                     ; Recover Status register
-            rts
+            lda     BNKCFG          ; Get memory bank configuration
+            plp                     ; Recover flags and return
+            rts                     ;
 
 ; Check if Command Processor is loaded, load it if not
 ; 
@@ -1261,16 +1278,16 @@ LDCMDPR:    ldx     #$09            ; Get file name
             ldx     #$00            ; Set drive 0
             stx     CURRDRV         ;
             jsr     FOPEN0          ; Assigns channel 0 to file (fails if not found)
-            ldx     #$00
-            txa
-            jsr     LOADSVD
-            bcc     @LDNEXT
+            ldx     #$00            ;
+            txa                     ; Overlay 0
+            jsr     LOADSVD         ; Loads $58 segment from file
+            bcc     @LDNEXT         ; If OK, load next
             jsr     ERROR13         ; Not a loadable ("SAVEd") file
             ; Not reached
 @LDNEXT:    ldx     #$00            ; Keep loading segments until end of file
-            txa
-            jsr     LOADSVD
-            bcc     @LDNEXT
+            txa                     ; Overlay 0
+            jsr     LOADSVD         ; Loads $58 segment from file
+            bcc     @LDNEXT         ; Continue until no more blocks
             jmp     FREECH0         ; Clse/free channel and return
 
 ; Init memory map config
@@ -1297,56 +1314,62 @@ INIMMAP:    sec
 @RETURN:    rts
 
 
-; Copy bank switch/restore routine to $0100-$0112
+; Copy execute in bank routine to $0100-$0112
+;
+            .export CPYEXINBNK
 
-            .export CPYBNKSW
+CPYEXINBNK: ldx     #EXINBNKLEN     ; Routine length
+@LOOP:      lda     EXINBNK_O,x     ; Copy it backwards, byte by byte
+            sta     EXINBNK,x       ;
+            dex                     ;
+            bpl     @LOOP           ;
+            rts                     ;
 
-CPYBNKSW:   ldx     #$12
-@LOOP:      lda     BANKSW_O,x
-            sta     BANKSW,x
-            dex
-            bpl     @LOOP
-            rts
-
-CPYSWNJMP:  ldx     #$07
-@LOOP:      lda     SWITCHNJMP_O,x
-            sta     a:L00D2,x
-            dex
-            bpl     @LOOP
-            rts
+; Copy switch bank and exec routine to its page 0 location
+;
+CPYSWNJMP:  ldx     #$07            ; Routine length
+@LOOP:      lda     SWITCHNJMP_O,x  ; Copy it backwards, byte by byte
+            sta     a:SWITCHNJMP,x  ;
+            dex                     ;
+            bpl     @LOOP           ;
+            rts                     ;
 
 ; Switches bank and jumps to PC. Copied to $D2
 ;
 SWITCHNJMP_O:
-            php
-            sta     BNKCTL
+            php                     ; Save flags
+            sta     BNKCTL          ; Switch bank
 .if  CODOS2_VER = 17
-            lda     SAVEACC
+            lda     SAVEACC         ; Get A at invocation
 .else
-            lda     INTSVA
+            lda     INTSVA          ; Get A at invocation
 .endif
-            plp
-            .byte   $4C             ; JMP Absolute. As SWITCHNJMP_O is copied to $D2, it
+            plp                     ; Restore flags
+SWNJMPEND:  .byte   $4C             ; JMP Absolute. As SWITCHNJMP_O is copied to $D2, it
                                     ; means it jumps to address contained in
                                     ; $DA-$DB, which is PCSAVE (saved Program Counter)
-                                    ; which was set by the interrupy service routine
+                                    ; which was set by the interrupt service routine,
+                                    ; command processor or SVC processor
+SWITCHNJMPLEN = SWNJMPEND - SWITCHNJMP_O ; Calculate routine length
 
-; Bank switch/restore routine. Copied to 0100-0112
+; Exec code at specified bank, then restores default memory configuration.
+; Copied to 0100-0112
 ;
-BANKSW_O:   jsr     L00D2       
-            php
+EXINBNK_O:  jsr     SWITCHNJMP      ; Switch bank and jumps to PC
+            php                     ; Save flags on exit
 .if  CODOS2_VER = 17
-            sta     SAVEACC
+            sta     SAVEACC         ; Restore A (was saved by SWITCHNJMP routine)
 .else
-            sta     INTSVA
+            sta     INTSVA          ; Restore A (was saved by SWITCHNJMP routine)
 .endif
             sta     IOENABLE        ; Enable I/O space from $BE00 to $BFFF
-            lda     #$FF            ; Sets bank 0 and write enable $8000 to $BFFF
-            sta     BNKCTL          ;
+                                    ; (A content is irrelevant)
+            lda     #$FF            ; Sets bank 0 and write enable $8000 to $BFFF,
+            sta     BNKCTL          ; restoring defaultbank configuration
             sta     SVIA1DIR        ;
-            plp
-            rts
-
+            plp                     ; Restore flags and return
+EXINBNKEND: rts                     ;
+EXINBNKLEN = EXINBNKEND - EXINBNK_O ; Calculate routine length
 
 ;       Send command to uPD765
 ;       X : Command index
@@ -1423,7 +1446,7 @@ RSLTPH:     ldx     #$00            ; Init disk status index
             lda     MSTR            ; Check if still busy
             and     #$10            ;
             bne     @WAITRD         ; Yes, go get next byte
-            rts
+            rts                     ;
 
 ; Send SEEK type command to uPD765 and process status
 ;
@@ -1439,7 +1462,7 @@ SNDSKCMDST: jsr     SNDCMD          ; Send command to controller
 SNSINTST:   jsr     EXSENSEINT      ; Execute a sense interrupt command
             lda     ST0             ; Get status register 0
             cmp     #$C0            ; Return carry if error
-            rts
+            rts                     ;
 
 ; Init disk drive X
 ;
@@ -1481,7 +1504,7 @@ INITDRV:    jsr     DRVVALID        ; Ensure that drive is valid
             beq     @STORE          ; One side
             lda     #$80            ; Two sides
 @STORE:     sta     DRVNFO,x        ; Store info for drive (Bit 7 = 1 -> 2 sides)
-            rts
+            rts                     ;
 
 ; Seeks track A on drive X, checking that drive is valid and performing
 ; a retry
@@ -1489,7 +1512,7 @@ INITDRV:    jsr     DRVVALID        ; Ensure that drive is valid
 SEEKTRK:    jsr     DRVVALIDO       ; Verify drive X is valid and open
             jsr     EXSEEK          ; Execute seek command (X drive, A track)
             bcs     DORTS           ; Return if OK
-            jsr     INITDRV         ; Reinit drive
+            jsr     INITDRV         ; Reinit drive (SPECIFY + RECALIBRATE)
             jsr     GETDRVTRK       ; Recover Drive/Track info
             sta     TRKERRNUM       ; Store track that caused last error
             jsr     EXSEEK          ; And retry
@@ -1499,7 +1522,7 @@ SEEKTRK:    jsr     DRVVALIDO       ; Verify drive X is valid and open
 
 ; Seek track A of drive X
 ;
-; Returns resulting drive ans track in XA
+; Returns resulting drive and track in XA
 ;
 ; NOTE: In this case Carry Set means success!!
 ;
@@ -1521,15 +1544,15 @@ DOSEEK:     jsr     SRVINT          ; Serve any pending interrupt (if any)
             bcs     SKERROR         ; Jump if error
             and     #$F8            ; Mask out non important bits
             cmp     #$20            ; Check for SEEK end
-            beq     GETDRVTRK       ; Yes, return
-            clc
+            beq     GETDRVTRK       ; Yes, return with Cy clear
+            clc                     ;
             ; Fall through
 
 ; Get drive and trck in XA
 ;
 GETDRVTRK:  ldx     SKDRIVE         ; Drive
             lda     SEKTRACK        ; Track from seek command
-DORTS:      rts
+DORTS:      rts                     ;
 
 ; Manage seek errors
 ;
@@ -1643,7 +1666,7 @@ RDWRSECT:   sta     DMADIR          ; Set DMA direction
             bcs     @FAILED         ; Failed? Retry.
 @RETOK:     ldx     RWDRIVE         ; OK, return drive and sector in XA
             lda     RWRSECTR        ;
-            rts
+            rts                     ;
 
 @FAILED:    lda     RDWRD           ; Check if read or write
             cmp     #$46            ; Is it a read command?
@@ -1653,14 +1676,14 @@ RDWRSECT:   sta     DMADIR          ; Set DMA direction
             bcc     @RETOK          ; Success, return
             inc     RCERRCNT        ; Failed again, try recalibrate
             ldx     RWDRIVE         ;
-            jsr     INITDRV         ;
+            jsr     INITDRV         ; Reinit drive (SPECIFY + RECALIBRATE)
             lda     RWRTRACK        ; Recover and set track where error occurred
             sta     TRKERRNUM       ;
             jsr     SEEKTRK         ; Seek to it
             lda     RWREOSEC        ; Set sector of last error
             sta     SECERRNUM       ; causing a recalibrate
             lda     #$10            ; Set retries to 16
-            sta     RETRIES
+            sta     RETRIES         ;
 @RETRY:     jsr     EXRDWR          ; Execute command
             bcc     @RETOK          ; If ok, return
             dec     RETRIES         ; No, retry
@@ -1699,7 +1722,7 @@ SETBATP:    lda     #$00            ; BAT begins at page start
             sec                     ; Subsequent drive BATs are located <drivenum>
             sbc     CURRDRV         ; pages below
             sta     BATP+1          ;
-            rts
+            rts                     ;
 
 ;  Set next block A for block Y into the current BAT
 ;
@@ -1707,13 +1730,13 @@ SETNEXTBLK: stx     SAVEX7          ; Save X
             sta     (BATP),y        ; Store next block A for block Y
             lda     #$E4            ; Drive 0 BAT page
             sec                     ; Subsequent drive BATs are located <drivenum>
-            sbc     BATP+1          ; So sugbtract current BAT page to get current
+            sbc     BATP+1          ; So substract current BAT page to get current
             tax                     ; drive and transfer to X
             lda     #$80            ; Flag that there are changes in the BAT
             sta     BATCHG,x        ; for this drive
             lda     (BATP),y        ; Recover next block in A
             ldx     SAVEX7          ; Restore X
-            rts
+            rts                     ;
 
 ; Read sector A from track 12
 ;    If sector == 0, loads BAT into BAT area
@@ -1733,12 +1756,12 @@ RDSECTATR12:
 
 RDSECTNTR12:
             jsr     PREPRDTR12      ; Prepare read of track 12
-            jsr     READSECT        ; And read sector
-            rts
+            jsr     READSECT        ; And read sector SECTNUM
+            rts                     ;
 
 ; Write BAT to current drive
 ;
-WRTBAT:     lda     #$00
+WRTBAT:     lda     #$00            ;
             sta     SECTNUM         ; BAT's sector number is 0
             ; Fall Through
 
@@ -1753,10 +1776,10 @@ WRTRCK12:   jsr     PREPRDTR12      ; Prepare the current FINFO struct for writi
             bne     PTR12RET        ; If not, return
             lda     #$11            ; Now write the BAT copy at sector $11
             jsr     WRITSECT        ;
-            ldx     CURRDRV
+            ldx     CURRDRV         ;
             lda     #$00            ; Clear the BAT changes flag for current drive
             sta     BATCHG,x        ;
-            rts
+            rts                     ;
 
 ; Prepare the current FINFO struct for reading/writing to track 12 of a disk
 ;   If SECTNUM == 0 : Read BAT
@@ -1772,17 +1795,17 @@ PREPRDTR12: lda     #$00            ; Set head 0
             sta     CURFINFO+_DMABF ;
             lda     SECTNUM         ; If this is non-zero
             bne     PTR12RET        ;   just return
-            lda     BATDMAT,x       ; 
+            lda     BATDMAT,x       ; Get DMA address of current drive's BAT
             sta     CURFINFO+_DMABF ; Set transfer buffer to drive's BAT
-            lda     #$00
-PTR12RET:   rts
+            lda     #$00            ; Clears A and return
+PTR12RET:   rts                     ;
 
 ; Copies file info to the current file structure in page zero
 ;
             .export CPYCFINFO
 
 CPYCFINFO:  ldy     DEVICE          ; Get current device (file)
-            ldx     #$00
+            ldx     #$00            ;
 @LOOP:      lda     FINFOTBL,y      ; From file's FINFO
             sta     CURFINFO,x      ; To current FINFO structure
             iny                     ;
@@ -1797,42 +1820,44 @@ CPYCFINFO:  ldy     DEVICE          ; Get current device (file)
             .export UPDCFINFO
 
 UPDCFINFO:  ldy     DEVICE          ; Get current device (file)
-            ldx     #$00
+            ldx     #$00            ;
 @LOOP:      lda     CURFINFO,x      ; From current FINFO structure
             sta     FINFOTBL,y      ; To file's FINFO
-            iny
-            inx
+            iny                     ;
+            inx                     ;
             cpx     #FINFOLEN-4     ; Exclude immutable data
-            bmi     @LOOP
-            rts
+            bmi     @LOOP           ;
+            rts                     ;
 
-; Compares CURFINFO+_FPOS and CURFINFO+_FSIZE
-; Carry set if $E2-$E4 < $DF-$E1
+; Check if end-of-file has been reached. Cy set if so.
 ;
-LEF05:      lda     CURFINFO+_FPOS      ;
+; Compares CURFINFO+_FPOS and CURFINFO+_FSIZE
+; Carry set if CURFINFO+_FPOS > CURFINFO+_FSIZE
+;
+FEOF:       lda     CURFINFO+_FPOS      ;
             cmp     CURFINFO+_FSIZE     ;
             lda     CURFINFO+_FPOS+1    ;
             sbc     CURFINFO+_FSIZE+1   ;
             lda     CURFINFO+_FPOS+2    ;
             sbc     CURFINFO+_FSIZE+2   ;
-            rts
+            rts                         ;
 
 ; Calculate remaining file size from current file pos
-;   (FSIZE-FPOS)
+;   (FSIZE-FPOS) and stores it into FILEPOS
 ;
-CALREMFSIZ: sec
-            lda     CURFINFO+_FSIZE     ;
+CALREMFSIZ: sec                         ; Clear borrow for substraction
+            lda     CURFINFO+_FSIZE     ; Substracts current position form file size
             sbc     CURFINFO+_FPOS      ;
-            sta     FILEPOS             ;
+            sta     FILEPOS             ; And store it into FILEPOS
             lda     CURFINFO+_FSIZE+1   ;
             sbc     CURFINFO+_FPOS+1    ;
             sta     FILEPOS+1           ;
             lda     CURFINFO+_FSIZE+2   ;
             sbc     CURFINFO+_FPOS+2    ;
             sta     FILEPOS+2           ;
-            rts
+            rts                         ;
 
-; Sets file end at current position
+; Sets file end at current position (truncates file)
 ;
 SETEND:     lda     CURFINFO+_FPOS+2    ; Just copies current fpos to fsize
             sta     CURFINFO+_FSIZE+2   ;
@@ -1840,7 +1865,7 @@ SETEND:     lda     CURFINFO+_FPOS+2    ; Just copies current fpos to fsize
             sta     CURFINFO+_FSIZE+1   ;
             lda     CURFINFO+_FPOS      ;
             sta     CURFINFO+_FSIZE     ;
-            rts
+            rts                         ;
 
 ; Load overlay A from disk
 ;
@@ -1858,46 +1883,56 @@ OVERLAY:    cmp     #$00            ; Is it an overlay
             jsr     ERROR43         ; System crash: illegal system overlay number
             ; Not reached
 
+            ; Overlays are in block 40 for dual side disks and blocks 14 and 41 for
+            ; single side. Block 50 starts at sector 18 of track 12, head 0
+            ; Overlays are 256 bytes long each, so numbers 1 to 8 always fit in
+            ; block 40 (2048K) and numbers 9 to 16 are in second half of block 40
+            ; for dual side disks and in block 41 for single side.
+
 @OVLOK:     sta     CURROVL         ; Set current overlay
             ldx     #$00            ; Set head 0
             stx     CHEAD           ;
-            ldx     #$0C
-            cmp     #$09
-            bcc     @CONT
-            inx
+            ldx     #$0C            ; Track 12 
+            cmp     #$09            ; Overlays 1 - 8 ?
+            bcc     @SEEK           ; Yes, those are in block 40 no matter if single
+                                    ; or dual disk
+                                    ; No, means:
+                                    ;  If dual side, overlay is in track 12, head 1
+                                    ;  If single side, overlay is in track 13
+            inx                     ; Increment track for single side
             bit     DRVNFO          ; Check if disk in drive 0 is one or two sides
-            bpl     @CONT           ; One side
-            dex                     ; Two sides
-            lda     #$01            ; Set head 1
+            bpl     @SEEK           ; One side, then jum to seek
+            dex                     ; Two sides, then go back to track 12
+            lda     #$01            ; And set head 1
             sta     CHEAD           ;
-@CONT:      txa
-            ldx     #$00            ; Seek track on drive 0
+@SEEK:      txa                     ; Move track to A (where SEEKTRK expects it)
+            ldx     #$00            ; Seek track A on drive 0
             jsr     SEEKTRK         ;
             lda     #$F8            ; DMA address for overlays ( $FE00 ) 
             sta     CURFINFO+_DMABF ;
-            lda     CURROVL
-            clc
-            adc     #$11
-            cmp     #NSECTS
-            bcc     LEF7E
+            lda     CURROVL         ; Recover current overlay. Overlays start in 1.
+            clc                     ; As overlay 1 start at sector 18, add 17 
+            adc     #$11            ; to get the overlay sector number
+            cmp     #NSECTS         ; Is sector < NSECTS?
+            bcc     @READ           ; Yes, go read sector
             bit     DRVNFO          ; Check if one or two sides
-            bmi     LEF7E           ; Two sides
-            sec                     ; One side
-            sbc     #NSECTS
-LEF7E:      jsr     READSECT
-            lda     CURROVL
-            cmp     OVLORG
-            beq     LEF8C
+            bmi     @READ           ; Two sides, sector number is ok
+            sec                     ; One side, sector number is sector MOD NSECTS
+            sbc     #NSECTS         ;
+@READ:      jsr     READSECT        ; Read sector
+            lda     CURROVL         ; Recover overlay number
+            cmp     OVLORG          ; Compare to number of loaded overlay
+            beq     @RETX           ; If equal, return OK
             jsr     ERROR35         ; No CODOS on drive 0, or system overlay load error
             ; Not reached
-LEF8C:      ldx     SAVEX9
-            rts
+@RETX:      ldx     SAVEX9          ; Restore X and return
+            rts                     ;
 
 ; Check that drive X is valid and open
 ;
             .export DRVVALIDO
 
-DRVVALIDO:  jsr     DRVVALID
+DRVVALIDO:  jsr     DRVVALID        ; Check that drive is valid
             ; Fall through
 
 ; Check if drive is open.
@@ -1905,14 +1940,14 @@ DRVVALIDO:  jsr     DRVVALID
 ;
             .export ISDRVOPEN
 
-ISDRVOPEN:  pha
-            lda     ODRIVES,x
-            bmi     @RETURN
-            pla
+ISDRVOPEN:  pha                     ; Save A
+            lda     ODRIVES,x       ; Check if drive X is open
+            bmi     @RETURN         ; It is, just return
+            pla                     ; It isn't, recover A and error
             jsr     ERROR03         ; Drive needed is not open
             ; Not reached
-@RETURN:    pla
-            rts
+@RETURN:    pla                     ; Restore A and return
+            rts                     ;
 
 ; Check if drive is valid
 ;
@@ -1922,7 +1957,7 @@ DRVVALID:   cpx     NDRIVES         ; Check drive number
             bcc     @RETURN         ; Drive between 0 - 3  
             jsr     ERROR05         ; Missing or illegal disk drive number
             ; Not reached
-@RETURN:    rts
+@RETURN:    rts                     ;
 
 
 ; Get device or file for channel X
@@ -1938,7 +1973,7 @@ GETDEV:     stx     CHANNEL         ; Save channel
             jsr     ERROR08         ; Nop, Missing or illegal channel number.
 @CONT:      lda     IOCHTBL,x       ; Get device or file
             sta     DEVICE          ; And save it
-            rts
+            rts                     ;
 
 ; Get assigned device/file to channel in X
 ;
@@ -1950,24 +1985,25 @@ GETDEV:     stx     CHANNEL         ; Save channel
 ASSIGNED:   jsr     GETDEV          ; Get device for channel
             bne     @RET            ; Valid, return            
             jsr     ERROR09         ; Channel needed is not assigned
-@RET:       tax
-            rts
+@RET:       tax                     ; Returns device in X
+            rts                     ;
 
 
 ; Get current file (DEVICE) and checks if locked.
 ; Does not return if it is
 ;
 GETCURCHKLK:
-            jsr     GETFINFO
+            jsr     GETFINFO        ; Gets FINFO for current file
             ; Fall through
 
 ; Check if file in DEVICE is locked.
 ; Does not return if it is
 ;       
-CHKLCK:     lda     CURFINFO+_FLAGS
-            and     #FLLOCKED
-            beq     @RET
+CHKLCK:     lda     CURFINFO+_FLAGS ; Get file flags
+            and     #FLLOCKED       ; Is it locked?
+            beq     @RET            ; No, just return
             jsr     ERROR07         ; Locked file violation
+            ; Not reached
 @RET:       rts
 
 ; Calculate sector, track  and head of file position
@@ -1986,7 +2022,7 @@ CHKLCK:     lda     CURFINFO+_FLAGS
             .export GETFPSECT
 
 GETFPSECT:  lda     #$00            ; Set head 0
-            sta     CHEAD         ;
+            sta     CHEAD           ;
             lda     #$07            ; Sectors/block-1
             sta     SCTBLKM1        ;
             ldx     CURFINFO+_DRIVE ; Get drive number
@@ -2027,7 +2063,7 @@ GETFPSECT:  lda     #$00            ; Set head 0
             ;
             ; IF BLOCK > 39, add 18 to SECTOR
             ;
-            sec
+            sec                     ;
             sbc     #$01            ; A = CBLOCK-1
             ldx     #$FF            ; Start with X = -1
                                     ; (will increment to 0 in the loop)
@@ -2085,29 +2121,31 @@ GETFPSECT:  lda     #$00            ; Set head 0
 @SEEK:      lda     CTRACK          ; Seek track
             jsr     SEEKTRK         ;
             lda     CSECT           ; And return sector in A
-            rts
+            rts                     ;
 
+; Write file buffer to disk if there are any pendinng changes for
+; current file
 ;
-;
-LF081:      jsr     GETFINFO        ; Gets FINFO for current file
+FFLUSH:     jsr     GETFINFO        ; Gets FINFO for current file
             ; Fall through
 
+; Write file buffer to disk if there are any pendinng changes for
+; current FINFO
 ;
-;
-LF084:      bit     CURFINFO+_FLAGS ; Check flags
-            bvc     WRFRET          ; If What the fuck flag is not set, return
+FLUSH:      bit     CURFINFO+_FLAGS ; Check flags
+            bvc     WRFRET          ; If there are no pending changes, return
             ; Fall through
 
 ; Write sector of current file position
 ;
             .export WRFPSECT
 
-WRFPSECT:   jsr     GETFPSECT       ; 
-            jsr     WRITSECT        ;
-            lda     CURFINFO+_FLAGS ;
-            and     #$BF            ; Clear the WTF flag
+WRFPSECT:   jsr     GETFPSECT       ; Calculate sector, track and head of file position
+            jsr     WRITSECT        ; Write sector buffer to disk
+            lda     CURFINFO+_FLAGS ; Get file flags
+            and     #<(~FISDIRTY)   ; Clear the changes pending flag
             sta     CURFINFO+_FLAGS ;
-WRFRET:     rts
+WRFRET:     rts                     ;
 
 ; SVC 18 - Set the file position for a channel to End-of-File
 ;
@@ -2136,7 +2174,7 @@ FREWIND:    lda     #$00            ; Set file pos at 0
             sta     FILEPOS+2       ;
             ; Fall through
 
-; SVC 19 - Specify the file position for a channel
+; SVC 19 - Specify the file position for a channel and reads file sector into buffer
 ;
 ; Arguments:            X = Channel number 
 ;                       U7 (FILEPOS)
@@ -2147,27 +2185,27 @@ FREWIND:    lda     #$00            ; Set file pos at 0
 
 FSEEK:      jsr     ASSIGNED        ; Get assigned device/file to channel X
             bmi     @RETURN         ; Return if device
-            jsr     LF081
-            lda     FILEPOS
-            clc
-            adc     #FHDRLEN
-            sta     CURFINFO+_FPOS
-            lda     FILEPOS+1
-            adc     #$00
-            sta     CURFINFO+_FPOS+1
-            lda     FILEPOS+2
-            adc     #$00
-            sta     CURFINFO+_FPOS+2
-            bcs     @LF0C6
-            jsr     LEF05
-            bcc     @LF0CF
-@LF0C6:     ldx     #$02
-@LF0C8:     lda     CURFINFO+_FSIZE,x
-            sta     CURFINFO+_FPOS,x
-            dex
-            bpl     @LF0C8
-@LF0CF:     jsr     RDFPSECT
-            jsr     UPDCFINFO
+            jsr     FFLUSH          ; Flush pending changes to disk
+            lda     FILEPOS         ; Add file header length to get the position
+            clc                     ; relative to the beginning of data
+            adc     #FHDRLEN        ;
+            sta     CURFINFO+_FPOS  ;
+            lda     FILEPOS+1       ;
+            adc     #$00            ;
+            sta     CURFINFO+_FPOS+1 ;
+            lda     FILEPOS+2       ;
+            adc     #$00            ;
+            sta     CURFINFO+_FPOS+2 ;
+            bcs     @FEND           ; If overflow, set file pos to file size
+            jsr     FEOF            ; Check if end of file (Cy set if so)
+            bcc     @READ           ; No, read sector into buffer
+@FEND:      ldx     #$02            ; Yes, set file pos to file size
+@CPYFSIZ:   lda     CURFINFO+_FSIZE,x ;
+            sta     CURFINFO+_FPOS,x ;
+            dex                     ;
+            bpl     @CPYFSIZ        ;
+@READ:      jsr     RDFPSECT        ; Read sector of current file position
+            jsr     UPDCFINFO       ; Copies back current finfo structure to file's FINFO
 @RETURN:    rts
 
 ; SVC 23 - Truncate a file at the present file position.
@@ -2178,23 +2216,23 @@ FSEEK:      jsr     ASSIGNED        ; Get assigned device/file to channel X
 ;
             .export FTRUNC
 
-FTRUNC:     jsr     ASSIGNED            ; Make sure the channel is assigned
-            bmi     @RETURN             ; If not, just return
-            jsr     GETCURCHKLK         ; Get current file and ensures it's not locked
-            jsr     GETFPSECT           ; Calculate sector, track and head of file position
-            jsr     SETEND              ; Sets current position as file size
-            ldy     CBLOCK              ; Get current block
-            lda     (BATP),y            ; Get next block for current
-            cmp     #$F9                ; Is a valid block? (meaning not last, mostly)
-            bcs     @UFINFO             ; No, we're done
-            tax                         ; Yes, save block in X
-            lda     #BLKLAST            ; Mark block as last in the series
-            jsr     SETNEXTBLK          ;
-            txa                         ; Recover last block
-            tay                         ; And free it's chain
-            jsr     FREEBLK             ;
-@UFINFO:    jsr     UPDCFINFO           ; Copies back current finfo structure to file's FINFO
-@RETURN:    rts
+FTRUNC:     jsr     ASSIGNED        ; Make sure the channel is assigned
+            bmi     @RETURN         ; If not, just return
+            jsr     GETCURCHKLK     ; Get current file and ensures it's not locked
+            jsr     GETFPSECT       ; Calculate sector, track and head of file position
+            jsr     SETEND          ; Sets current position as file size
+            ldy     CBLOCK          ; Get current block
+            lda     (BATP),y        ; Get next block for current
+            cmp     #$F9            ; Is a valid block? (meaning not last, mostly)
+            bcs     @UFINFO         ; No, we're done
+            tax                     ; Yes, save block in X
+            lda     #BLKLAST        ; Mark block as last in the series
+            jsr     SETNEXTBLK      ;
+            txa                     ; Recover last block
+            tay                     ; And free it's chain
+            jsr     FREEBLK         ;
+@UFINFO:    jsr     UPDCFINFO       ; Copies back current finfo structure to file's FINFO
+@RETURN:    rts                     ;
 
 
 ; Get MEMCOUNT characters from channel X into (MEMBUFF)
@@ -2205,166 +2243,189 @@ GETMBUFF:   jsr     ASSIGNED        ; Get assigned device/file
             bpl     @ISFILE         ; Check if a file
             jmp     @ISDEV          ; Jump if a device
 
-@ISFILE:    jsr     LF221
-            lda     CURFINFO+_BUFF
-            sta     @LF146
-            sta     @LF138
-            sta     @LF186
-            sta     @LF132
-            lda     CURFINFO+_BUFF+1
-            sta     @LF147
-            sta     @LF139
-            sta     @LF187
-            sta     @LF133
-@LF123:     lda     DSTBNKCFG
-            sta     BNKCTL
-            lda     L00D2+1
-            beq     @LF17D
-            ldy     CURFINFO+_FPOS
-            bne     @LF141
+@ISFILE:    jsr     PREPCPY         ; Check that dest memory is valid, flush any
+                                    ; pending changes to disk, adjust MEMCOUNT to the
+                                    ; available data in file (if MEMCOUNT is greater)
+                                    ; and store the count into L00D2
+            lda     CURFINFO+_BUFF  ; Get pointer to file buffer and copies
+            sta     @LDALO3         ; to the lda insructions below
+            sta     @LDALO2         ;
+            sta     @LDALO4         ;
+            sta     @LDALO1         ;
+            lda     CURFINFO+_BUFF+1;
+            sta     @LDAHI3         ;
+            sta     @LDAHI2         ;
+            sta     @LDAHI4         ;
+            sta     @LDAHI1         ;
 
-            ; Ugh, self modifying code ahead!
+@CPMEM:     lda     DSTBNKCFG       ; Set destination bank 
+            sta     BNKCTL          ;
+            lda     L00D2+1         ; Current count > 256 (one page)
+            beq     @CPYREM         ; No, go copy remaining bytes
+            ldy     CURFINFO+_FPOS  ; Position at the beginning of a sector?
+            bne     @CPTOENDS       ; No, go copy bytes up to end of sector first
 
-@LF131:     .byte   $B9             ; lda $E000, y
-@LF132:     .byte   <SYSRAM
-@LF133:     .byte   >SYSRAM
+            ; Copy page loop. Does two lda,sta pairs per iteration to optimize for
+            ; speed
 
-            sta     (MEMBUFF), y
-            iny
+@CPPAGE:    .byte   $B9             ; lda SYSRAM, y
+@LDALO1:    .byte   <SYSRAM         ; Replaced with current file buffer
+@LDAHI1:    .byte   >SYSRAM         ;
 
-            .byte   $B9             ; lda $E000, y
-@LF138:     .byte   <SYSRAM
-@LF139:     .byte   >SYSRAM
+            sta     (MEMBUFF), y    ; Store into memory
+            iny                     ; Advance one pos in MEMBUFF
 
-            sta     (MEMBUFF), y
-            iny
+            .byte   $B9             ; lda SYSRAM, y
+@LDALO2:    .byte   <SYSRAM         ; Replaced with current file buffer
+@LDAHI2:    .byte   >SYSRAM         ;
 
-            bne     @LF131
-            beq     @LF158
-@LF141:     ldx     CURFINFO+_FPOS
-            ldy     #$00
+            sta     (MEMBUFF), y    ; Store into memory
+            iny                     ; Advance one pos in MEMBUFF
 
-@LF145:     .byte   $BD             ; lda $E000, x
-@LF146:     .byte   <SYSRAM
-@LF147:     .byte   >SYSRAM
+            bne     @CPPAGE         ; Repeat unto end of page
+            beq     @INCMPGE        ; Always jump to increment MEMBUFF page
+            ; Not reached
 
-            sta     (MEMBUFF), y
-            iny
+            ; Copy to end of sector
 
-            inx
-            bne     @LF145
-            tya
-            beq     @LF158
-            clc
-            adc     MEMBUFF
-            sta     MEMBUFF
-            bcc     @LF15A
-@LF158:     inc     MEMBUFF+1
-@LF15A:     lda     CURFINFO+_FPOS
-            beq     @LF165
-            clc
-            adc     L00D2
-            sta     L00D2
-            bcs     @LF167
-@LF165:     dec     L00D2+1
-@LF167:     inc     CURFINFO+_FPOS+1
-            bne     @LF16D
-            inc     CURFINFO+_FPOS+2
-@LF16D:     lda     DEFBNKCFG
-            sta     BNKCTL
-            ldx     #$00
-            stx     CURFINFO+_FPOS
-            jsr     RDFPSECT
-            jmp     @LF123
+@CPTOENDS:  ldx     CURFINFO+_FPOS  ; Get current position in the sector
+            ldy     #$00            ; Init index to MEMBUFF
 
-@LF17D:     lda     L00D2
-            beq     @LF19F
-            ldy     CURFINFO+_FPOS
-            ldx     #$00
+@CPONE:     .byte   $BD             ; lda SYSRAM, x
+@LDALO3:    .byte   <SYSRAM         ; Replaced with current file buffer
+@LDAHI3:    .byte   >SYSRAM         ;
 
-@LF185:     .byte   $B9             ; lda $E000, y
-@LF186:     .byte   <SYSRAM
-@LF187:     .byte   >SYSRAM
+            sta     (MEMBUFF), y    ; Store to MEMBUFF
+            iny                     ; Andvance pos in MEMBUFF
 
-            sta     (MEMBUFF,x)
-            inc     MEMBUFF
-            bne     @LF190
-            inc     MEMBUFF+1
-@LF190:     dec     L00D2
-            beq     @LF19A
-            iny
-            bne     @LF185
-            jmp     @LF167
+            inx                     ; Advance pos in sector
+            bne     @CPONE          ; While not end of sector, repeat
+            tya                     ; Transfer MEMBUFF index to A
+            beq     @INCMPGE        ; If reached end of page, go increase MEMBUFF page
+            clc                     ; If not, advance read bytes in MEMBUFF
+            adc     MEMBUFF         ;
+            sta     MEMBUFF         ;
+            bcc     @DECOUNT        ; Not end of page
 
-@LF19A:     iny
-            beq     @LF167
-            sty     CURFINFO+_FPOS
-@LF19F:     lda     DEFBNKCFG
-            sta     BNKCTL
-            jsr     UPDCFINFO
-            jmp     @LF1EB
+@INCMPGE:   inc     MEMBUFF+1       ; Increment dest page
+@DECOUNT:   lda     CURFINFO+_FPOS  ; Did we started at the beginning of a sector?
+            beq     @DECCPGE        ; Yes, copied an entire page, decrement count page
+            clc                     ; Calculate remaining count
+            
+            ; The trick is that the starting position in the sector is the 2's
+            ; complement of the bytes trasferred, so adding the position to L00D2
+            ; is the same as substracting the bytes transferred
 
+            adc     L00D2           ; Add starting pos in sector
+            sta     L00D2           ;
+            bcs     @INCFPOS        ; If no borrow, skip decrement
+@DECCPGE:   dec     L00D2+1         ; Decrement count page
+@INCFPOS:   inc     CURFINFO+_FPOS+1 ; Increment second byte of file position
+            bne     @RESTBNK        ; Skip next if not overflow
+            inc     CURFINFO+_FPOS+2 ; Increment third byte of file position
+@RESTBNK:   lda     DEFBNKCFG       ; Restore default bank
+            sta     BNKCTL          ;
+            ldx     #$00            ; Zeroes first byte of file position
+            stx     CURFINFO+_FPOS  ; From now on, we are page aligned
+            jsr     RDFPSECT        ; Read sector for current file position
+            jmp     @CPMEM          ; Continue copying
+
+            ; Copy remaining bytes ( < 256 )
+
+@CPYREM:    lda     L00D2           ; Get remainig bytes count
+            beq     @CPDONE         ; If none, we're done
+            ldy     CURFINFO+_FPOS  ; Get position in sector
+            ldx     #$00            ; Init index in MEMBUFF
+
+@CPONEB:    .byte   $B9             ; lda SYSRAM, y
+@LDALO4:    .byte   <SYSRAM         ; Replaced with current file buffer
+@LDAHI4:    .byte   >SYSRAM         ;
+
+            sta     (MEMBUFF,x)     ; Store into MEMBUFF 
+            inc     MEMBUFF         ; Increment destination
+            bne     @DECNT          ;
+            inc     MEMBUFF+1       ; 
+@DECNT:     dec     L00D2           ; Decrement count
+            beq     @ENDCPY         ; No more? Then we're done
+            iny                     ; increment position in file buffer
+            bne     @CPONEB         ; Repeat until end of sector
+            jmp     @INCFPOS        ; Advance file position
+
+@ENDCPY:    iny                     ; Increment position in file buffer
+            beq     @INCFPOS        ; If overflow, advance file position
+            sty     CURFINFO+_FPOS  ; If not, update file position
+
+@CPDONE:    lda     DEFBNKCFG       ; Restore default bank
+            sta     BNKCTL          ;
+            jsr     UPDCFINFO       ; Update FINFO entry in active files table
+            jmp     @ENDSUB         ; And end subroutine
+
+            ; Is a device
+            
 @ISDEV:     and     #$7F            ; Clear device's higher bit
             tax                     ; and use it as an index
             lda     DDTI,x          ; to get the device's driver
             sta     DRIVERP         ;
             lda     DDTI+1,x        ;
             sta     DRIVERP+1       ;
-            jsr     DSTMEMOK        ; Ensures 
-            jsr     LF246
-            lda     #$00
-            sec
-            sbc     MEMCOUNT
-            sta     MEMCOUNT
-            lda     #$00
-            sbc     MEMCOUNT+1
-            sta     MEMCOUNT+1
-            ora     MEMCOUNT
-            beq     @LF1EB
-@LF1D1:     jsr     LF1F7
-            bcs     @LF1DE
-            inc     MEMCOUNT
-            bne     @LF1D1
-            inc     MEMCOUNT+1
-            bne     @LF1D1
-@LF1DE:     lda     L00D2
-            clc
-            adc     MEMCOUNT
-            sta     MEMCOUNT
-            lda     L00D2+1
-            adc     MEMCOUNT+1
-            sta     MEMCOUNT+1
-@LF1EB:     ldx     CHANNEL
-            clc
-            lda     MEMCOUNT
-            ora     MEMCOUNT+1
-            bne     @RET
-            sec
-@RET:       rts
+            jsr     DSTMEMOK        ; Ensures that destination memory is OK 
+            jsr     SETCNT          ; Sets bytes to transfer
+            lda     #$00            ;
+            sec                     ; Clears borrow
+            sbc     MEMCOUNT        ; Negate MEMCOUNT so we can do INCs until zero
+            sta     MEMCOUNT        ;
+            lda     #$00            ;
+            sbc     MEMCOUNT+1      ;
+            sta     MEMCOUNT+1      ;
+            ora     MEMCOUNT        ; Check if anything to transfer
+            beq     @ENDSUB         ; If not, we're done
+@GETDBYT:   jsr     GETDRVBYTE      ; Get byte from device and store into MEMBUFF
+            bcs     @NOMORE         ; Error, no more bytes?
+            inc     MEMCOUNT        ; Increment MEMCOUNT (remember, now it is negative)
+            bne     @GETDBYT        ;
+            inc     MEMCOUNT+1      ;
+            bne     @GETDBYT        ; Repeat until no more bytes
+@NOMORE:    lda     L00D2           ; Update L00D2 with bytes transferred
+            clc                     ; Add memcount (which now is negative)
+            adc     MEMCOUNT        ;
+            sta     MEMCOUNT        ;
+            lda     L00D2+1         ;
+            adc     MEMCOUNT+1      ;
+            sta     MEMCOUNT+1      ;
+
+@ENDSUB:    ldx     CHANNEL         ; Restore X with channel number
+            clc                     ; Clear carry
+            lda     MEMCOUNT        ; Did we transferred any byte 
+            ora     MEMCOUNT+1      ;
+            bne     @RET            ; Yes, return Cy clear
+            sec                     ; No, return Cy set
+@RET:       rts                     ;
 
 
-LF1F7:      lda     DEFBNKCFG
+; Inputs byte into (MEMBUFF) from device using previously set JDRIVERP
+;
+GETDRVBYTE: lda     DEFBNKCFG       ; Switch to default bank
+            sta     BNKCTL          ;
+            jsr     JDRIVERP        ; Get byte from driver
+            ldx     DSTBNKCFG       ; Switch back to destination bank
+            stx     BNKCTL          ;
+            nop                     ; Give the device driver time?
+            nop                     ;
+            nop                     ;
+            bcs     @RETERR         ; There was an error calling the driver
+            clc                     ; Clear Cy for success
+            ldx     #$00            ; Store byte into MEMBUFF
+            sta     (MEMBUFF,x)     ;
+            inc     MEMBUFF         ; Advance one pos
+            bne     @RETURN         ;
+            inc     MEMBUFF+1       ;
+@RETURN:    rts                     ;
+@RETERR:    sec                     ; Set Cy for error
+            rts                     ;
 
-LF1F9:      sta     BNKCTL
-            jsr     JDRIVERP
-            ldx     DSTBNKCFG
-            stx     BNKCTL
-            nop
-            nop
-            nop
-            bcs     LF217
-            clc
-            ldx     #$00
-            sta     (MEMBUFF,x)
-            inc     MEMBUFF
-            bne     LF216
-            inc     MEMBUFF+1
-LF216:      rts
-
-LF217:      sec
-            rts
-
-JDRIVERP:   jmp     (DRIVERP)       ; Jumps to current device driver's routine
+; Jumps to the curren device driver's routine
+;
+JDRIVERP:   jmp     (DRIVERP)       ; Jumps to DRIVERP address
 
 ; Null device driver routines
 ;
@@ -2372,10 +2433,14 @@ NULDRVI:    lda     EOF             ; Just returns "End of file"
 NULDRVO:    sec                     ; Error
             rts                     ;
 
-
-LF221:      jsr     DSTMEMOK        ; Ensures that destination memory is OK
-            jsr     LF081
+; Check that dest memory is valid, flush any pending changes to disk,
+; adjust MEMCOUT to the available data in file (if MEMCOUNT is greater)
+; and store the count into L00D2
+;
+PREPCPY:    jsr     DSTMEMOK        ; Ensures that destination memory is OK
+            jsr     FFLUSH          ; Flush pending changes to disk
             jsr     CALREMFSIZ      ; Calculate remaining file size from current pos
+                                    ; and store into FILEPOS
             bcs     @CONT           ; Cont if remaining size >= 0
             jsr     ERROR46         ; System crash: file ordinal check error
             ; Not reached
@@ -2386,16 +2451,20 @@ LF221:      jsr     DSTMEMOK        ; Ensures that destination memory is OK
             sbc     MEMCOUNT+1      ;
             lda     FILEPOS+2       ;
             sbc     #$00            ;
-            bcs     LF246           ; No
-            lda     FILEPOS         ; Yes, adjust MEMCOUNT to file size
+            bcs     SETCNT          ; No, set bytes to transfer
+            lda     FILEPOS         ; Yes, adjust MEMCOUNT to remaining file size
             sta     MEMCOUNT        ;
             lda     FILEPOS+1       ;
             sta     MEMCOUNT+1      ;
-LF246:      lda     MEMCOUNT        ; Set bytes to transfer
+            ; Fall through
+
+; Set bytes to transfer
+;
+SETCNT:     lda     MEMCOUNT        ; Set bytes to transfer
             sta     L00D2           ;
             lda     MEMCOUNT+1      ;
             sta     L00D2+1         ;
-            rts
+            rts                     ;
 
 ; Check that destination of a memory copy is permitted and sets
 ; the destination bank config
@@ -2405,7 +2474,7 @@ LF246:      lda     MEMCOUNT        ; Set bytes to transfer
 DSTMEMOK:   lda     DSTBANK         ; Check destination bank
             bne     @DESTOK         ; Is not system bank, so don't check for
                                     ; protected memory
-            lda     MEMBUFF+1
+            lda     MEMBUFF+1       ;
             bne     @NOTZP          ; Jump if dest not in ZP
             lda     MEMBUFF         ; Check if odestrig is in reserved ZP space
             cmp     #$B0            ;
@@ -2420,10 +2489,10 @@ DSTMEMOK:   lda     DSTBANK         ; Check destination bank
             jsr     ERROR17         ; No, reserved or protected memory violation
             ; Not reached
 @DESTOK:    lda     MEMCOUNT        ; Check if <dest> + <count> > $FFFF
-            clc
-            adc     MEMBUFF
-            lda     MEMCOUNT+1
-            adc     MEMBUFF+1
+            clc                     ;
+            adc     MEMBUFF         ;
+            lda     MEMCOUNT+1      ;
+            adc     MEMBUFF+1       ;
             bcc     @DESTOK2        ; Dest beyond 0xFFFF?
             jsr     ERROR16         ; yes, <from> address greater than <to> address
             ; Not reached
@@ -2435,16 +2504,16 @@ DSTMEMOK:   lda     DSTBANK         ; Check destination bank
             bmi     @DESTOK3        ; Yes, go on
             jsr     ERROR17         ; No, reserved or protected memory violation
             ; Not reached
-@DESTOK3:   nop
+@DESTOK3:   nop                     ;
             ; Fall through
 
 ; Set destination bank config
 ;
 SETDBNKCFG: lda     DSTBANK         ; Get destination bank
             and     #$03            ; Mask out non-bank bytes
-            eor     DEFBNKCFG
+            eor     DEFBNKCFG       ;
             sta     DSTBNKCFG       ; Store destination bank config
-            rts
+            rts                     ;
 
 
 ; Output MEMCOUNT characters from (MEMBUFF) to channel X
@@ -2453,135 +2522,158 @@ SETDBNKCFG: lda     DSTBANK         ; Get destination bank
 
 OUTMBUFF:   jsr     ASSIGNED        ; Ensure that channel X is assigned
             bpl     @ISFILE         ; Check if it is a file
-            jmp     DOUTMBUFF       ; Its a device, output (MEMBUFF) to channel
+            jmp     @ISDEV          ; Jump if a device
             ; Not reached
 
-@ISFILE:    jsr     SETDBNKCFG
-            jsr     GETCURCHKLK
-            lda     CURFINFO+_BUFF
-            sta     LF2EA
-            sta     LF2D6
-            sta     LF2DC
-            sta     LF341
-            lda     CURFINFO+_BUFF+1
-            sta     LF2EB
-            sta     LF2D7
-            sta     LF2DD
-            sta     LF342
-LF2C2:      lda     DSTBNKCFG
-            sta     BNKCTL
-            lda     MEMCOUNT+1
-            bne     LF2CF
-            jmp     LF336
+@ISFILE:    jsr     SETDBNKCFG      ; Set destination bank config
 
-LF2CF:      ldy     CURFINFO+_FPOS
-            bne     LF2E3
-LF2D3:      lda     (MEMBUFF),y
-        
-            .byte   $99             ; sta $E000, y
-LF2D6:      .byte   $00
-LF2D7:      .byte   $E0
+            jsr     GETCURCHKLK     ; Get current file and ensures it's not locked
+            lda     CURFINFO+_BUFF  ; Get pointer to file buffer and copies
+            sta     @STALO3         ; to the sta insructions below
+            sta     @STALO1         ;
+            sta     @STALO2         ;
+            sta     @STALO4         ;
+            lda     CURFINFO+_BUFF+1 ;
+            sta     @STAHI3         ;
+            sta     @STAHI1         ;
+            sta     @STAHI2         ;
+            sta     @STAHI4         ;
 
-            iny
-            lda     (MEMBUFF),y
+@CPMEM:     lda     DSTBNKCFG       ;
+            sta     BNKCTL          ;
+            lda     MEMCOUNT+1      ; Current count > 256 (one page)
+            bne     @CHKBOS         ; Yes, check if file pos is at the start of sector
+            jmp     @CPYREM         ; No, go copy remaining bytes
+
+@CHKBOS:    ldy     CURFINFO+_FPOS  ; Is file pos at the beginning of a sector?
+            bne     @CPTOENDS       ; No, go copy bytes up to end of sector first
+
+            ; Copy page loop. Does two lda,sta pairs per iteration to optimize for
+            ; speed
+
+@CPPAGE:    lda     (MEMBUFF),y     ; Get byte from MEMBUFF
         
-            .byte   $99             ; sta $E000, y
-LF2DC:      .byte   $00
-LF2DD:      .byte   $E0     
+            .byte   $99             ; sta SYSRAM, y
+@STALO1:    .byte   $00             ; Replaced with current file buffer
+@STAHI1:    .byte   $E0             ;
+
+            iny                     ; Get next byte from MEMBUFF
+            lda     (MEMBUFF),y     ;
+        
+            .byte   $99             ; sta SYSRAM, y
+@STALO2:    .byte   $00             ; Replaced with current file buffer
+@STAHI2:    .byte   $E0             ;
             
-            iny
-            bne     LF2D3
-            beq     LF2F8
-LF2E3:      ldx     CURFINFO+_FPOS
-            ldy     #$00
-LF2E7:      lda     (MEMBUFF),y
+            iny                     ; Advance on epos in MEMBUFF
+            bne     @CPPAGE         ; Repeat until end of page
+            beq     @INCMPGE        ; Always jump to increment MEMBUFF page
+            ; Not reached
 
-            .byte   $9D             ; sta $E000, x
-LF2EA:      .byte   $00
-LF2EB:      .byte   $E0
+            ; Copy to end of sector
 
-            iny
-            inx
-            bne     LF2E7
-            tya
-            clc
-            adc     MEMBUFF
-            sta     MEMBUFF
-            bcc     LF2FA
-LF2F8:      inc     MEMBUFF+1
-LF2FA:      lda     CURFINFO+_FPOS
-            beq     LF305
-            clc
-            adc     MEMCOUNT
-            sta     MEMCOUNT
-            bcs     LF307
-LF305:      dec     MEMCOUNT+1
-LF307:      lda     DEFBNKCFG
-            sta     BNKCTL
-            jsr     WRFPSECT
-            inc     CURFINFO+_FPOS+1
-            bne     LF316
-            inc     CURFINFO+_FPOS+2
-LF316:      ldy     #$00
-            sty     CURFINFO+_FPOS
-            jsr     LEF05
-            bcc     LF375
-            jsr     SETEND
-            lda     BLKSCTOF
-            cmp     SCTBLKM1
-            bne     LF2C2
-            jsr     GETFREEB
-            ldy     CBLOCK
-            jsr     SETNEXTBLK
-            jmp     LF2C2
+@CPTOENDS:  ldx     CURFINFO+_FPOS  ; Get current position in the sector
+            ldy     #$00            ; Init index to MEMBUFF
 
-LF336:      lda     MEMCOUNT
-            beq     LF35E
-            ldy     CURFINFO+_FPOS
-            ldx     #$00
-LF33E:      lda     (MEMBUFF,x)
+@CPONE:     lda     (MEMBUFF),y     ; Get byte from membuff
 
-            .byte   $99             ; sta $E000,y
-LF341:      .byte   $00
-LF342:      .byte   $E0     
+            .byte   $9D             ; sta SYSRAM, x
+@STALO3:    .byte   $00             ; Replaced with current file buffer
+@STAHI3:    .byte   $E0             ;
 
-            inc     MEMBUFF
+            iny                     ; Advance pos in MEMBUFF
+            inx                     ; Advance pos in sector
+            bne     @CPONE          ; Repeat while not end of sector
+            tya                     ; Transfer num bytes to A
+            clc                     ;
+            adc     MEMBUFF         ; Advance num bytes positions into MEMBUF
+            sta     MEMBUFF         ;
+            bcc     @DECOUNT        ;
+@INCMPGE:   inc     MEMBUFF+1       ;
+@DECOUNT:   lda     CURFINFO+_FPOS  ; Did we started at the beginning of a sector?
+            beq     @DECCPGE        ; Yes, copied an entire page, decrement count page
+            clc                     ; Calculate remaining count
+ 
+            ; The trick is that the starting position in the sector is the 2's
+            ; complement of the bytes trasferred, so adding the position to L00D2
+            ; is the same as substracting the bytes transferred
+ 
+            adc     MEMCOUNT        ; Add starting pos in sector
+            sta     MEMCOUNT        ;
+            bcs     @WRSEC          ; If no borrow, skip page decrement
 
-            bne     LF349
-            inc     MEMBUFF+1
-LF349:      dec     MEMCOUNT
-            beq     LF353
-            iny
-            bne     LF33E
-            jmp     LF307
+@DECCPGE:   dec     MEMCOUNT+1
+@WRSEC:     lda     DEFBNKCFG       ; Switch to default bank
+            sta     BNKCTL          ;
+            jsr     WRFPSECT        ; Write sector of current file pos
+            inc     CURFINFO+_FPOS+1 ; Increment second byte of file position
+            bne     @ZPOSLO         ; Skip next if no overflow
+            inc     CURFINFO+_FPOS+2 ; Increment third byte of file position
+@ZPOSLO:    ldy     #$00            ; Zeroes first byte of file position
+            sty     CURFINFO+_FPOS  ; From now on, we are page aligned
+            jsr     FEOF            ; Check if end of file (Cy set if so)
+            bcc     @GETSECT        ; No, get sector into buffer
+            jsr     SETEND          ; Yes, set new end of file
+            lda     BLKSCTOF        ; Get sector offset in the block
+            cmp     SCTBLKM1        ; Compare to sectors/block - 1
+            bne     @CPMEM          ; Not reached, continue copy
+            jsr     GETFREEB        ; Yes, we need another block
+            ldy     CBLOCK          ; Get block of current file pointer
+            jsr     SETNEXTBLK      ; Set new block as next one for current block 
+            jmp     @CPMEM          ; And continue copy
 
-LF353:      iny
-            beq     LF307
-            sty     CURFINFO+_FPOS
-            lda     CURFINFO+_FLAGS
-            ora     #$40            ; Set _WTFCK flag
-            sta     CURFINFO+_FLAGS
-LF35E:      lda     DEFBNKCFG
-            sta     BNKCTL
-            jsr     LEF05
-            php
-            bcc     LF36D
-            jsr     SETEND
-LF36D:      jsr     UPDCFINFO
-            ldx     CHANNEL
-            plp
-            rts
+            ; Copy remaining bytes ( < 256 )
 
-LF375:      jsr     GETFPSECT
-            lda     MEMCOUNT+1
-            bne     LF382
-            lda     CSECT
-            jsr     READSECT
-LF382:      jmp     LF2C2
+@CPYREM:    lda     MEMCOUNT        ; Get remainig bytes count
+            beq     @CPDONE         ; If none, we're done
+            ldy     CURFINFO+_FPOS  ; Get position in sector
+            ldx     #$00            ; Init index in MEMBUFF
 
-; Output MEMCOUNT characters from (MEMBUFF) using device A
-;
-DOUTMBUFF:  and     #$7F            ; Get index
+@CPONEB:    lda     (MEMBUFF,x)     ; Get byte from MEMBUFF
+
+            .byte   $99             ; sta SYSRAM,y
+@STALO4:    .byte   $00             ; Replaced with current file buffer
+@STAHI4:    .byte   $E0             ;
+
+            inc     MEMBUFF         ; Increment pos in membuff
+            bne     @DECNT          ;
+            inc     MEMBUFF+1       ;
+@DECNT:     dec     MEMCOUNT        ; Decrement count
+            beq     @ENDCPY         ; No more? Then we're done
+            iny                     ; increment position in file buffer
+            bne     @CPONEB         ; Repeat until end of sector
+            jmp     @WRSEC          ; Write buffer to disk
+
+@ENDCPY:    iny                     ; Increment position in file buffer
+            beq     @WRSEC          ; If complete sector, write it to disk
+            sty     CURFINFO+_FPOS  ; Update file position
+            lda     CURFINFO+_FLAGS ; Set the pending changes flag
+            ora     #FISDIRTY       ;
+            sta     CURFINFO+_FLAGS ;
+
+@CPDONE:    lda     DEFBNKCFG       ; Switch to the default bank
+            sta     BNKCTL          ;
+            jsr     FEOF            ; Check if end of file (Cy set if so)
+            php                     ; Save flags
+            bcc     @UPDFINFO       ; If not FEOF, go update FINFO
+            jsr     SETEND          ; Yes, set current position as file size
+@UPDFINFO:  jsr     UPDCFINFO       ; Update FINFO entry in active files table
+            ldx     CHANNEL         ; Recover channel into X
+            plp                     ; Recover flags (result of FEOF)
+            rts                     ; And return
+
+            ; Note: this seems to do the same no matter the value of MEMCOUNT+1,
+            ; As GETFPSECT updates CSECT
+
+@GETSECT:   jsr     GETFPSECT       ; Load sector of current pos into file buffer
+            lda     MEMCOUNT+1      ; MEMCOUNT > 256 (sector size) ?
+            bne     @CONTCPY        ; Yes, continue copy
+            lda     CSECT           ; No, read current sector
+            jsr     READSECT        ;
+@CONTCPY:   jmp     @CPMEM          ; And continue copy
+
+            ; Is a device
+
+@ISDEV:     and     #$7F            ; Get index
             tax                     ; To Device Driver Table for Output
             lda     DDTO,x          ;
             sta     DRIVERP         ; And set the driver pointer
@@ -2596,29 +2688,29 @@ DOUTMBUFF:  and     #$7F            ; Get index
             sbc     MEMCOUNT+1      ; until it reaches 0. The print routine does not
             sta     MEMCOUNT+1      ; uses MEMCOUNT as an index, which would be the
             ora     MEMCOUNT        ; only explanation.
-            beq     @EMPTY
-@LOOP:      jsr     DOUTMBCHAR
-            inc     MEMCOUNT
-            bne     @LOOP
-            inc     MEMCOUNT+1
-            bne     @LOOP
-@EMPTY:     sec
-            ldx     CHANNEL
-            rts
+            beq     @NOMORE         ; Nothing to copy
+@OUTDBYT:   jsr     OUTDRVBYTE      ; Get byte from MEMBUFF and output to device
+            inc     MEMCOUNT        ; Increment MEMCOUNT (remember, now it is negative)
+            bne     @OUTDBYT        ;
+            inc     MEMCOUNT+1      ;
+            bne     @OUTDBYT        ; Repeat until no more bytes
+@NOMORE:    sec                     ; Set Cy
+            ldx     CHANNEL         ; Recover channel into X
+            rts                     ;
 
 ; Outputs char at (MEMBUFF) to device using previously set JDRIVERP
 ;
-DOUTMBCHAR: ldx     DEFBNKCFG
-            stx     BNKCTL
-            ldx     #$00
-            lda     (MEMBUFF,x)
-            jsr     JDRIVERP
-            lda     DSTBNKCFG
-            sta     BNKCTL
-            inc     MEMBUFF
-            bne     LF3D1
-            inc     MEMBUFF+1
-LF3D1:      rts
+OUTDRVBYTE: ldx     DEFBNKCFG       ; Switch to default bank
+            stx     BNKCTL          ;
+            ldx     #$00            ; Get byte from MEMBUFF
+            lda     (MEMBUFF,x)     ;
+            jsr     JDRIVERP        ; And output to device drive
+            lda     DSTBNKCFG       ; Switch back to destination bank
+            sta     BNKCTL          ;
+            inc     MEMBUFF         ; Increment position in MEMBUFF
+            bne     @RETURN         ;
+            inc     MEMBUFF+1       ;
+@RETURN:    rts
 
 ; Get the first free block available
 ; Marks  it as last block in the series, updates (BATP),_BLAST
@@ -2639,44 +2731,44 @@ GETFREEB:   ldy     #_BLAST         ; Get last allocated block
             bne     @NEXTD          ; No, check next
             cpy     #$F9            ; Are we past the allocated blocks space?
             bcc     @FOUND          ; No, then we found it
-            lda     CURFINFO+_FPOS+1
-            bne     @LF3F1
-            dec     CURFINFO+_FPOS+2
-@LF3F1:     dec     CURFINFO+_FPOS+1
-            dec     CURFINFO+_FPOS
-            jsr     SETEND
+            lda     CURFINFO+_FPOS+1 ; Decrement file position as no block was found
+            bne     @DECFP1         ;
+            dec     CURFINFO+_FPOS+2 ;
+@DECFP1:    dec     CURFINFO+_FPOS+1 ;
+            dec     CURFINFO+_FPOS  ;
+            jsr     SETEND          ; Truncate file
             jsr     UPDCFINFO       ; Updates file's FINFO structure
             jsr     ERROR38         ; Diskette is full; all blocks already allocated.
             ; Not reached
 @FOUND:     lda     #BLKLAST        ; Mark block as last in the series
             jsr     SETNEXTBLK      ;
-            tya
-            ldy     #_BLAST
-            sta     (BATP),y
-            rts
+            tya                     ; Transfer new block to A
+            ldy     #_BLAST         ; Sets block as last allocated in BAT
+            sta     (BATP),y        ;
+            rts                     ;
 
 ; Open drive 0
 ;
-OPENDRV0:   ldx     #$00
+OPENDRV0:   ldx     #$00            ; Sets drive 0
             ; Fall through
 
 ; Open drive X
 ;
             .export OPENDRV
 
-OPENDRV:    stx     CURRDRV
+OPENDRV:    stx     CURRDRV         ; Sets current drive
             jsr     DRVVALID        ; Check if valid (does not return if not)
             lda     ODRIVES,x       ; Check if open
             bpl     @CONT           ; No, go on
-            txa
-            jsr     CLDRIVE
-@CONT:      ldx     CURRDRV
-            jsr     INITDRV
-            ldx     CURRDRV
-            lda     #$80
-            sta     ODRIVES,x
-            lda     #$00
-            jmp     RDSECTATR12
+            txa                     ; Transfer drive to A for calling CLDRIVE
+            jsr     CLDRIVE         ; Close drive
+@CONT:      ldx     CURRDRV         ; Recover drive from CURRDRV
+            jsr     INITDRV         ; Init drive (SPECIFY + RECALIBRATE)
+            ldx     CURRDRV         ; Recover drive again
+            lda     #$80            ; Mark drive as open
+            sta     ODRIVES,x       ;
+            lda     #$00            ; Read disk's BAT and return
+            jmp     RDSECTATR12     ;
             ; Not reached
 
 
@@ -2688,7 +2780,7 @@ CLOSEDRV:   jsr     DRVVALID        ; Check if valid (does not return if not)
             lda     ODRIVES,x       ; Is it open?
             bpl     @RETURN         ; No, return
             stx     CURRDRV         ; Save to current drive
-            ldx     #$09
+            ldx     #$09            ; Max channel number
 @LOOP:      jsr     GETDEV          ; Get device for channel
             beq     @NEXT           ; Not assigned, check next
             bmi     @NEXT           ; Not a file, check next
@@ -2704,19 +2796,19 @@ CLOSEDRV:   jsr     DRVVALID        ; Check if valid (does not return if not)
             ldx     CURRDRV         ; Mark drive as closed
             lda     #$00            ;
             sta     ODRIVES,x       ;
-@RETURN:    rts
+@RETURN:    rts                     ;
 
 ; Serve pending interrupt (if any)
 ;
 SRVINT:
-@CHECK:     bit     HSRCW
+@CHECK:     bit     HSRCW           ;
             bmi     @RETURN         ; No pending interrupt
             jsr     SNSINTST        ; Execute a Sense Interrupt command
             bcc     @RETURN         ; If success, return
             jsr     CLDRIVE         ; If not, close drive
             jmp     @CHECK          ; Repeat until no pending interrupt
             ; Not reached
-@RETURN:    rts
+@RETURN:    rts                     ;
 
 ; Close drive A (internal)
 ;
@@ -2724,29 +2816,29 @@ SRVINT:
 CLDRIVE:    sty     SAVEY6          ; Save Y
             and     #$03            ; Mask out track
             sta     SAVEDRV         ; And save it
-            ldy     #$09
+            ldy     #$09            ; Max channel number
 @LOOP:      ldx     IOCHTBL,y       ; Get channel's device or file
             bmi     @NEXT           ; Check next if it is a device driver
             beq     @NEXT           ; or not assigned
-            lda     FINFOTBL+_DRIVE,x       ; Get drive
+            lda     FINFOTBL+_DRIVE,x ; Get drive
             cmp     SAVEDRV         ; Is it our drive
             bne     @NEXT           ; No, check next
             lda     #FLUNUSED       ; 
             sta     FINFOTBL+_FLAGS,x ; Invalidate
             sta     IOCHTBL,y       ; Unassign channel
-@NEXT:      dey
-            bpl     @LOOP
+@NEXT:      dey                     ; Repeat for next channel
+            bpl     @LOOP           ;
             ldx     SAVEDRV         ;
             lda     #$00            ; Close drive
             sta     ODRIVES,x       ;
             ldy     SAVEY6          ; Restore Y
-            rts
+            rts                     ;
 
 ; ASSIGN channel 0 to file or device
 ;
             .export ASSIGN0
 
-ASSIGN0:      ldx     #$00
+ASSIGN0:      ldx     #$00          ; Sets channel 0
             ; Fall through
 
 ; ASSIGN channel X to file or device
@@ -2767,7 +2859,7 @@ ASSIGN:     jsr     CLRASSIGNF      ; Clears assign flag and returns CURRDRV in 
             bne     @NEWFIL         ; No, new file
             jmp     FASSIGN         ; Yes, assign file
 
-@NEWFIL:    lsr     ASSIGNFLAG      ; Sets bit 6: It is a new file
+@NEWFIL:    lsr     ASSIGNFLAG      ; Sets bit 6: It is a file
             ldx     CURRDRV         ; Get current drive
             jsr     EXSENSEDRV      ; Sense drive X status command
             bit     ST0             ; Get status register 0
@@ -2817,39 +2909,46 @@ ASSIGN:     jsr     CLRASSIGNF      ; Clears assign flag and returns CURRDRV in 
             sta     MEMBUFF+1       ;
             ldx     CHANNEL         ; Output to file channel
             jsr     OUTMBUFF        ;    (write to new file)
-            jsr     WRFPSECT
+            jsr     WRFPSECT        ; Write buffer to disk
             jsr     UPDCFINFO       ; Update FINFO entry in active files table
             ldy     #_BNENT         ; Get number of files on disk
             lda     (BATP),y        ;
-            clc
-            adc     #$01
-            jsr     SETNEXTBLK
-            jmp     WRTBAT
+            clc                     ; Clear carry for addition
+            adc     #$01            ; Increase nuber of files
+                                    ; Now it uses SETNEXTBLK to update the number of
+                                    ; files in the BAT (Y is _BNENT, A is the new
+                                    ; file count)
+            jsr     SETNEXTBLK      ; Set new file count A for offset Y into the current
+            jmp     WRTBAT          ; BAT and write BAT to disk
 
-FASSIGN:    ldx     DIRPOINT
-            lda     $E50E,x
-            sta     BATPTR
-            jsr     GETAFTNTRY
-            beq     LF542
-            jsr     LF084
-LF542:      lda     #FHDRLEN        ; Inits file pointer to the first data byte
+FASSIGN:    ldx     DIRPOINT        ; Get pointer to filename of directory entry
+            lda     DIRBUF+_FBATP-1,x ; Get pointer to firsrt block in bat (We use
+                                    ; _FBATP-1 because X points to the file name,
+                                    ; not to the first byte)
+            sta     BATPTR          ; Stores it into the directory entry
+            jsr     GETAFTNTRY      ; Find a free entry in the active files table,
+                                    ; assigns the DEVICE number and copy the entry
+                                    ; to CURFINFO
+            beq     @INIFP          ; New entry? Yes, go on
+            jsr     FLUSH           ; Reuse entry. Flush buffer to disk.
+@INIFP:     lda     #FHDRLEN        ; Inits file pointer to the first data byte
             jsr     SETFILEP        ;   (just past the 64 byte file header)
-            jsr     RDFPSECT
-            lda     CURFINFO+_FLAGS
-            bne     LF560
-            ldx     #$02
-            ldy     #$13
-LF552:      lda     (CURFINFO+_BUFF),y
-            sta     CURFINFO+_FSIZE,x
-            dey
-            dex
-            bpl     LF552
-            ldy     #$10
-            lda     (CURFINFO+_BUFF),y
-            sta     CURFINFO+_FLAGS
-LF560:      lda     CURFINFO+_FLAGS        ; Get flags
-            ora     #$C0
-            sta     ASSIGNFLAG
+            jsr     RDFPSECT        ; Read sector pointer by current file pos
+            lda     CURFINFO+_FLAGS ; Check file flags
+            bne     @UPDFLG         ; If set, (existing entry), skip to update flags
+            ldx     #$02            ; Not set, copy file length to current FINFO
+            ldy     #_FLEN+2        ; from the file header
+@CPSIZ:     lda     (CURFINFO+_BUFF),y ;
+            sta     CURFINFO+_FSIZE,x  ;
+            dey                     ;
+            dex                     ;
+            bpl     @CPSIZ          ; Repeat until done
+            ldy     #_FLAG          ; Copy file flags from file header
+            lda     (CURFINFO+_BUFF),y ;
+            sta     CURFINFO+_FLAGS ;
+@UPDFLG:    lda     CURFINFO+_FLAGS ; Get flags, again
+            ora     #$C0            ; Mark as an existing file (bits 7 and 6 set)
+            sta     ASSIGNFLAG      ;
             ; Fall through
 
 ; Update active file and I/O channel tables
@@ -2858,17 +2957,17 @@ UPDFINCHAN: jsr     UPDCFINFO       ; Update FINFO entry
             ldx     CHANNEL         ; Update channel
             lda     DEVICE          ; With the device/file number
             sta     IOCHTBL,x       ;
-            rts
+            rts                     ;
 
 
 ; Assign device in CURRDRV to a channel
 ;
 ASSIGNDEV:  ldy     #$08            ; Search for the device into the DNT
-@LOOP:      lda     DNT,y
-            cmp     CURRDRV
-            beq     @FOUND
-            dey
-            bpl     @LOOP
+@LOOP:      lda     DNT,y           ; Check name in table
+            cmp     CURRDRV         ; Compare to device name
+            beq     @FOUND          ; Match, go found
+            dey                     ;
+            bpl     @LOOP           ; Repeat until no more entries
             jsr     ERROR11         ; Missing or illegal device or file name
             ; Not reached
 @FOUND:     tya                     ; Compose device number
@@ -2877,14 +2976,14 @@ ASSIGNDEV:  ldy     #$08            ; Search for the device into the DNT
             ldx     CHANNEL         ;
             sta     IOCHTBL,x       ; Assign the device to the CHANNEL
             sta     DEVICE          ; And set current device
-            rts
+            rts                     ;
 
 ; Assigns channel 0 to an existing file
 ; Fails if file does not exist
 ;
             .export FOPEN0
 
-FOPEN0:     ldx     #$00
+FOPEN0:     ldx     #$00            ; Sets channel number to 0
             ; Fall through
 
 ; Assigns channel X to an existing file
@@ -2914,15 +3013,15 @@ CLRASSIGNF: lda     CURRDRV         ; Get current drive
             lda     #$00            ; Clear ASSIGN flag
             sta     ASSIGNFLAG      ;
             lda     SAVEA2          ; Recover drive
-            tax
-            sta     CURRDRV
-            rts
+            tax                     ; Stores into X
+            sta     CURRDRV         ; And into CURRDRV
+            rts                     ;
 
 ; Free channel 0
 ;
             .export FREECH0
 
-FREECH0:    ldx     #$00
+FREECH0:    ldx     #$00            ; Sets channel 0
             ; Fall through
 
 ; Free channel in X
@@ -2932,7 +3031,7 @@ FREECH0:    ldx     #$00
 FREECH:     jsr     GETDEV          ; Get device or file for the channel
             beq     @RETURN         ; If not assigned, return
 
-            ldx     #$09
+            ldx     #$09            ; Number of entries in IOCHTBL
 @LOOP:      lda     IOCHTBL,x       ; Get file or device assigned to the channel
             cmp     DEVICE          ; Is it our device?
             bne     @NEXT           ; No, check next
@@ -2943,7 +3042,7 @@ FREECH:     jsr     GETDEV          ; Get device or file for the channel
 
             ldx     DEVICE          ; Device not assigned to any other channel
             bmi     @DOFREE         ; If it is not a file, go to unassign channel
-            jsr     LF081
+            jsr     FFLUSH          ; Flush pending changes to disk
             jsr     ZEROFILEP
             jsr     RDFPSECT
             lda     CURFINFO+_FSIZE+1
@@ -2966,7 +3065,7 @@ FREECH:     jsr     GETDEV          ; Get device or file for the channel
 @LF60B:     dey
             dex
             bpl     @LF5FD
-            jsr     LF084
+            jsr     FLUSH
             ldx     CURFINFO+_DRIVE
             lda     BATCHG,x
             bpl     @LF61C
@@ -3046,6 +3145,7 @@ FREEBLK:    lda     (BATP),y        ; Get next block
 
 
 ; Check if the file in CURRDRV starting at BATPTR is already an active file
+;
 ; If so, reuses the file (DEVICE) number to that entry and copies the latter to the
 ; CURFINFO structure in page zero.
 ;
@@ -3119,7 +3219,7 @@ FSCAN:      lda     (TMPBUFP),y     ; Check if first char is alphabetic
             bpl     @LOOP           ;
             ora     #$80            ; Set device not found flag
 @DEVICE:    sec                     ; Is device (carry set)
-            rts
+            rts                     ;
 
 @FILE0:     dey
 @FILE:      lda     DEFDRV          ; Set current drive to the default
@@ -3183,7 +3283,7 @@ FEXIST:     jsr     SETBATP         ; Set BATP to the current drive's BAT
             ldx     #$00            ; Init
             stx     DRCTRYPNT+1     ;   sector and
             stx     DRCTRYPNT       ;   offset to first free entry
-            inx
+            inx                     ;
             stx     SECTNUM         ; Start from sector 1 (directory entries)
             stx     DIRPOINT        ; Points to filename of first entry
             ldy     #_BNENT         ; Get number of files on disk
@@ -3238,13 +3338,15 @@ FEXIST:     jsr     SETBATP         ; Set BATP to the current drive's BAT
             bne     @NDIRE          ;    yes, go get next entry
             jmp     @RETURN         ;    no, return with deleted pointer in A
 
-@NXTFREE:   jsr     NXTDIRENT
-            jmp     @DELETED
+@NXTFREE:   jsr     NXTDIRENT       ; Point DIRPOINT to next entry in buffer
+            jmp     @DELETED        ; Repeat until no more files
 
 
 ; Point to next directory entry and loads sector into dir buffer
 ; if necessary. Updates DIRPOINT and SECTNUM.
 ;
+            .export NXTDIRENT
+
 NXTDIRENT:  clc                     ;
             lda     DIRPOINT        ; Get current position
             adc     #$10            ; Advance size of entry
@@ -3252,11 +3354,13 @@ NXTDIRENT:  clc                     ;
             bcc     @RETURN         ; If we are past the current sector
             inc     SECTNUM         ; advance to the next
             jsr     RDSECTNTR12     ; And load it into the buffer
-@RETURN:    rts
+@RETURN:    rts                     ;
 
 ; Inits file size (64, as it is the length of the file header) and file
 ; pointer for new files
 ;
+            .export INITFILE
+
 INITFILE:   lda     #FHDRLEN            ; Set file size to 64
             sta     CURFINFO+_FSIZE     ;
             lda     #$00                ;
@@ -3268,23 +3372,23 @@ INITFILE:   lda     #FHDRLEN            ; Set file size to 64
 ;
             .export ZEROFILEP
 
-ZEROFILEP:  lda     #$00
+ZEROFILEP:  lda     #$00                ; Value to store in CURFINFO+_FPOS
             ; Fall through
 
 ; Sets file pointer to value in A
 ;
-SETFILEP:   sta     CURFINFO+_FPOS
-            lda     #$00
-            sta     CURFINFO+_FPOS+1
-            sta     CURFINFO+_FPOS+2
-            rts
+SETFILEP:   sta     CURFINFO+_FPOS      ; Set file pointer to A
+            lda     #$00                ; Set file pointer MSBs to 0
+            sta     CURFINFO+_FPOS+1    ;
+            sta     CURFINFO+_FPOS+2    ;
+            rts                         ;
 
 ; Copy file name from buffer pointed by (TMPBUFP) to FNAMBUF
 ;
             .export FNAMFROMBUF0
 
 FNAMFROMBUF0:
-            ldy     #$00
+            ldy     #$00            ; Set index to TMPBUFP to 0
             ; Fall through    
 
 ; Copy file name from buffer pointed by (TMPBUFP),y to FNAMBUF
@@ -3292,8 +3396,8 @@ FNAMFROMBUF0:
             .export FNAMFROMBUF
 
 FNAMFROMBUF:
-            ldx     #$00
-@LOOP:      lda     (TMPBUFP),y
+            ldx     #$00            ; Init file name index
+@LOOP:      lda     (TMPBUFP),y     ; Get char from buffer
             jsr     VALFNCHR        ; Is it a valid file name character?
             bcs     @CHKEXT         ; No, check if extension
             sta     FNAMBUF,x       ; Yes, store
@@ -3308,7 +3412,7 @@ FNAMFROMBUF:
             bne     @NOEXT          ; No, assume end and add default extension
             sta     FNAMBUF,x       ; Yes, store the dot
             iny                     ; Get the extension char
-            lda     (TMPBUFP),y         ;
+            lda     (TMPBUFP),y     ;
             iny                     ; Advance 1 pos
             bne     @STOREXT        ; And go to store extension (always jumps)
             ; Not reached
@@ -3336,7 +3440,7 @@ FNAMFROMBUF:
             beq     @RETURN         ; Yes, return (Shouldn't it set the carry flag?)
             lda     FNAMBUF+1,x     ; Get the extension char
             jsr     ISALPHANUM      ; Validate that it is alphanumeric
-@RETURN:    rts
+@RETURN:    rts                     ;
 
 
 ; Character validation routines.
@@ -3345,6 +3449,8 @@ FNAMFROMBUF:
 ;
 ; Check if char is alphanumeric
 ;
+            .export ISALPHANUM
+
 ISALPHANUM: jsr     ISNUM           ; Is it a number?
             bcc     RETVAL          ; Yes, return CC 
             ; Fall through
@@ -3385,7 +3491,7 @@ VALFNCHR:   cmp     ULINE           ; Is underline?
 ;
             .export HEXWORD0
 
-HEXWORD0:   ldx     #$00
+HEXWORD0:   ldx     #$00            ; Set index to P0SCRATCH to 0
 
 ; Converts word at P0SCRATCH,x into its 4-char ascii hex representation
 ; at  (OUTBUFP),y
@@ -3416,8 +3522,8 @@ HEXBYTE:    pha                     ; Save byte
 ;
             .export NIBBLE
 
-NIBBLE:     and     #$0F            ; and get lower nibble
-            clc
+NIBBLE:     and     #$0F            ; Get lower nibble
+            clc                     ; Clear carry for addition
             adc     #$30            ; Adds "0"
             cmp     #$3A            ; Is it "9" or lower?
             bmi     @STORE          ; Yes, goto store it
@@ -3557,32 +3663,32 @@ OUTREGSLB:  jsr     SETOUTBCH       ; Set output line buffer as destination
 
 ; Output program counter and registers to output buffer
 ;
-OUTREGS:    jsr     OUTSTR
-            .byte   "P=", $0
+OUTREGS:    jsr     OUTSTR          ; Print string
+            .byte   "P=", $0        ;
             ldx     #_PCSAVE        ; Print Program Counter as an HEX word
-            jsr     HEXWORD         ;
-            lda     #':'
-            sta     (OUTBUFP),y
-            iny
+            jsr     HEXWORD         ; Print address
+            lda     #':'            ; Bank separator
+            sta     (OUTBUFP),y     ;
+            iny                     ;
             lda     PRGBANK         ; Load Current Program Bank
-            clc
+            clc                     ;
             adc     #'0'            ; Convert to ASCII
-            sta     (OUTBUFP),y
-            iny
-            lda     #'/'
-            sta     (OUTBUFP),y
-            iny
+            sta     (OUTBUFP),y     ; Copy to output buffer
+            iny                     ;
+            lda     #'/'            ; program/data bank separator
+            sta     (OUTBUFP),y     ;
+            iny                     ;
             lda     DATBANK         ; Load Current Data Bank
-            clc
+            clc                     ;
             adc     #'0'            ; Convert to ASCII
-            sta     (OUTBUFP),y
-            iny
-            lda     #' '
-            sta     (OUTBUFP),y
-            iny
-            lda     #'('
-            sta     (OUTBUFP),y
-            iny
+            sta     (OUTBUFP),y     ;
+            iny                     ;
+            lda     #' '            ;
+            sta     (OUTBUFP),y     ;
+            iny                     ;
+            lda     #'('            ;
+            sta     (OUTBUFP),y     ;
+            iny                     ;
             jsr     POUTBUFF02      ; Print output buffer to console
             jsr     LF9BA
             jsr     HEXBYTE
@@ -3799,14 +3905,14 @@ OUTCHAR:    sta     SAVECH          ; Save char
                                     ; status
             ; Not reached
 
-; Prepare transfer of one character to SAVECH from MEMBUF
+; Prepare transfer of one character to SAVECH from MEMBUFF
 ;  Note: Does not make sense, as this entry point is called just from GETCHAR
 ;        A contains the file/device and gets overwritten anyway with the transfer
 ; 
 CHRRDPREP:  sta     SAVECH          ; Save char
             ; Fall through
 
-; Prepare transfer of one character from SAVECH to MEMBUF
+; Prepare transfer of one character from SAVECH to MEMBUFF
 ;
 CHRWRPREP:  stx     SAVEX3          ; Save X
             sty     SAVEY3          ; Save Y
@@ -3827,7 +3933,7 @@ JCOUTP:     jmp     (COUTP)             ; Jump to console output routine
 ;
             .export DECWORD
 
-DECWORD:    stx     $028C
+DECWORD:    stx     SAVEX4
             lda     #$00
             sta     $029F
             ldx     #$06
@@ -3835,7 +3941,7 @@ LFACB:      lda     LFB05,x
             sta     TMPPTR
             lda     LFB05+1,x
             sta     TMPPTR+1
-            stx     $028D
+            stx     SAVEX5
             ldx     #$17
             jsr     UDIV
             lda     P0SCRATCH
@@ -3847,11 +3953,11 @@ LFAE8:      sec
             ror     $029F
 LFAEC:      jsr     LFAFE
 LFAEF:      jsr     UNU0
-            ldx     $028D
+            ldx     SAVEX5
             dex
             dex
             bpl     LFACB
-            ldx     $028C
+            ldx     SAVEX4
             lda     P0SCRATCH
 LFAFE:      clc
             adc     #$30
@@ -4054,7 +4160,7 @@ EVALEXP:    lda     #$00
             bne     @NODASH
             inx                     ; Skip dash
 @LFBF3:     iny                     ;
-@NODASH:    stx     $0291           
+@NODASH:    stx     TEMP3           
             ldx     SAVEX6               
             jsr     GETNEXTNB       ; Get next non-blank
             cmp     PERIOD          ; Decimal mark?
@@ -4065,7 +4171,7 @@ EVALEXP:    lda     #$00
 @LFC0A:     jsr     HEXDECOD        ; Decode hex value
             bcc     @LFC61
 @LFC0F:     jsr     USWP
-            lda     $0291
+            lda     TEMP3
             bne     @LFC32
             jsr     UADD
 @LFC1A:     jsr     USWP
@@ -4080,17 +4186,17 @@ EVALEXP:    lda     #$00
             sec
             rts
 
-@LFC32:     dec     $0291
+@LFC32:     dec     TEMP3
             bne     @LFC3D
             jsr     USUB
             jmp     @LFC1A
 
-@LFC3D:     dec     $0291
+@LFC3D:     dec     TEMP3
             bne     @LFC48
             jsr     LFB29
             jmp     @LFC1A
 
-@LFC48:     dec     $0291
+@LFC48:     dec     TEMP3
             bne     @LFC53
             jsr     UDIV
             jmp     @LFC1A
@@ -4337,7 +4443,7 @@ CIN:        jsr     JGETKEY         ; Get key
 
 ; Console Output Routine
 ;
-COUT:       sta     $0299           ; Save char
+COUT:       sta     SAVEA4          ; Save char
             jsr     JTSTKEY         ; Check if key pressed
             bcc     COUTC           ; No, output char
 CHKCTLC:    cmp     ETX             ; Is it CTRL-C?
@@ -4347,7 +4453,7 @@ KEYPR:      cmp     XOFF            ; Is it XOFF?
             bne     COUTC           ; No, output char
             jsr     JGETKEY         ; Yes, get key
             bpl     CHKCTLC         ; If it is atandard ASCII, check again
-COUTC:      lda     $0299           ; Output char
+COUTC:      lda     SAVEA4          ; Output char
             jmp     JOUTCH          ;
             ; Not reached
 

@@ -117,7 +117,7 @@ DISPLAYCH:  jsr     SETOUTBCH       ; Set output buffe rand output channel to
             jsr     GETDEV          ; Get device or file from channel and store in DEVICE
             jsr     CPYCFINFO       ; Fills current FINFO structure for DEVICE
             jsr     ZEROFILEP       ; Zeroes file pointer
-            lda     #$94            ; Set transfer buffer to $E500 (Directory buffer)
+            dma     A, DIRBUF       ; Set transfer buffer to DIRBUF (Directory buffer)
             sta     CURFINFO+_DMABF ;
             jsr     GETFPSECT       ; Get sector of current file pointer
             jsr     READSECT        ; Read sector

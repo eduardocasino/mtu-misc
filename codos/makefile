@@ -29,7 +29,9 @@ all: 	$(VERSIONS:%=build/%/codos.z) \
 		$(VERSIONS:%=build/%/comdproc.z) \
 		$(VERSIONS:%=build/%/svcproc.z) \
 		$(VERSIONS:%=build/%/syserrmsg.z) \
-		$(VERSIONS:%=build/%/overlays.bin)
+		$(VERSIONS:%=build/%/overlays.bin) \
+		$(VERSIONS:%=build/%/dir.c) \
+		$(VERSIONS:%=build/%/format.c)
 
 	@echo "Running tests..."
 	@$(foreach ver,$(VERSIONS),bash -c "cd build/$(ver); echo \"Version $(ver):\"; \
@@ -39,13 +41,13 @@ $(foreach ver,$(VERSIONS),$(eval build/$(ver)/syserrmsg.z: syserrmsg.src \
 	; bbe -e 's/\x0a/\x0d/' < $$< > $$@))
 
 $(foreach ver,$(VERSIONS),$(eval build/$(ver)/codos.z: build/$(ver)/codos.bin \
-	; ./makez.sh $$< 0xe600 0xe54a))
+	; ./makez.sh $$< $$@ 0xe600 0xe54a))
 
 $(foreach ver,$(VERSIONS),$(eval build/$(ver)/comdproc.z: build/$(ver)/comdproc.bin \
-	; ./makez.sh $$< 0xd800 0xd800))
+	; ./makez.sh $$< $$@ 0xd800 0xd800))
 
 $(foreach ver,$(VERSIONS),$(eval build/$(ver)/svcproc.z: build/$(ver)/svcproc.bin \
-	; ./makez.sh $$< 0xdd20 0xdd20))
+	; ./makez.sh $$< $$@ 0xdd20 0xdd20))
 
 $(foreach ver,$(VERSIONS),$(eval build/$(ver)/codos.bin:: build/$(ver)/codos.cfg))
 
@@ -88,6 +90,30 @@ $(foreach ver,$(VERSIONS),$(eval build/$(ver)/overlay%.bin: build/$(ver)/overlay
 	; ld65 -C build/$(ver)/overlay.cfg -vm -m $(basename $$@).map -o $$@ $$<))
 
 $(foreach ver,$(VERSIONS),$(eval build/$(ver)/overlay%.o: overlay%.asm build/$(ver)/codos.bin \
+	; ca65 -U -D CODOS2_VER=$(ver) -I build/$(ver) -l $(basename $$@).lst -o $$@ $$<))
+
+$(foreach ver,$(VERSIONS),$(eval build/$(ver)/dir.c: build/$(ver)/dir.bin \
+	; ./makez.sh $$< $$@ 0xb400 0xb400))
+
+$(foreach ver,$(VERSIONS),$(eval build/$(ver)/format.c: build/$(ver)/format.bin build/$(ver)/format.dat \
+	; ./makez.sh $$(@:.c=.bin) $$@.1 0xb400 0xb400 \
+	; ./makez.sh $$(@:.c=.dat) $$@.2 0xbcba 0xbcba \
+	; cat $$@.1 $$@.2 > $$@ \
+	; rm -f $$@.1 $$@.2))
+
+$(foreach ver,$(VERSIONS),$(eval build/$(ver)/dir.bin: build/$(ver)/dir.o dir.cfg \
+	; ld65 -C dir.cfg -vm -m $(basename $$@).map -o $$@ $$<))
+
+$(foreach ver,$(VERSIONS),$(eval build/$(ver)/dir.o: dir.asm build/$(ver)/codos.bin \
+	; ca65 -U -D CODOS2_VER=$(ver) -I build/$(ver) -l $(basename $$@).lst -o $$@ $$<))
+
+$(foreach ver,$(VERSIONS),$(eval build/$(ver)/format.cfg: format.cfg.in \
+	; @sed -e 's/%%VERSION%%/$(ver)/' < $$< > $$@))
+
+$(foreach ver,$(VERSIONS),$(eval build/$(ver)/format.bin: build/$(ver)/format.o build/$(ver)/format.cfg \
+	; ld65 -C build/$(ver)/format.cfg -vm -m $(basename $$@).map -o $$@ $$<))
+
+$(foreach ver,$(VERSIONS),$(eval build/$(ver)/format.o: format.asm build/$(ver)/codos.bin \
 	; ca65 -U -D CODOS2_VER=$(ver) -I build/$(ver) -l $(basename $$@).lst -o $$@ $$<))
 
 clean:
