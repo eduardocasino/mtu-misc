@@ -244,7 +244,7 @@ UJSR:       jsr     UPDATEREGS      ; Update pseudo registers from working copy
 ;
 ; Result: Low 16-bits of product in UO, high-order 16 bits in Un 
 ;
-UMUL:       jsr     MULT16          ; U0 * Un -> L00D2:U0
+UMUL:       jsr     MULT16_32       ; U0 * Un -> L00D2:U0
             lda     L00D2           ; Copy L00D2 to Un
             sta     P0SCRATCH,x     ;
             lda     L00D2+1         ;

@@ -116,7 +116,7 @@ COMPARE:    ldx     #_MEMBUFF       ; Redundant, GADDRBNKMB also sets it
 
 ; Print address pointed at P0SCRATCH,x
 ;
-PRADDR:     jsr     HEXWORD         ; Outputs word at P0SCRATCH,x as 4-char ascii hex
+PRADDR:     jsr     HEXENCOD        ; Outputs word at P0SCRATCH,x as 4-char ascii hex
             lda     #':'            ; Output the bank separator
             sta     (OUTBUFP),y     ;
             iny                     ; Advance one pos in output buffer

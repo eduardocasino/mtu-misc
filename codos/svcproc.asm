@@ -8,6 +8,7 @@
 
             .importzp PCSAVE, INPBUFP, OUTBUFP, U0, U3, U5, U7, P0SCRATCH, CMDLIDX
             .importzp CURFINFO, TMPBUFP, FILEPOS, BYTRES, DESTBUFF, MEMBUFF, MEMCOUNT
+            .importzp TMPPTR
 
             .include "codos.inc"
 
@@ -40,8 +41,8 @@ FNPTRT:     .word   PRCODOS         ; Show registers, enter CODOS monitor
             .word   POUTBUFF        ; Print Y characters from (OUTBUFP) to channel X
             .word   HEXDECOD        ; Decode hexadecimal ASCII string to 16-bit value
             .word   DECDECOD        ; Decode decimal ASCII string to 16-bit value
-            .word   HEXWORD0        ; Encode 16-bit value to hexadecimal ASCII string
-            .word   DECWORD         ; Encode 16-bit value to decimal ASCII string
+            .word   HEXENCOD0       ; Encode 16-bit value to hexadecimal ASCII string
+            .word   DECENCOD        ; Encode 16-bit value to decimal ASCII string
             .word   GETARGS         ; Obtain line buffers and argument index
             .word   CMDEXEC         ; Execute any CODOS Monitor command
             .word   ISASSIGNED      ; Determine if channel is assigned or available

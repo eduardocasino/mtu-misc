@@ -4,7 +4,7 @@
 ; Page:       1
 
             .importzp MEMBUFF, MEMCOUNT, TMPBUFP, INPBUFP, P0SCRATCH, DESTBUFF
-            .importzp ERRNUM, SVCENB, PCSAVE, CMDLIDX, BYTRES
+            .importzp ERRNUM, SVCENB, PCSAVE, CMDLIDX, BYTRES, TMPPTR
 
             .include "codos.inc"
 

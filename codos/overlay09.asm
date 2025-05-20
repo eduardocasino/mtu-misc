@@ -61,13 +61,13 @@ GETLOC:     jsr     GETFILNDRV      ; Get file and drive from the command line
             sta     P0SCRATCH,x     ; at MEMCOUNT)
             dex                     ;
             bpl     @CPPT           ;
-            jsr     HEXWORD0        ; Convert entry to ASCII HEX into (OUTBUFP),y
+            jsr     HEXENCOD0       ; Convert entry to ASCII HEX into (OUTBUFP),y
             iny                     ; Leave three spaces
             iny                     ;
             iny                     ;
             sty     LOADPOS         ; Save pos of load address for next lines
 @PRBLK:     ldx     #_MEMBUFF       ; Convert load address to ASCII HEX
-            jsr     HEXWORD         ;
+            jsr     HEXENCOD        ;
             iny                     ; Leave two spaces
             iny                     ;
             lda     SAVEDHDR+_MEMBK ; Get memory bank
@@ -94,7 +94,7 @@ GETLOC:     jsr     GETFILNDRV      ; Get file and drive from the command line
             lda     MEMBUFF+1       ;
             adc     MEMCOUNT+1      ;
             sta     P0SCRATCH+1     ;
-            jsr     HEXWORD0        ; Print it
+            jsr     HEXENCOD0       ; Print it
             lda     CURFINFO+_FPOS  ; Calculate file pos for next block
             clc                     ; adding size to current position
             adc     MEMCOUNT        ;

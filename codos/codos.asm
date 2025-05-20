@@ -94,7 +94,7 @@ U7:         .res 3                  ; $BE  File position (3 bytes)
             ; is entered
 
             .export P0SCRATCH, MEMBUFF, MEMCOUNT, TMPBUFP, INPBUFP, OUTBUFP
-            .export DESTBUFF, L00D2, BYTRES, PCSAVE, FILEPOS
+            .export DESTBUFF, L00D2, BYTRES, TMPPTR, PCSAVE, FILEPOS
 
 P0SCRATCH:  .res 2                  ; $C1-$C2 (word)
 MEMBUFF:    .res 2                  ; $C3-$C4 (word) Pointer to buffer for memory copy operations
@@ -192,7 +192,9 @@ NFILES:     .res 1                  ; $029B Used to navigate through disk file e
 SAVEX10:    .res 1                  ; $029C
 SAVEA5:     .res 1                  ; $029D
 SAVEA6:     .res 1                  ; $029E
-            .res 1                  ; $029F
+PRLEADING0: .res 1                  ; $029F Print leading 0s flag. Used in number
+                                    ;   to ASCII conversion routines.
+                                    ;   If bit 7 = 1, print leading zeroes
             .res 1                  ; $02A0
 SAVEY5:     .res 1                  ; $02A1
 SAVEY6:     .res 1                  ; $02A2
@@ -3043,40 +3045,40 @@ FREECH:     jsr     GETDEV          ; Get device or file for the channel
             ldx     DEVICE          ; Device not assigned to any other channel
             bmi     @DOFREE         ; If it is not a file, go to unassign channel
             jsr     FFLUSH          ; Flush pending changes to disk
-            jsr     ZEROFILEP
-            jsr     RDFPSECT
-            lda     CURFINFO+_FSIZE+1
-            ora     CURFINFO+_FSIZE+2
-            bne     @LF5F9
-            lda     CURFINFO+_FSIZE
-            cmp     #$41
-            bcs     @LF5F9
-            jmp     LF639
+            jsr     ZEROFILEP       ; Zeroes file pointer
+            jsr     RDFPSECT        ; Reads first sector of file
+            lda     CURFINFO+_FSIZE+1 ; Check if file size >= 256
+            ora     CURFINFO+_FSIZE+2 ;
+            bne     @CONT           ; Yes, continue
+            lda     CURFINFO+_FSIZE ; Check if file size is at least 1 byte
+            cmp     #FHDRLEN+1      ; (excluding the file header)
+            bcs     @CONT           ; Yes, continue
+            jmp     FDELCURR        ; No, delete file
 
-@LF5F9:     ldy     #$13
-            ldx     #$02
-@LF5FD:     lda     CURFINFO+_FSIZE,x
-            cmp     (CURFINFO+_BUFF),y
-            beq     @LF60B
-            sta     (CURFINFO+_BUFF),y
-            lda     CURFINFO+_FLAGS
-            ora     #$40            ; Set _WTFCK flag
-            sta     CURFINFO+_FLAGS
-@LF60B:     dey
-            dex
-            bpl     @LF5FD
-            jsr     FLUSH
-            ldx     CURFINFO+_DRIVE
-            lda     BATCHG,x
-            bpl     @LF61C
-            jsr     WRTBAT
-@LF61C:     lda     #FLUNUSED
-            ldx     DEVICE
-            sta     FINFOTBL+_FLAGS,x
-@DOFREE:    ldx     CHANNEL         
-            lda     #$00
-            sta     IOCHTBL,x
-@RETURN:    rts
+@CONT:      ldy     #_FLEN+2        ; Compare FINFO file length to header file length
+            ldx     #$02            ;
+@CMPBYT:    lda     CURFINFO+_FSIZE,x ;
+            cmp     (CURFINFO+_BUFF),y ;
+            beq     @NXTBYT         ; This byte is the same, continue to next one
+            sta     (CURFINFO+_BUFF),y ; Different, update FINFO
+            lda     CURFINFO+_FLAGS ; And pending changes flag
+            ora     #FISDIRTY       ;
+            sta     CURFINFO+_FLAGS ;
+@NXTBYT:    dey                     ; Advance no next byte
+            dex                     ;
+            bpl     @CMPBYT         ; And continue until no more
+            jsr     FLUSH           ; Flush buffer changes to disk
+            ldx     CURFINFO+_DRIVE ; Get drive
+            lda     BATCHG,x        ; Check if its BAT has changes
+            bpl     @SKIP           ; No, skip updating
+            jsr     WRTBAT          ; Write BAT to disk
+@SKIP:      lda     #FLUNUSED       ; Mark entry for this deviceas unused
+            ldx     DEVICE          ;
+            sta     FINFOTBL+_FLAGS,x ;
+@DOFREE:    ldx     CHANNEL         ; 
+            lda     #$00            ; Free channel and return
+            sta     IOCHTBL,x       ;
+@RETURN:    rts                     ;
 
 
 ; Delete file in FNAMBUF from drive X
@@ -3087,46 +3089,54 @@ FDELETE:    jsr     DRVVALIDO       ; Check that drive X is valid and open
             stx     CURRDRV         ; Set as current drive
             jsr     FOPEN0          ; Assigns channel 0 to file (fails if not found)
             jsr     CHKLCK          ; Ensure it is not locked
-LF639:      ldy     #$15
-            lda     (CURFINFO+_BUFF),y
-            jsr     RDSECTATR12
-            ldy     #$14
-            lda     (CURFINFO+_BUFF),y
-            tax
-            sta     DIRPOINT
-            ldy     #$01
-LF64A:      lda     DIRBUF,x
-            cmp     #$2E
-            beq     LF65C
-            cmp     (CURFINFO+_BUFF),y
-            beq     LF658
+            ; Fall through
+
+; Delete current file
+;
+FDELCURR:   ldy     #_NSEC          ; Get sector in track 12 of the directory
+            lda     (CURFINFO+_BUFF),y ;
+            jsr     RDSECTATR12     ; Read it
+            ldy     #_NENT          ; Get offset to entry in directory sector
+            lda     (CURFINFO+_BUFF),y ;
+            tax                     ; Transfer to X to use it as index
+            sta     DIRPOINT        ; Save it into DIRPOINT
+            ldy     #_FNAM          ; Index to file name in the FINFO
+                                    ; Check that file names match
+@CMPCHR:    lda     DIRBUF,x        ; Get char of file name
+            cmp     #'.'            ; Is it the extension separator
+            beq     @DELETE         ; Yes, seems good, start deleting
+            cmp     (CURFINFO+_BUFF),y ; No, compare to file in directory entry
+            beq     @CMPNXT         ; Match, go compare the next char
             jsr     ERROR50         ; System crash: Directory redundancy check failed.
-LF658:      iny
-            inx
-            bne     LF64A
-LF65C:      ldx     DIRPOINT
-            lda     #$00
-            sta     DIRBUF,x
-            jsr     WRTRCK12
+@CMPNXT:    iny                     ;
+            inx                     ;
+            bne     @CMPCHR         ; Continue until the extension found or mismatch
+@DELETE:    ldx     DIRPOINT        ; Get offset to entry in directory sector
+            lda     #$00            ; Mark entry as deletes
+            sta     DIRBUF,x        ;
+            jsr     WRTRCK12        ; Update directory on disk
             ldy     #_BNENT         ; Get number of files on disk
-            lda     (BATP),y        ;
-            sec
-            sbc     #$01
-            jsr     SETNEXTBLK
-            ldy     CURFINFO+_BATPT
-            jsr     FREEBLK
-            lda     #FLUNUSED
-            ldx     DEVICE
-            sta     FINFOTBL+_FLAGS,x
-            ldx     #$09
-LF680:      lda     IOCHTBL,x
-            cmp     DEVICE
-            bne     LF68D
-            lda     #$00
-            sta     IOCHTBL,x
-LF68D:      dex
-            bpl     LF680
-            rts
+            lda     (BATP),y        ; 
+            sec                     ; Clear borrow for substraction
+            sbc     #$01            ; Decrease number
+                                    ; Now it uses SETNEXTBLK to update the number of
+                                    ; files in the BAT (Y is _BNENT, A is the new
+                                    ; file count)
+            jsr     SETNEXTBLK      ; Set new file count A for offset Y into the current
+            ldy     CURFINFO+_BATPT ; Get index to first block of file
+            jsr     FREEBLK         ; Free chain of blocks starting at block Y
+            lda     #FLUNUSED       ; Mark as unused in active files table
+            ldx     DEVICE          ;
+            sta     FINFOTBL+_FLAGS,x ;
+            ldx     #$09            ; Search for file's device in the IO Channel table
+@UNASSGN:   lda     IOCHTBL,x       ; Check if assigned to this channel
+            cmp     DEVICE          ;
+            bne     @NXTCHN         ; No, check next
+            lda     #$00            ; Yes, mark as not assigned
+            sta     IOCHTBL,x       ;
+@NXTCHN:    dex                     ; Next channel
+            bpl     @UNASSGN        ; Repeat unti no more channels
+            rts                     ;
 
 ; Free chain of blocks starting at block Y
 ;
@@ -3193,7 +3203,7 @@ GETAFTNTRY: lda     #$00            ; Inits file number
             sta     CURFINFO+_BATPT ; Store into FINFO
             lda     #FLUNUSED       ; Mark it as unused   
             sta     CURFINFO+_FLAGS ;
-            rts
+            rts                     ;
 
 
 ; FSCAN a file or device
@@ -3221,7 +3231,7 @@ FSCAN:      lda     (TMPBUFP),y     ; Check if first char is alphabetic
 @DEVICE:    sec                     ; Is device (carry set)
             rts                     ;
 
-@FILE0:     dey
+@FILE0:     dey                     ;
 @FILE:      lda     DEFDRV          ; Set current drive to the default
             sta     CURRDRV         ;
             lda     #$00            ;
@@ -3261,15 +3271,24 @@ FSCAN:      lda     (TMPBUFP),y     ; Check if first char is alphabetic
             bne     SETFLG          ; Don't exist, do not set that flag
             lda     #$20            ; Set file exist bit
             bne     SETFLG          ; Always jump
+            ; Not reached
+
+; Set illegal file name in flags
+; 
 NVALID:     lda     #$80            ; Set bit 7 (illegal file name)
             bne     SETFLG          ; Always jump
+            ; Not reached
+
+
+; Set drive not open in flags
+;      
 NOPEN:      lda     #$40            ; Set bit 6 (Drive not open)
 SETFLG:     ora     SCANFLG         ; Set flag
             ora     CURRDRV         ; Add drive to bits 0 and 1
             sta     SCANFLG         ;
             clc                     ; Is file (carry clear)
             bit     SCANFLG         ; And set N and V flags with bit 7 and 6
-            rts
+            rts                     ;
 
 ; Search for FNAMBUF in the directory table
 ; Returns:
@@ -3361,27 +3380,27 @@ NXTDIRENT:  clc                     ;
 ;
             .export INITFILE
 
-INITFILE:   lda     #FHDRLEN            ; Set file size to 64
-            sta     CURFINFO+_FSIZE     ;
-            lda     #$00                ;
-            sta     CURFINFO+_FSIZE+1   ;
-            sta     CURFINFO+_FSIZE+2   ;
+INITFILE:   lda     #FHDRLEN          ; Set file size to 64
+            sta     CURFINFO+_FSIZE   ;
+            lda     #$00              ;
+            sta     CURFINFO+_FSIZE+1 ;
+            sta     CURFINFO+_FSIZE+2 ;
             ; Fall through
 
 ; Zeroes file pointer
 ;
             .export ZEROFILEP
 
-ZEROFILEP:  lda     #$00                ; Value to store in CURFINFO+_FPOS
+ZEROFILEP:  lda     #$00            ; Value to store in CURFINFO+_FPOS
             ; Fall through
 
 ; Sets file pointer to value in A
 ;
-SETFILEP:   sta     CURFINFO+_FPOS      ; Set file pointer to A
-            lda     #$00                ; Set file pointer MSBs to 0
-            sta     CURFINFO+_FPOS+1    ;
-            sta     CURFINFO+_FPOS+2    ;
-            rts                         ;
+SETFILEP:   sta     CURFINFO+_FPOS   ; Set file pointer to A
+            lda     #$00             ; Set file pointer MSBs to 0
+            sta     CURFINFO+_FPOS+1 ;
+            sta     CURFINFO+_FPOS+2 ;
+            rts                      ;
 
 ; Copy file name from buffer pointed by (TMPBUFP) to FNAMBUF
 ;
@@ -3484,21 +3503,31 @@ ISNUM:      cmp     #'0'            ; Is it a number?
 VALFNCHR:   cmp     ULINE           ; Is underline?
             bne     ISALPHANUM      ; No, check alphanumeric
             clc                     ; Yes, return OK
-            rts
+            rts                     ;
 
-; Converts word at P0SCRATCH into its 4-char ascii hex representation
+; SVC 10
+;
+; Encode 16-bit value to hexadecimal ASCII string. 
+;
+; Arguments:
+;       Y = Index to byte in buffer to receive first character encoded. 
+;       UO/P0SCRATCH = Value to be encoded.
+;       U6/OUTBUFP = Pointer to buffer
+;
+; Returns:
+;       Y = Index to byte after last character of hex number
+;
+            .export HEXENCOD0
+
+HEXENCOD0:  ldx     #$00            ; Set index to P0SCRATCH to 0
+            ; Fall through
+
+; Encode  word at P0SCRATCH,x into its 4-char ascii hex representation
 ; at  (OUTBUFP),y
 ;
-            .export HEXWORD0
+            .export HEXENCOD
 
-HEXWORD0:   ldx     #$00            ; Set index to P0SCRATCH to 0
-
-; Converts word at P0SCRATCH,x into its 4-char ascii hex representation
-; at  (OUTBUFP),y
-;
-            .export HEXWORD
-
-HEXWORD:    lda     P0SCRATCH+1,x   ; Gets most significant byte
+HEXENCOD:   lda     P0SCRATCH+1,x   ; Gets most significant byte
             jsr     HEXBYTE         ; Converts it
             lda     P0SCRATCH,x     ; Gets less significant byte
             ; Fall through
@@ -3533,74 +3562,110 @@ NIBBLE:     and     #$0F            ; Get lower nibble
             rts                     ; and return
 
 
+; SVC 9
+;
 ; Decode decimal ASCII string in (INPBUFP) to 16-bit value
+;
+; Arguments:
+;       Y = Index to first character of string to be decoded
+;       U5/INPBUFP = Pointer to the string of ASCII characters
+;
+; Returns:
+;       A Delimiting character encountered.
+;       Y = Index to delimiting character.
+;       Flags: Cy = 1 if at least one valid decimal digit was encountered prior to the
+;       delimiter.
+;       UO/P0SCRATCH = Value returned (in normal low-byte, high-byte order).
 ;
             .export DECDECOD
 
-DECDECOD:   lda     #$0A        
-            jsr     LF915
-LF8BF:      sec
-            sbc     #$30
-            bcc     LF8EB
-            cmp     TMPPTR
-            bcs     LF8EB
-            jsr     LF8F1
-            jmp     LF8BF
+DECDECOD:   lda     #$0A            ; Init base 10 decoding (stored in TMPPTR),
+            jsr     INITDEC         ;   inits result in P0SCRATCH and returns first
+                                    ;   ascii digit in A
+@DIGIT:     sec                     ; Clear borrow for substraction
+            sbc     #'0'            ; Convert digit to value
+            bcc     ENDDEC          ; If borrow, it was an invalid digit (terminator)
+            cmp     TMPPTR          ; Compare to base
+            bcs     ENDDEC          ; >= 10 ? Yes, invalid digit (terminator)
+            jsr     DECDIGIT        ; No, decode digit
+            jmp     @DIGIT          ; Next digit
+            ; Not reached
 
-; Decode hexadecimal ASCII string in (INPBUFP) to 16-bit value ??
+; SVC 8
+;
+; Decode hexadecimal ASCII string in (INPBUFP) to 16-bit value
+;
+; Arguments:
+;       Y = Index to first character of string to be decoded
+;       U5/INPBUFP = Pointer to the string of ASCII characters
+;
+; Returns:
+;       A Delimiting character encountered.
+;       Y = Index to delimiting character.
+;       Flags: Cy = 1 if at least one valid hex digit was encountered prior to the
+;       delimiter.
+;       UO/P0SCRATCH = Value returned (in normal low-byte, high-byte order).
 ;
             .export HEXDECOD
 
-HEXDECOD:   lda     #$10
-            jsr     LF915
-
-LF8D3:      sec                     ; Substract "0" from the char
+HEXDECOD:   lda     #$10            ; Init base 16 decoding (stored in TMPPTR),
+            jsr     INITDEC         ;   inits result in P0SCRATCH and returns first
+                                    ;   ascii digit in A 
+@DIGIT:     sec                     ; Substract "0" from the char
             sbc     #'0'            ;
-            bcc     LF8EB
+            bcc     ENDDEC          ; If borrow, it was an invalid digit (terminator)
             cmp     #$0A            ; 0 to 9
             bcc     @ISVAL          ; Yes, got valid digit
-
             sbc     #$07            ; Substract 7 and check if hexadecimal
-            cmp     #$0A            ; A or higher?
-            bcc     LF8EB
-            cmp     #$10
-            bcs     LF8EB
+            cmp     #$0A            ; less than A?
+            bcc     ENDDEC          ; If borrow, it was an invalid digit (terminator)
+            cmp     #$10            ; Greater than F?
+            bcs     ENDDEC          ; Yes, it was an invalid digit (terminator)
+@ISVAL:     jsr     DECDIGIT        ; No, decode digit
+            bne     @DIGIT          ; Next digit
 
-@ISVAL:     jsr     LF8F1
-            bne     LF8D3
-LF8EB:      rol     $029F           ; Clear flag
+ENDDEC:     rol     PRLEADING0      ; Set carry if at least one valid digit was found
             jmp     GETNEXTCH       ; Return delimiter char in A and index to delimiter
                                     ; in Y
             ; Not reached
 
-LF8F1:      pha
-            stx     SAVEX1
-            ldx     #$17
-            jsr     LFB29
-            pla
-            clc
-            adc     P0SCRATCH
-            sta     P0SCRATCH
-            lda     P0SCRATCH+1
-            adc     #$00
-            sta     P0SCRATCH+1
-            bcc     LF90B
-            jsr     ERROR19             ; Arithmetic overflow.
+DECDIGIT:   pha                     ; Save accumulator and X
+            stx     SAVEX1          ;
+            ldx     #_TMPPTR        ; Recover base
+            jsr     MULT16_16       ; RESULT * BASE -> RESULT
+            pla                     ; Restore A
+            clc                     ; Clear carry for addition
+            adc     P0SCRATCH       ; Add result to current digit value
+            sta     P0SCRATCH       ;
+            lda     P0SCRATCH+1     ;
+            adc     #$00            ;
+            sta     P0SCRATCH+1     ;
+            bcc     @CONT           ; If $FFFF or less, continue
+            jsr     ERROR19         ; Arithmetic overflow.
             ; Not reached
 
-LF90B:      dec     $029F
-            ldx     SAVEX1
-            iny
-            lda     (INPBUFP),y
-            rts
+@CONT:      dec     PRLEADING0      ; Sets PRLEADING0
+            ldx     SAVEX1          ; Restore X
+            iny                     ; Get next digit
+            lda     (INPBUFP),y     ;
+            rts                     ; And return
 
-LF915:      sta     TMPPTR          ; Save count in TMPPTR
+
+; Init decimal or hexadecimal string to 16-bit value decoding
+;
+; On entry, A contains the base
+; On exit, A contains first string character
+;
+INITDEC:    sta     TMPPTR          ; Save base in TMPPTR
             lda     #$00            ;
             sta     TMPPTR+1        ;
-            sta     P0SCRATCH       ; Init buffer pointer
+            sta     P0SCRATCH       ; Init result
             sta     P0SCRATCH+1     ;
-            sta     $029F           ; Clear which flag???
-            beq     GETNEXTNB       ; Always jump to get next non blank
+            sta     PRLEADING0      ; Clear flag. In the decoding functions, this
+                                    ; variable is used to return carry depending
+                                    ; on the number of digits decoded: Cy clear
+                                    ; if none, Cy set if at least one
+            beq     GETNEXTNB       ; Always jump to get next non blank and returns
             ; Not reached
 
 ; Get next non-blank character from buffer starting at current pos + 1
@@ -3608,7 +3673,7 @@ LF915:      sta     TMPPTR          ; Save count in TMPPTR
 ;
             .export GETNEXTNB1
 
-GETNEXTNB1: iny
+GETNEXTNB1: iny                     ; Advance position in command line buffer
             ; Fall through
 
 
@@ -3617,11 +3682,11 @@ GETNEXTNB1: iny
 ;
             .export GETNEXTNB
 
-GETNEXTNB:  jsr     GETNEXTCH
+GETNEXTNB:  jsr     GETNEXTCH       ; Get character from command line
             beq     @RETURN         ; If null or semicolon, return
             cmp     #$20            ; If blank,
             beq     GETNEXTNB1      ;   get next char
-@RETURN:    rts
+@RETURN:    rts                     ;
 
 ; Get char from (INPBUFP),y+1 and return it in A
 ; If No more chars (NULL , ';' or EOL), zero flag is set
@@ -3629,7 +3694,7 @@ GETNEXTNB:  jsr     GETNEXTCH
 ;
             .export GETNEXTCH1
 
-GETNEXTCH1: iny
+GETNEXTCH1: iny                     ; Advance one pos in command line buffer
             ; Fall through
 
 ; Get char from (INPBUFP),y and return it in A
@@ -3645,13 +3710,13 @@ GETNEXTCH:  lda     (INPBUFP),y     ; Get char from input buffer
             beq     @CCRET          ; Yes, return success
             cmp     SCOLON          ; Set zero flag if semicolon
 @CCRET:     clc                     ; Clear carry
-            rts
+            rts                     ;
 
 @CSCONT:    cmp     #$0D            ; End of line
             beq     @CSRET          ; Yes, return with carry set
             cmp     SCOLON          ; Set zero flag if semicolon
-@CSRET:     sec
-@RETURN:    rts
+@CSRET:     sec                     ;
+@RETURN:    rts                     ;
 
 
 ; Output program counter and registers to output line buffer
@@ -3666,7 +3731,7 @@ OUTREGSLB:  jsr     SETOUTBCH       ; Set output line buffer as destination
 OUTREGS:    jsr     OUTSTR          ; Print string
             .byte   "P=", $0        ;
             ldx     #_PCSAVE        ; Print Program Counter as an HEX word
-            jsr     HEXWORD         ; Print address
+            jsr     HEXENCOD        ; Print address
             lda     #':'            ; Bank separator
             sta     (OUTBUFP),y     ;
             iny                     ;
@@ -3689,51 +3754,54 @@ OUTREGS:    jsr     OUTSTR          ; Print string
             lda     #'('            ;
             sta     (OUTBUFP),y     ;
             iny                     ;
-            jsr     POUTBUFF02      ; Print output buffer to console
-            jsr     LF9BA
-            jsr     HEXBYTE
-            dey
-            jsr     LF9BA
-            iny
-            jsr     HEXBYTE
-LF98D:      dey
-            dey
-            jsr     LF9BA
-            iny
-            iny
-            jsr     HEXBYTE
-            lda     #$29
-            sta     (OUTBUFP),y
-            iny
-            ldx     #$04
-LF99E:      lda     #$20
-            sta     (OUTBUFP),y
-            iny
-            lda     REGDESC,x
-            sta     (OUTBUFP),y
-            iny
-            lda     #$3D
-            sta     (OUTBUFP),y
-            iny
-            lda     STACKP,x
-            jsr     HEXBYTE
-            dex
-            bpl     LF99E
+            jsr     POUTBUFF02      ; Print output buffer to console ( Sets Y = 0 )
+            jsr     GETPCCONT       ; Contents of memory at P through P+2 in hex
+            jsr     HEXBYTE         ;
+            dey                     ;
+            jsr     GETPCCONT       ;
+            iny                     ;
+            jsr     HEXBYTE         ;
+            dey                     ;
+            dey                     ;
+            jsr     GETPCCONT       ;
+            iny                     ;
+            iny                     ;
+            jsr     HEXBYTE         ;
+            lda     #')'            ;
+            sta     (OUTBUFP),y     ;
+
+            iny                     ; Print content of registers                     
+            ldx     #$04            ; Number of registers - 1
+@PREG:      lda     #' '            ; Separator
+            sta     (OUTBUFP),y     ;
+            iny                     ;
+            lda     REGDESC,x       ; Get register name from table
+            sta     (OUTBUFP),y     ; and copy to output buffer
+            iny                     ;
+            lda     #'='            ;
+            sta     (OUTBUFP),y     ;
+            iny                     ;
+            lda     STACKP,x        ; Get content of register
+            jsr     HEXBYTE         ; to output buffer
+            dex                     ; Next register
+            bpl     @PREG           ; Until no more
             jmp     POUTBUFF02      ; Print output buffer to console
 
-LF9BA:      lda     PRGBANK
-            eor     DEFBNKCFG
-            sta     BNKCTL
-            lda     (PCSAVE),y
-            ldx     DEFBNKCFG
-            stx     BNKCTL
-            rts
+; Get contents of memory at (PCSAVE),y 
+; 
+GETPCCONT:  lda     PRGBANK         ; Switch to program bank
+            eor     DEFBNKCFG       ;
+            sta     BNKCTL          ;   
+            lda     (PCSAVE),y      ; Get value at PC
+            ldx     DEFBNKCFG       ; And switch to default bank
+            stx     BNKCTL          ;
+            rts                     ;
 
 ; String of valid register names
 ;
             .export REGDESC
 
-REGDESC:    .byte   "SFYXA"
+REGDESC:    .byte   "SFYXA"         ;
 
 ; Output Y characters from (OUTBUFP) to channel 2 (console output)
 ; followed by a CR
@@ -3741,7 +3809,7 @@ REGDESC:    .byte   "SFYXA"
 POUTBUFFCR02:
             .export POUTBUFFCR02
 
-            ldx     #$02
+            ldx     #$02            ; Set console
             ; Fall through
 
 ; Output Y characters from (OUTBUFP) to channel X
@@ -3749,22 +3817,22 @@ POUTBUFFCR02:
 ;
             .export POUTBUFFCR
 
-POUTBUFFCR: jsr     POUTBUFF
+POUTBUFFCR: jsr     POUTBUFF        ; Output characters to channel X
             ; Fall through
 
 ; Output a CR to channel X
 ;
             .export OUTCR
 
-OUTCR:      lda     #$0D
-            jmp     OUTCHAR
+OUTCR:      lda     #$0D            ; Load CR
+            jmp     OUTCHAR         ; And output to channel
             ; Not reached
 
 ; Output Y characters from (OUTBUFP) to channel 2 (console output)
 ;
             .export POUTBUFF02
 
-POUTBUFF02: ldx     #$02
+POUTBUFF02: ldx     #$02            ; Set console
             ; Fall through
 
 ; Output Y characters from (OUTBUFP) to channel X
@@ -3778,9 +3846,9 @@ POUTBUFF:   sty     MEMCOUNT        ; Set length
             sta     MEMBUFF         ;
             lda     OUTBUFP+1       ;
             sta     MEMBUFF+1       ;
-            jsr     OUTMBUFF
-            ldy     #$00
-            rts
+            jsr     OUTMBUFF        ; Output to channel X
+            ldy     #$00            ;
+            rts                     ;
 
 ; Get line from input channel in X and store into INPBUFP
 ; Returns carry clear if success, carry set on error (no input)
@@ -3789,7 +3857,7 @@ POUTBUFF:   sty     MEMCOUNT        ; Set length
 ;LF9F1
             .export GETLINE
 
-GETLINE:    ldy     #$00
+GETLINE:    ldy     #$00            ;
             lda     IOCHTBL,x       ; Get device/file for channel in X
             cmp     #$82            ; Is it the console?
             bne     @FROMDEV        ; No, jump
@@ -3813,9 +3881,9 @@ GETLINE:    ldy     #$00
             sta     (INPBUFP),y     ;
             tya                     ; Return length (excluding end of line)
             beq     @RETURN         ; No input, return
-            clc
-@RETURN:    ldy     #$00
-            rts
+            clc                     ; Success
+@RETURN:    ldy     #$00            ;
+            rts                     ;
 
 ; Get character from input channel in X and return it in A
 ; Carry clear on success, carry set if no input
@@ -3829,7 +3897,7 @@ GETCHAR:    lda     IOCHTBL,x       ; Get devive/file for channel in X
             cmp     EOF             ; No input?
             beq     @RETURN         ; Return
             clc                     ; Clear carry (success)
-@RETURN:    rts
+@RETURN:    rts                     ;
 
 @FROMDEV:   jsr     CHRRDPREP       ; Prepare transfer of SAVECH from device/file
             sec                     ; Set ignore memory write protection flag
@@ -3847,7 +3915,7 @@ RESTRREGS:  ldy     SAVEY3          ; Restore registers (saved by CHRRDPREP
             ldx     SAVEX3          ;  or CHRWRPREP)
             lda     SAVECH          ; Get transferred char
             plp                     ; Recover processor status
-            rts
+            rts                     ;
 
 ; Get one char from the console
 ;
@@ -3858,35 +3926,45 @@ JCINP:      jmp     (CINP)          ; Jump to console input routine
 ;
             .export OUTSTR
 
-OUTSTR:     stx     $0287           ; Save X
-            ldx     #$02            ; X = 2
-            bne     LFA5A           ; Always jump
-            stx     $0287           ; Dead code?
-LFA5A:      sta     $0288           ; Save A
-            sty     $0289           ; Save Y
+OUTSTR:     stx     SAVEX2          ; Save X
+            ldx     #$02            ; X = 2, what for?
+            bne     @CONT           ; Always jump
+            stx     SAVEX2          ; Dead code?
+@CONT:      sta     SAVEA1          ; Save A
+            sty     SAVEY2          ; Save Y
             pla                     ; Get PC and save in TMPPTR. PC points
             sta     TMPPTR          ; to last opcode of instruction
             pla                     ;
             sta     TMPPTR+1        ;
-LFA66:      inc     TMPPTR          ; Increment PC (points to first char of string)
-            bne     LFA6C           ;
+@NEXT:      inc     TMPPTR          ; Increment PC (points to first char of string)
+            bne     @GETC           ;
             inc     TMPPTR+1        ;
-LFA6C:      ldy     #$00
+@GETC:      ldy     #$00            ;
             lda     (TMPPTR),y      ; Get char
-            beq     LFA78           ; If null, end of string
+            beq     @FINISH         ; If null, end of string
             jsr     OUTCHAR         ; Print char
-            jmp     LFA66           ; Loop
+            jmp     @NEXT           ; Loop
 
-LFA78:      lda     TMPPTR+1        ; Push new PC to the stack
+@FINISH:    lda     TMPPTR+1        ; Push new PC to the stack
             pha                     ;
             lda     TMPPTR          ;
             pha                     ;
-            ldy     $0289           ; Restore indexes
-            lda     $0288           ;
-            ldx     $0287           ;
-            rts
+            ldy     SAVEY2          ; Restore indexes
+            lda     SAVEA1          ;
+            ldx     SAVEX2          ;
+            rts                     ;
 
+
+; SVC 4
+;
 ; Output character in A to channel in X
+;
+; Arguments:
+;       X = Channel 
+;       A Byte to output
+;
+; Returns:
+;       FLAGS: CY = 1 if at End-of-File after output operation
 ;
             .export OUTCHAR
 
@@ -3896,11 +3974,11 @@ OUTCHAR:    sta     SAVECH          ; Save char
             bne     @TODEV          ; No, jump
             lda     SAVECH          ; Recover char
             jsr     JCOUTP          ; And output to console
-            sec                     ; Set carry (Why?)
-            rts
+            sec                     ; Set carry (End-of-file)
+            rts                     ; 
 @TODEV:     jsr     CHRWRPREP       ; Prepare transfer to memory buffer
             jsr     OUTMBUFF        ; Outputs memory buffer to device
-            php
+            php                     ; Save flags
             jmp     RESTRREGS       ; Restore regs (saved by CHRWRPREP) and processor
                                     ; status
             ; Not reached
@@ -3924,51 +4002,66 @@ CHRWRPREP:  stx     SAVEX3          ; Save X
             sta     MEMBUFF         ;
             lda     #>SAVECH        ;
             sta     MEMBUFF+1       ;
-            rts
+            rts                     ;
 
-JCOUTP:     jmp     (COUTP)             ; Jump to console output routine
+JCOUTP:     jmp     (COUTP)         ; Jump to console output routine
 
-; Encode 16-bit value in P0SCRATCH to decimal ASCII string into
-; (OUTBUFP),Y
+
+; SVC 11
 ;
-            .export DECWORD
+; Encode 16-bit value to decimal ASCII string. 
+;
+; Arguments:
+;       Y = Index to byte in buffer to receive first character encoded. 
+;       UO/P0SCRATCH = Value to be encoded.
+;       U6/OUTBUFP = Pointer to buffer
+;
+; Returns:
+;       Y = Index to byte after last character of decimal number
+;
+            .export DECENCOD
 
-DECWORD:    stx     SAVEX4
-            lda     #$00
-            sta     $029F
-            ldx     #$06
-LFACB:      lda     LFB05,x
-            sta     TMPPTR
-            lda     LFB05+1,x
-            sta     TMPPTR+1
-            stx     SAVEX5
-            ldx     #$17
-            jsr     UDIV
-            lda     P0SCRATCH
-            bne     LFAE8
-            bit     $029F
-            bmi     LFAEC
-            bpl     LFAEF
-LFAE8:      sec
-            ror     $029F
-LFAEC:      jsr     LFAFE
-LFAEF:      jsr     UNU0
-            ldx     SAVEX5
-            dex
-            dex
-            bpl     LFACB
-            ldx     SAVEX4
-            lda     P0SCRATCH
-LFAFE:      clc
-            adc     #$30
-            sta     (OUTBUFP),y
-            iny
-            rts
+DECENCOD:   stx     SAVEX4          ; Save X
+            lda     #$00            ; Clear the print leading 0s flag
+            sta     PRLEADING0      ;
+            ldx     #$06            ; Points to 10^4
+@DECDIG:    lda     POWERS,x        ; Store into TMPPTR
+            sta     TMPPTR          ;
+            lda     POWERS+1,x      ;
+            sta     TMPPTR+1        ;
+            stx     SAVEX5          ; Save index
+            ldx     #_TMPPTR        ;
+            jsr     UDIV            ; P0SCRATCH = P0SCRATCH / TMPPTR
+            lda     P0SCRATCH       ; 
+            bne     @SETPR0         ; If non-0, set print zeroes flag and continue
+            bit     PRLEADING0      ; 0->  Check if print leading zeroes flag set
+            bmi     @PRNDIG         ; Yes, print digit
+            bpl     @DONTPRN        ; No, don't print (Always jump)
+            ; Not reached
 
-LFB05:      .word   $000A
-            .word   $0064
-            .word   $03E8
-            .word   $2710
+@SETPR0:    sec                     ; Set print leading zeroes flag
+            ror     PRLEADING0      ;
+@PRNDIG:    jsr     OUTASCIID       ; Print digit ascii decimal
+@DONTPRN:   jsr     UNU0            ; Copy TMPPTR to P0SCRATCH
+            ldx     SAVEX5          ; Recover index
+            dex                     ; Advance to next power of 10
+            dex                     ;
+            bpl     @DECDIG         ; Repeat decoding digits until last power
+            ldx     SAVEX4          ; Recover X
+            lda     P0SCRATCH       ; Get last digit
+
+; Outputs digit as ascii decimal
+;
+OUTASCIID:  clc                     ; Clear carry for addition
+            adc     #'0'            ; Convert value to ascii decimal digit
+            sta     (OUTBUFP),y     ; Copy to output buffer
+            iny                     ; Incrememt position and return
+            rts                     ;
+
+POWERS:     .word   $000A           ; 10^1
+            .word   $0064           ; 10^2
+            .word   $03E8           ; 10^3
+            .word   $2710           ; 10^4
 
 ; 16-bit add. UADD n for SVC 27
 ; 
@@ -3985,7 +4078,7 @@ UADD:       clc                     ; Clears carry
             lda     P0SCRATCH+1,x   ;
             adc     P0SCRATCH+1     ;
             sta     P0SCRATCH+1     ;
-            rts
+            rts                     ;   
 
 ; 16-bit substract. USUB n for SVC 27
 ;
@@ -4002,22 +4095,26 @@ USUB:       sec                     ; Sets carry for sub
             lda     P0SCRATCH+1     ;
             sbc     P0SCRATCH+1,x   ;
             sta     P0SCRATCH+1     ;
-            rts
+            rts                     ;
 
-LFB29:      jsr     MULT16
-            lda     L00D2+1
-            ora     L00D2
-            bne     LFB6D
-            lda     P0SCRATCH+1
-LFB34:      rts
+; Do a 16-bit product and fails if result is > 16-bit
+;
+; P0SCRATCH * P0SCRATCH,x -> P0SCRATCH
+;
+MULT16_16:  jsr     MULT16_32       ; P0SCRATCH * P0SCRATCH,x -> L00D2:P0SCRATCH
+            lda     L00D2+1         ; Check if greater than $FFFF
+            ora     L00D2           ;
+            bne     ERR19           ; Yes, overflow
+            lda     P0SCRATCH+1     ; Returns P0SCRATCH MSB
+            rts                     ;
 
 ; 
 ; Multiplies two 16 bit numbers using a shift-and-add algorithm
 ;   P0SCRATCH * P0SCRATCH,x -> L00D2:P0SCRATCH
 ;
-            .export MULT16
+            .export MULT16_32
 
-MULT16:     stx     SAVEX10         ; Save X
+MULT16_32:  stx     SAVEX10         ; Save X
             lda     #$00            ; Init result
             sta     L00D2           ;
             sta     L00D2+1         ;
@@ -4044,14 +4141,19 @@ MULT16:     stx     SAVEX10         ; Save X
             sta     L00D2+1         ;
             bcc     @SUMLOOP        ;
 @RETURN:    ldx     SAVEX10         ; Restore X 
-            rts
-
-LFB69:      lda     P0SCRATCH+1,x
-            bne     LFB7B
-LFB6D:      jsr     ERROR19         ; Arithmetic overflow.
+            rts                     ;
 
 
-; 16-bit divide. UDIV n for SVC 27
+; Check if divide by 0 attempt
+;
+DIVBY0:     lda     P0SCRATCH+1,x   ; Is it also 0
+            bne     UDIVCONT        ; No, continue
+ERR19:      jsr     ERROR19         ; Arithmetic overflow.
+
+
+; UDIV n for SVC 27
+;
+; 16-bit divide, using a bit-by-bit division using subtraction and rotation.
 ;
 ; U0 = U0 / Un.
 ; 
@@ -4062,35 +4164,35 @@ LFB6D:      jsr     ERROR19         ; Arithmetic overflow.
             .export UDIV
 
 UDIV:       sty     SAVEY4          ; Save Y
-            lda     P0SCRATCH,x
-            sta     TMPVAL
-            beq     LFB69
-            lda     P0SCRATCH+1,x
-LFB7B:      sta     TMPVAL+1
-            lda     #$00
-            sta     P0SCRATCH,x
-            sta     P0SCRATCH+1,x
-            ldy     #$11
-            clc
-            bcc     LFB9F
-LFB88:      rol     P0SCRATCH,x
-            rol     P0SCRATCH+1,x
-            lda     P0SCRATCH,x
-            sec
-            sbc     TMPVAL
-            sta     L00D2
-            lda     P0SCRATCH+1,x
-            sbc     TMPVAL+1
-            bcc     LFB9F
-            sta     P0SCRATCH+1,x
-            lda     L00D2
-            sta     P0SCRATCH,x
-LFB9F:      rol     P0SCRATCH
-            rol     P0SCRATCH+1
-            dey
-            bne     LFB88
-            ldy     SAVEY4
-            rts
+            lda     P0SCRATCH,x     ; Get LSB of divisor
+            sta     TMPVAL          ; Store into TMPVAL
+            beq     DIVBY0          ; Check if attempting a div by 0
+            lda     P0SCRATCH+1,x   ; Get MSB of divisor
+UDIVCONT:   sta     TMPVAL+1        ; Store into TMPVAL+1
+            lda     #$00            ; Init quotient
+            sta     P0SCRATCH,x     ;
+            sta     P0SCRATCH+1,x   ;
+            ldy     #$11            ; Init iteration loop (16 bits plus carry)
+            clc                     ;
+            bcc     @PREPDIV        ; Go to prepare dividend (Always jumps)
+@ITER:      rol     P0SCRATCH,x     ; Shift a bit from dividend into quotient
+            rol     P0SCRATCH+1,x   ;
+            lda     P0SCRATCH,x     ; Substract the LSB of the divisor from the
+            sec                     ; LSB of the quotient
+            sbc     TMPVAL          ; 
+            sta     L00D2           ; And store into L00D2
+            lda     P0SCRATCH+1,x   ; Substract the MSB of divisor from the
+            sbc     TMPVAL+1        ; MSB of the quotient
+            bcc     @PREPDIV        ; If borrow, skip
+            sta     P0SCRATCH+1,x   ; Updates quotient with result of 
+            lda     L00D2           ; substraction
+            sta     P0SCRATCH,x     ;
+@PREPDIV:   rol     P0SCRATCH       ; Rotates dividend left to prepare
+            rol     P0SCRATCH+1     ; for next bit
+            dey                     ;
+            bne     @ITER           ; If there are more bits, next iteration
+            ldy     SAVEY4          ; No more, restore Y and return
+            rts                     ;
 
 ; 16-bit move, UN to U0. UNU0 n for SVC 27
 ;
@@ -4100,7 +4202,7 @@ UNU0:       lda     P0SCRATCH,x     ; Just copy P0SCRATCH,x to P0SCRATCH
             sta     P0SCRATCH       ;
             lda     P0SCRATCH+1,x   ;
             sta     P0SCRATCH+1     ;
-            rts
+            rts                     ;
 
 ; 16-bit move, U0 to UN. U0UN n for SVC 27
 ;
@@ -4110,7 +4212,7 @@ U0UN:       lda     P0SCRATCH       ; Just copy P0SCRATCH to P0SCRATCH,x
             sta     P0SCRATCH,x     ;
             lda     P0SCRATCH+1     ;
             sta     P0SCRATCH+1,x   ;
-            rts
+            rts                     ;
 
 ; 16-bit exchange. USWP n for SVC 27
 ;
@@ -4127,7 +4229,7 @@ USWP:       lda     P0SCRATCH+1,x   ; Save Un
             sta     P0SCRATCH       ;
             pla                     ;
             sta     P0SCRATCH+1     ;
-            rts
+            rts                     ;
 
 ; Get a byte from the command line and returns in A
 ;
@@ -4141,73 +4243,77 @@ GETBYTE:    stx     SAVEX8          ; Save X
             jsr     ERROR18         ; <value> out of range (greater than $FF or less than 0).
 @CONT:      lda     BYTRES          ; Get result
             ldx     SAVEX8          ; restore X
-            rts
+            rts                     ;
 
 
-; X is the position at P0SCRATCH
+
+; Evaluate expression from command line and store it into P0SCRATCH,X
 ;
-; Evaluate expression
+; Y contains current index into command line
 ;
             .export EVALEXP
 
-EVALEXP:    lda     #$00
-            sta     P0SCRATCH,x     ; Init buffer at pos X and X+1
+EVALEXP:    lda     #$00            ;
+            sta     P0SCRATCH,x     ; Init result
             sta     P0SCRATCH+1,x   ;
             stx     SAVEX6          ; Save X
             tax                     ; X = 0
-            jsr     GETNEXTNB       ; Get next char from command line
-            cmp     #'-'
-            bne     @NODASH
-            inx                     ; Skip dash
-@LFBF3:     iny                     ;
-@NODASH:    stx     TEMP3           
-            ldx     SAVEX6               
+            jsr     GETNEXTNB       ; Get next non-blank from command line
+            cmp     #'-'            ; Is it a dash
+            bne     @NODASH         ; No, jump
+            inx                     ; Set index to substraction operation
+            ; Get operand
+@GETNUM:    iny                     ; Advance one pos in command line
+@NODASH:    stx     TEMP3           ; Store operator index
+            ldx     SAVEX6          ; recover index to buffer 
             jsr     GETNEXTNB       ; Get next non-blank
             cmp     PERIOD          ; Decimal mark?
-            beq     @LFC59          ; Yes, get decinal value
+            beq     @ISDEC          ; Yes, get decinal value
             cmp     DOLLAR          ; Hexadecinal mark?
-            bne     @LFC0A          ; No, but it is hexa anyways, as it is nor decimal
+            bne     @ISHEX          ; No, but it is hexa anyways, as it is nor decimal
             jsr     GETNEXTNB1      ; Get next non-blank (first value digit)
-@LFC0A:     jsr     HEXDECOD        ; Decode hex value
-            bcc     @LFC61
-@LFC0F:     jsr     USWP
-            lda     TEMP3
-            bne     @LFC32
-            jsr     UADD
-@LFC1A:     jsr     USWP
-@LFC1D:     jsr     GETNEXTNB
-            ldx     #ARITHTBLLEN-1  ; Check if it is
-@NXOP:      cmp     ARITHMOP,x      ; an arithmetic operator
-            beq     @LFBF3          ; Yes, go to ...
+@ISHEX:     jsr     HEXDECOD        ; Decode hex value
+            bcc     @RETURN         ; No digit found, return
+            ; Execute operation
+@OPERATE:   jsr     USWP            ; Exchange P0SCRATCH and P0SCRATCH,X
+            lda     TEMP3           ; Get operator index
+            bne     @SUBS           ; If it is not addition, go check substraction
+            jsr     UADD            ; Perform addition
+@NXTOP:     jsr     USWP            ; Swap P0SCRATCH and P0SCRATCH,X back
+@GETOP:     jsr     GETNEXTNB       ; Get next non-blank
+            ldx     #ARITHTBLLEN-1  ; Check if it is an arithmetic operator
+@NXOP:      cmp     ARITHMOP,x      ;
+            beq     @GETNUM         ; Yes, go get operand
             dex                     ; Check next operator
-            bpl     @NXOP           ;
-            ldx     SAVEX6
-            jsr     GETNEXTCH
-            sec
-            rts
+            bpl     @NXOP           ; Continue until found or no more operators
+            ldx     SAVEX6          ; Unrecognised operator. Restore X
+            jsr     GETNEXTCH       ; Get next char
+            sec                     ; And return error
+            rts                     ;
 
-@LFC32:     dec     TEMP3
-            bne     @LFC3D
-            jsr     USUB
-            jmp     @LFC1A
+@SUBS:      dec     TEMP3           ; Is it substraction?
+            bne     @MULT           ; No, check if multiplication
+            jsr     USUB            ; Yes, substract
+            jmp     @NXTOP          ; Get next operator
 
-@LFC3D:     dec     TEMP3
-            bne     @LFC48
-            jsr     LFB29
-            jmp     @LFC1A
+@MULT:      dec     TEMP3           ; Is it multiplication?
+            bne     @DIV            ; No, check division
+            jsr     MULT16_16       ; Yes, so multiplication
+            jmp     @NXTOP          ; Get next operator
 
-@LFC48:     dec     TEMP3
-            bne     @LFC53
-            jsr     UDIV
-            jmp     @LFC1A
+@DIV:       dec     TEMP3           ; Is it division?
+            bne     @MOD            ; No, then it is modulo
+            jsr     UDIV            ; Yes, divide
+            jmp     @NXTOP          ; Get next operator
 
-@LFC53:     jsr     UDIV
-            jmp     @LFC1D
+@MOD:       jsr     UDIV            ; Modulo, do a division and then
+            jmp     @GETOP          ;   jump and not swap, so get remainder instead
+                                    ;   of quotient
 
-@LFC59:     jsr     GETNEXTNB1
-            jsr     DECDECOD
-            bcs     @LFC0F
-@LFC61:     rts
+@ISDEC:     jsr     GETNEXTNB1      ; Get next non-blank
+            jsr     DECDECOD        ; Decode decimal operand
+            bcs     @OPERATE        ; Do the operation if at least one valid digit
+@RETURN:    rts                     ; No more digits, return 
 
 ; Save memory block with header into current file at current position
 ;
@@ -4238,67 +4344,67 @@ SAVEBLK:    sta     SAVEDHDR+_OVLAY ; Set overlay
             bne     @CONT           ;
             inc     MEMCOUNT+1      ;
 @CONT:      bit     SAVDESTPF       ; Check if <dest> is set
-            bpl     LFC9D
-            jsr     SETDSTBUFF
-LFC9D:      ldx     #$02
-            bit     SAVENTRYPF
-            bpl     LFCA6
-            ldx     #$06
-LFCA6:      jsr     UNU0
-            ldx     #$05
-LFCAB:      lda     P0SCRATCH,x
-            sta     SAVEDHDR+_PNTRS,x
-            dex
-            bpl     LFCAB
+            bpl     @CHKENT         ; No, check if entry was set
+            jsr     SETDSTBUFF      ; Set <dest> as loading address
+@CHKENT:    ldx     #_MEMBUFF       ;
+            bit     SAVENTRYPF      ; Is an entry point addr set?
+            bpl     @NOENT          ; No, use use starting address (MEMBUFF)
+            ldx     #_TMPBUFP       ; Yes, use it
+@NOENT:     jsr     UNU0            ; Copy P0SCRATCH,x to P0SCRATCH
+                                    ;   (either MEMBUFF or TMPBUFP)
+            ldx     #_MEMCOUNT+1    ; Copy starting and entry addresses
+@CPYADD:    lda     P0SCRATCH,x     ;
+            sta     SAVEDHDR+_PNTRS,x ;
+            dex                     ;
+            bpl     @CPYADD         ;
             jsr     SVDRWPREP       ; Prepare read/write of "saved file" header
-            ldx     CHANNEL
-            jsr     OUTMBUFF
-            jsr     CPYPTRS
-            bit     SAVDESTPF
-            bpl     LFCC7
-            jsr     SETDSTBUFF
-LFCC7:      ldx     CHANNEL
-            lda     SVDFROMBNK
-            sta     DSTBANK
-            jsr     OUTMBUFF
-            lda     #$00
-            sta     DSTBANK
-            rts
+            ldx     CHANNEL         ; Get channel
+            jsr     OUTMBUFF        ; Output MEMCOUNT bytes from (MEMBUFF) to channel X
+            jsr     CPYPTRS         ; Copy pointers from header to page 0
+            bit     SAVDESTPF       ; Check if <dest> is set
+            bpl     @OUTBUF         ; No, skip 
+            jsr     SETDSTBUFF      ; Set <dest> as loading address
+@OUTBUF:    ldx     CHANNEL         ; Get channel
+            lda     SVDFROMBNK      ; Get <from> bank
+            sta     DSTBANK         ;
+            jsr     OUTMBUFF        ; Output buffer to channel
+            lda     #$00            ; Set default bank
+            sta     DSTBANK         ;
+            rts                     ;
 
 ; Prepare read/write of "saved file" header
 ;
-SVDRWPREP:  lda     #SAVEDHDRLEN
-            sta     MEMCOUNT
-            lda     #$00
-            sta     MEMCOUNT+1
-            lda     #<SAVEDHDR
-            sta     MEMBUFF
-            lda     #>SAVEDHDR
-            sta     MEMBUFF+1
-            rts
+SVDRWPREP:  lda     #SAVEDHDRLEN    ; At least, save header
+            sta     MEMCOUNT        ;
+            lda     #$00            ;
+            sta     MEMCOUNT+1      ;
+            lda     #<SAVEDHDR      ; Point buffer to header
+            sta     MEMBUFF         ;
+            lda     #>SAVEDHDR      ;
+            sta     MEMBUFF+1       ;
+            rts                     ;
 
 ; Copy pointers from "Saved file" header to page 0
 ;
-CPYPTRS:    ldx     #$05
-@LOOP:      lda     SAVEDHDR+_PNTRS,x
-            sta     P0SCRATCH,x
-            dex
-            bpl     @LOOP
-            rts
+CPYPTRS:    ldx     #_MEMCOUNT+1      ;
+@LOOP:      lda     SAVEDHDR+_PNTRS,x ;
+            sta     P0SCRATCH,x       ;
+            dex                       ;
+            bpl     @LOOP             ;
+            rts                       ;
 
-; Copy DESTBUFF pointer to MEMBUFF pointer 
+; Swap DESTBUFF and MEMBUFF pointers 
 ;
-SETDSTBUFF: ldx     #$01
-@LOOP:      lda     DESTBUFF,x
-            pha
-            lda     MEMBUFF,x
-            sta     DESTBUFF,x
-            pla
-            sta     MEMBUFF,x
-            dex
-            bpl     @LOOP
-            rts
-
+SETDSTBUFF: ldx     #$01            ;
+@LOOP:      lda     DESTBUFF,x      ;
+            pha                     ;
+            lda     MEMBUFF,x       ;
+            sta     DESTBUFF,x      ;
+            pla                     ;
+            sta     MEMBUFF,x       ;
+            dex                     ;
+            bpl     @LOOP           ;
+            rts                     ;
 
 ; Loads $58 block from file
 ;
@@ -4306,26 +4412,26 @@ SETDSTBUFF: ldx     #$01
 ;
             .export LOADSVD
 
-LOADSVD:    sta     SAVEA3              ; Save A in temporary storage
-            jsr     LD58HDR             ; Load "saved file" hdr from file at current pos
-            bcs     @RETCS              ; Return with error
-            lda     SAVEDHDR+_OVLAY     ; Check if overlay is same as requested
-            cmp     SAVEA3              ;
-            bne     @RETCS              ; No, return with error
-            jsr     CPYPTRS             ; Yes, copy pointers from header to page 0
-            lda     SAVEDHDR+_MEMBK     ; Set destination bank from header
-            sta     DSTBANK             ;
-            bit     SAVDESTPF           ; Was a <dest> specified?
-            bpl     @CONT               ; No, continue
-            jsr     SETDSTBUFF          ; Set <dest> as loading address 
-            lda     SVDDESTBNK          ; Set <dest> bank as loading bank
-            sta     DSTBANK             ;
-@CONT:      ldx     CHANNEL             ; Load block into memory
-            jsr     GETMBUFF            ;
-            rts
+LOADSVD:    sta     SAVEA3          ; Save A in temporary storage
+            jsr     LD58HDR         ; Load "saved file" hdr from file at current pos
+            bcs     @RETCS          ; Return with error
+            lda     SAVEDHDR+_OVLAY ; Check if overlay is same as requested
+            cmp     SAVEA3          ;
+            bne     @RETCS          ; No, return with error
+            jsr     CPYPTRS         ; Yes, copy pointers from header to page 0
+            lda     SAVEDHDR+_MEMBK ; Set destination bank from header
+            sta     DSTBANK         ;
+            bit     SAVDESTPF       ; Was a <dest> specified?
+            bpl     @CONT           ; No, continue
+            jsr     SETDSTBUFF      ; Set <dest> as loading address 
+            lda     SVDDESTBNK      ; Set <dest> bank as loading bank
+            sta     DSTBANK         ;
+@CONT:      ldx     CHANNEL         ; Load block into memory
+            jsr     GETMBUFF        ;
+            rts                     ;
 
-@RETCS:     sec
-            rts
+@RETCS:     sec                     ; Return with error
+            rts                     ;
 
 ; Load "saved file" header from chanel X at current position
 ;
@@ -4343,17 +4449,17 @@ LD58HDR:    jsr     SVDRWPREP       ; Prepare read/write of "saved file" header
             cmp     #$58            ;
             beq     @RETOK          ; Yes, jump to return OK
             sec                     ; Return error
-@RETURN:    rts
+@RETURN:    rts                     ;
             ; Not reached
 @RETOK:     clc                     ; Return OK
-            rts
+            rts                     ;
 
 ; Assigns default input device and set input buffer
 ;
-DEFSETINPB: lda     #$00
+DEFSETINPB: lda     #$00            ;
             ldx     CHANN1          ; Get input channel device
             sta     CHANN1          ; And clears it
-            jsr     UNASSIGN
+            jsr     UNASSIGN        ;
             ; Fall through
 
 ; Set input buffer to input line buffer and sets input channel
@@ -4365,7 +4471,7 @@ SETINPBCH:  lda     CHANN1          ; Get input channel device
             bne     @CONT           ; If set, go on
             lda     #$82            ; If not, set default (console)
             sta     CHANN1          ;
-@CONT:      ldy     #$00
+@CONT:      ldy     #$00            ;
             ; Fall through
 
 ; Set input buffer to input line buffer
@@ -4376,7 +4482,7 @@ SETINPB:    lda     INPLBUF         ; Set input line buffer
             sta     INPBUFP         ;
             lda     INPLBUF+1       ;
             sta     INPBUFP+1       ;
-            rts
+            rts                     ;
 
 ; Set output buffer to output line buffer and sets output channel to
 ; console if not set
@@ -4389,7 +4495,7 @@ SETOUTBCH:  lda     CHANN2          ; Get output channel device
             bne     @CONT           ; If set, continue
             lda     #$82            ; If not, set to console
             sta     CHANN2          ;
-@CONT:      ldy     #$00
+@CONT:      ldy     #$00            ;
             ; Fall through
 
 ; Set output buffer to output line buffer
@@ -4400,7 +4506,7 @@ SETOUTB:    lda     OUTLBUF         ; Set output line buffer
             sta     OUTBUFP         ;
             lda     OUTLBUF+1       ;
             sta     OUTBUFP+1       ;
-            rts
+            rts                     ;
 
 ; Assigns default output device and set output buffer
 ;
@@ -4408,7 +4514,7 @@ DEFSETOUTB: lda     #$00            ; Get and clear channel 2 device or file
             ldx     CHANN2          ; and save it in X
             sta     CHANN2          ;
             jsr     UNASSIGN        ; Unassign file (if it is a file)
-            jmp     SETOUTBCH         ; And set output buffer
+            jmp     SETOUTBCH       ; And set output buffer
 
 ; Unassign file
 ;
@@ -4417,16 +4523,16 @@ DEFSETOUTB: lda     #$00            ; Get and clear channel 2 device or file
 UNASSIGN:   bmi     @RETURN         ; If it is a device or
             beq     @RETURN         ; not assigned, return
             stx     DEVICE          ; Save device
-            ldx     #$09
+            ldx     #$09            ;
 @LOOP:      lda     IOCHTBL,x       ; Search for file in the I/O channel table
             cmp     DEVICE          ; If it is assigned
             beq     @RETURN         ; returns
-            dex
-            bpl     @LOOP
+            dex                     ;
+            bpl     @LOOP           ; Repeat until no more channels
             ldx     DEVICE          ; Not found in the device table
             lda     #FLUNUSED       ; Close or free entry
             sta     FINFOTBL+_FLAGS,x ;
-@RETURN:    rts
+@RETURN:    rts                     ;
 
 ; Console Input Routine
 ;
@@ -4438,8 +4544,8 @@ CIN:        jsr     JGETKEY         ; Get key
             bit     KBDECHO         ; No, is ECHO on?
             bpl     @CCRET          ; No, return with carry clear
             jsr     JOUTCH          ; Yes, echo character
-@CCRET:     clc
-@RETURN:    rts
+@CCRET:     clc                     ;
+@RETURN:    rts                     ;
 
 ; Console Output Routine
 ;
@@ -4461,12 +4567,13 @@ COUTC:      lda     SAVEA4          ; Output char
 ;
 SRVINTX:    jsr     SRVINT          ; Serve any k-1013 pending interrupt (if any)
             ldx     CURRDRV         ; Get drive
-            rts
+            rts                     ;
 
 .if  CODOS2_VER = 17
 EXSENSEDRV17:
-            jsr     EXSENSEDRV
-@LOOP:      jsr     NVALID
+            jsr     EXSENSEDRV      ; Sense drive X
+            ; TODO: Understand this :/
+@LOOP:      jsr     NVALID          ; Set invalid file name
             inx
             bne     @LOOP
             rts

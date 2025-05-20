@@ -132,8 +132,8 @@ HUNT:       jsr     GADDRBNKMB      ; Get <from> address:bank and store into MEM
             ldx     DEFBNKCFG       ; Restore default bank
             stx     BNKCTL          ;
             ldy     #$00            ; Set index to (OUTBUFP) to 0
-            ldx     #_DESTBUFF      ; Set HEXWORD to DESTBUFF
-            jsr     HEXWORD         ; Converts word at P0SCRATCH,x into 4-char ascii hex
+            ldx     #_DESTBUFF      ; Set HEXENCOD to DESTBUFF
+            jsr     HEXENCOD        ; Converts word at P0SCRATCH,x into 4-char ascii hex
             ldx     #$02            ; Redundant (POUTBUFF02 sets X = console)
             jsr     POUTBUFF02      ; Print output buffer to console
             jsr     OUTCR           ; Print return

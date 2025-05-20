@@ -43,7 +43,7 @@ DISK:       ldx     #$00            ; Init drives loop
             lda     #$00            ;
             sta     P0SCRATCH+1     ; High byte is always 0
             ldy     #$00            ; Init index to output buffer
-            jsr     DECWORD         ; Encode as ascii decimal number
+            jsr     DECENCOD        ; Encode as ascii decimal number
             jsr     POUTBUFF02      ; Print output buffer to console
             jsr     OUTSTR          ; Print string
             .byte    " FILES:", $00
@@ -59,7 +59,7 @@ DISK:       ldx     #$00            ; Init drives loop
             lda     (BATP),y        ;
             sta     P0SCRATCH+1     ;
             ldy     #$00            ; Init output buffer index
-            jsr     HEXWORD0        ; Convert VSN to ascii hex
+            jsr     HEXENCOD0       ; Convert VSN to ascii hex
             jsr     POUTBUFF02      ; Print output buffer to console
             jsr     OUTSTR          ; Print string
             .byte   "), ", $00
@@ -76,7 +76,7 @@ DISK:       ldx     #$00            ; Init drives loop
             asl     P0SCRATCH       ; Yes, block size is twice the size
             rol     P0SCRATCH+1     ;
 @PRFREE:    ldy     #$00            ; Set index to output buffer
-            jsr     DECWORD         ; Convert bytes free to decimal ascii into output buf
+            jsr     DECENCOD        ; Convert bytes free to decimal ascii into output buf
             jsr     POUTBUFF02      ; Print output buffer to console
             jsr     OUTSTR          ; Print string
             .byte   "K FREE", $0D, $00

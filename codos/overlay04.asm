@@ -88,7 +88,7 @@ DUMP:       ldx     #$00            ;
             jsr     POUTBUFFCR      ; Output Y chars + CR from (OUTBUFP) to channel X
 @DUMPL:     jsr     CLRINITLN       ; Clear and init next dump line
             ldx     #_TMPBUFP       ; Write hex address of current byte to (OUTBUFP),y
-            jsr     HEXWORD         ;
+            jsr     HEXENCOD        ;
             iny                     ; Advance position in the output buffer
 @DUMPB:     iny                     ; And another one in the loop
             jsr     GETDUMPBYT      ; Get byte to dump
