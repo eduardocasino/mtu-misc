@@ -1,0 +1,9 @@
+MEMORY {
+    UTILS: start = $B400, size = $8BA, file=%O ;
+    DATA:  start = $BCBA, size = $146, file="build/%%VERSION%%/format.dat";
+}
+SEGMENTS {
+    CODE:  load = UTILS, type = rw;
+    DATA:  load = DATA, type = rw;
+    BSS:   load = UTILS, type = bss;
+}
