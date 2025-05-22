@@ -48,7 +48,7 @@ RETURN:     rts
 CONT:       jsr     INILINE         ; Inits line. Clears line and sets FPERLIN
             jsr     DRVVALIDO       ; Checks that it is valid and open
             jsr     SETBATP         ; Set the BATP to the current drive's BAT
-            ldy     #_BNENT         ; Offset in BAT to number of files
+            ldy     #BAT::NENT      ; Offset in BAT to number of files
             lda     (BATP),y        ; Get it
             sta     NFILES          ; And store
             bne     SEARCH          ; If not empty, init search

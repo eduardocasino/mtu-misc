@@ -35,7 +35,7 @@
             jmp     GDEST           ; Go get destination
 
 NOTNUM:     jsr     GETDEVORFIL     ; Get device or file from command line. If it
-                                    ; is a file, sets CURRDRV, FNAMBUF
+                                    ; is a file, sets CURRDRV, DIRENT+DIRE::FNAM
                                     ; If it is a device, CURRDRV contains the device name
             ldx     #$00            ; Assign channel 0
             stx     SCHANNEL        ;
@@ -61,7 +61,7 @@ CNTDST:     jsr     ISNUM           ; Check if argument is numeric
             jmp     PRNT            ; And print source to dest
 
 DNOTNUM:    jsr     GETDEVORFIL     ; Get device or file from command line. If it
-                                    ; is a file, sets CURRDRV, FNAMBUF
+                                    ; is a file, sets CURRDRV, DIRENT+DIRE::FNAM
                                     ; If it is a device, CURRDRV contains the device name
 
 GETCH:      ldx     #$09            ; Search for an empty slot in IOCHTBL

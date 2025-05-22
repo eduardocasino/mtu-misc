@@ -347,7 +347,7 @@ COPY:       lda     INPLBUF,x       ;
             bcs     ISDEV           ; No, then it is a device name
             txa                     ; Save X (channel)
             pha                     ;
-            jsr     FNAMFROMBUF0    ; Copy file name from (TMPBUFP) to FNAMBUF
+            jsr     FNAMFROMBUF0    ; Copy file name from (TMPBUFP) to DIRENT+DIRE::FNAM
             bcs     ERROR           ; If failed, go to error
             lda     (TMPBUFP),y     ; Get first char after file name
             cmp     COLON           ; Drive separator?
@@ -393,7 +393,7 @@ ERROR:      jsr     ERROR12         ; Missing or illegal file name
             sec                     ; Set assigned (Carry set)
 RETURN:     rts                     ;
 ISFILE:     tax                     ; Get the drive number from the table of active files
-            lda     FINFOTBL+_DRIVE,x
+            lda     FINFOTBL+FINFO::DRIVE,x
             sec                     ; Set assigned (Carry set)
             rts                     ;
 .endproc
@@ -409,14 +409,15 @@ ISFILE:     tax                     ; Get the drive number from the table of act
             bmi     ISDEV           ; Jump if it is a device
             jsr     GETFINFO        ; Gets FINFO for file, copies it into CURFINFO
                                     ; in page zero and sets CURRDRV
-            lda     CURFINFO+_FPOS  ; Get file pos from FINFO
+                                    ; Get file pos from FINFO
+            lda     CURFINFO+FINFO::FPOS
             sec                     ; Substract the file header length
             sbc     #$40            ;
             sta     U7              ; And save it into U7
-            lda     CURFINFO+_FPOS+1
+            lda     CURFINFO+FINFO::FPOS+1
             sbc     #$00            ;
             sta     U7+1            ;
-            lda     CURFINFO+_FPOS+2
+            lda     CURFINFO+FINFO::FPOS+2
             sbc     #$00            ;
             sta     U7+2            ;
             rts                     ;
@@ -608,7 +609,7 @@ CPEND:      lda     PCSAVE+1        ; Save PCSAVE and SCVNUM, that
 ;
 .proc DATE
             ldx     #$00            ; Copy current system date
-LOOP:       lda     TDATE,x         ; to index at output buffer
+LOOP:       lda     FILEHDR+FHDR::DATE,x 
             sta     (OUTBUFP),y     ; (U6 is copied to OUTBUFP at entry)
             iny                     ; Next char
             inx                     ;

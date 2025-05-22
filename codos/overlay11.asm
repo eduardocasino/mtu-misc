@@ -29,7 +29,8 @@
             ldx     CURRDRV         ; Get and store the current drive
             stx     RENAMEDRV       ;
             jsr     FOPEN0          ; Assign channel 0 to file
-            lda     CURFINFO+_FLAGS ; Get file flags
+                                    ; Get file flags
+            lda     CURFINFO+FINFO::FLAGS
             and     #FLLOCKED       ; Check if locked
             beq     CONT            ; No, continue
             jsr     ERROR07         ; Locked file violation
@@ -46,18 +47,19 @@ CONT:       ldy     CMDLIDX         ; Get command line index
 
 NEXIST:     ldx     #$00            ; Rewind source file
             jsr     FREWIND         ;
-            ldy     #_NSEC          ; Get the sector on track 12 of the directory entry
-            lda     (CURFINFO+_BUFF),y ;
+            ldy     #FHDR::NSEC     ; Get the sector on track 12 of the directory entry
+            lda     (CURFINFO+FINFO::BUFF),y
             jsr     RDSECTATR12     ; Read sector A from track 12
-            ldy     #_NENT          ; Get the entry offset in the sector
-            lda     (CURFINFO+_BUFF),y ;
+            ldy     #FHDR::NENT     ; Get the entry offset in the sector
+            lda     (CURFINFO+FINFO::BUFF),y
             tax                     ;
             sta     DIRPOINT        ; Store it into DIRPOINT
-            ldy     #_FNAM          ; Compare names
+            ldy     #DIRE::FNAM     ; Compare names
 CMPLOOP:    lda     DIRBUF,x        ; 
             cmp     #'.'            ; Have we reached the extension?
-            beq     RENAM            ; Yes, jump
-            cmp     (CURFINFO+_BUFF),y ; No, char is thr same?
+            beq     RENAM           ; Yes, jump
+                                    ; No, char is thr same?
+            cmp     (CURFINFO+FINFO::BUFF),y
             beq     SAME            ; Yes, continue
             jsr     ERROR50         ; System crash: Directory redundancy check failed
             ; Not reached
@@ -69,8 +71,9 @@ SAME:       iny                     ; Advance to next char
             ; Rename dir entry
 
 RENAM:      ldx     DIRPOINT        ; Get pointer to entry in sector
-            ldy     #$00            ; Init FNAMBUF index
-RNLOOP:     lda     FNAMBUF,y       ; Copy new name
+            ldy     #$00            ; Init DIRENT+DIRE::FNAM index
+                                    ; Copy new name
+RNLOOP:     lda     DIRENT+DIRE::FNAM,y
             sta     DIRBUF,x        ;
             inx                     ;
             iny                     ;
@@ -80,9 +83,9 @@ RNLOOP:     lda     FNAMBUF,y       ; Copy new name
             ; Rename dir entry copy in file header
 
             ldx     #$00            ;
-            ldy     #_FNAM          ;
-RNLOOP2:    lda     FNAMBUF,x       ;
-            sta     (CURFINFO+_BUFF),y ;
+            ldy     #DIRE::FNAM     ;
+RNLOOP2:    lda     DIRENT+DIRE::FNAM,x
+            sta     (CURFINFO+FINFO::BUFF),y
             iny                     ;
             inx                     ;
             cpx     #FNAMLEN        ; Have we reached the file name length?

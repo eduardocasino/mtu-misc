@@ -45,7 +45,7 @@ FSIZEPOS    = $20
 .endif
             jsr     DRVVALIDO       ; Ensure valid and open
             jsr     SETBATP         ; Set BATP to the current drive's BAT
-            ldy     #_BNENT         ; Get number of files on disk
+            ldy     #BAT::NENT      ; Get number of files on disk
             lda     (BATP),y        ;
             sta     NFILES          ; Save it
             bne     DIRLIST         ; If at least one, continue
@@ -81,13 +81,16 @@ CLRCHR:     sta     (OUTBUFP),y     ;
             dey                     ;
             bpl     CLRCHR          ; Repeat until completed
             ldx     DIRPOINT        ; Get pointer to directory entry
-            lda     DIRBUF+_FBATP-1, x ; Get pointer to first block
-            sta     CURFINFO+_BATPT ; And store into current FINFO
+                                    ; Get pointer to first block
+            lda     DIRBUF+DIRE::BATP-1, x
+                                    ; And store into current FINFO
+            sta     CURFINFO+FINFO::BATPT
             jsr     INITFILE        ; Init file size and file position
             lda     CURRDRV         ; Get current drive
-            sta     CURFINFO+_DRIVE ; And store into current FINFO           
+                                    ; And store into current FINFO
+            sta     CURFINFO+FINFO::DRIVE           
             lda     #$94            ; Set transfer buffer to $E500 (Directory buffer)
-            sta     CURFINFO+_DMABF ;
+            sta     CURFINFO+FINFO::DMABF
             jsr     GETFPSECT       ; Get sector, track and head of file position
             jsr     READSECT        ; And read sector
             ldx     #$01            ; Init file entry index in file header
@@ -108,7 +111,8 @@ CPYEXT:     lda     DIRBUF,x        ; Yes, copy the extension (or last char)
             lda     CURRDRV         ; Get current drive
             iny                     ; Advance one pos
             jsr     NIBBLE          ; And output the drive number as char
-            lda     DIRBUF+_FLAG    ; Get file flags
+                                    ; Get file flags
+            lda     DIRBUF+FHDR::FLAG
             and     #FLLOCKED       ; Is file locked?
             beq     DASH            ; No, go print a dash
             lda     #'L'            ; Yes, print an 'L'
@@ -118,24 +122,26 @@ CPYFLAG:    ldy     #FLAGSPOS       ; Advance to position of flags
             sta     (OUTBUFP),y     ; And copy flag
             ldx     #DATELEN-1      ; Copy date to output buffer
             ldy     #DATEPOS        ; Advance to position of date
-CPYDAT:     lda     DIRBUF+_DATE,x  ; Copy date char
+                                    ; Copy date char
+CPYDAT:     lda     DIRBUF+FHDR::DATE,x
             sta     (OUTBUFP),y     ;
             dey                     ;
             dex                     ;
             bpl     CPYDAT          ; Repeat until completed
-            lda     DIRBUF+_FLEN    ; Get file length
+                                    ; Get file length
+            lda     DIRBUF+FHDR::FLEN
             sec                     ; Clear borrow for substraction
             sbc     #FHDRLEN        ; Substract file header length
-            sta     DIRBUF+_FLEN    ;
-            lda     DIRBUF+_FLEN+1  ;
+            sta     DIRBUF+FHDR::FLEN
+            lda     DIRBUF+FHDR::FLEN+1
             sbc     #$00            ;
-            sta     DIRBUF+_FLEN+1  ;
+            sta     DIRBUF+FHDR::FLEN+1
             bcs     LB4DD           ;
-            dec     DIRBUF+_FLEN+2  ;
+            dec     DIRBUF+FHDR::FLEN+2
 LB4DD:      ldy     #FSIZEPOS       ; Advance to position of file size
-            ldx     #_FLEN+2        ; Points to MSB of file size in header
+            ldx     #FHDR::FLEN+2   ; Points to MSB of file size in header
             jsr     COPYFSIZEH      ; Copy two MSBs of file size to output buffer
-            ldx     #_FLEN          ; Points to LSB of file size in header
+            ldx     #FHDR::FLEN     ; Points to LSB of file size in header
             jsr     COPYFSIZEL      ; Copy LSB of file to output buffer
             ldy     #DIRLINELEN     ; Print output buffer to console
             jsr     POUTBUFFCR02    ;

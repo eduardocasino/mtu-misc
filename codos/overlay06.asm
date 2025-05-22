@@ -73,20 +73,22 @@ ISFILE:     jsr     GETFINFO        ; Gets FINFO for current file (DEVICE),
                                     ; and sets CURRDRV
             jsr     ZEROFILEP       ; Zeroes file pointer
             dma     A, DIRBUF       ; Set transfer buffer to DIRBUF (Directory buffer)
-            sta     CURFINFO+_DMABF ;
+            sta     CURFINFO+FINFO::DMABF
             jsr     GETFPSECT       ; Get sector of current file pointer
             jsr     READSECT        ; Read sector
-            ldx     #_FLAG          ; Get file flag from buffer
+            ldx     #FHDR::FLAG     ; Get file flag from buffer
             lda     DIRBUF,x        ;
             ora     #FLLOCKED       ; Set locked bit 
             sta     DIRBUF,x        ;
             lda     CSECT           ; Get sector of current file pointer
-            ldx     CURFINFO+_DRIVE ; Get drive
+                                    ; Get drive
+            ldx     CURFINFO+FINFO::DRIVE
             jsr     WRITSECT        ; Write sector back
             jsr     GETFINFO        ; Gets FINFO for file, copies it into CURFINFO
-            lda     CURFINFO+_FLAGS ; Set locked bit in flags
+                                    ; Set locked bit in flags
+            lda     CURFINFO+FINFO::FLAGS
             ora     #FLLOCKED       ;
-            sta     CURFINFO+_FLAGS ;
+            sta     CURFINFO+FINFO::FLAGS
             jsr     UPDCFINFO       ; Updates file's FINFO structure
             rts
 .endproc
@@ -103,20 +105,22 @@ ISFILE:     jsr     GETFINFO        ; Gets FINFO for current file (DEVICE),
                                     ; and sets CURRDRV
             jsr     ZEROFILEP       ; Zeroes file pointer
             dma     A, DIRBUF       ; Set transfer buffer to DIRBUF (Directory buffer)
-            sta     CURFINFO+_DMABF ;
+            sta     CURFINFO+FINFO::DMABF
             jsr     GETFPSECT       ; Get sector of current file pointer
             jsr     READSECT        ; Read sector
-            ldx     #_FLAG          ; Get file flag from buffer
+            ldx     #FHDR::FLAG     ; Get file flag from buffer
             lda     DIRBUF,x        ;
             and     #<(~FLLOCKED)   ; Clear locked bit
             sta     DIRBUF,x        ;
             lda     CSECT           ; Get sector of current file pointer
-            ldx     CURFINFO+_DRIVE ; Get drive
+                                    ; Get drive
+            ldx     CURFINFO+FINFO::DRIVE
             jsr     WRITSECT        ; Write sector back
             jsr     GETFINFO        ; Gets FINFO for file, copies it into CURFINFO
-            lda     CURFINFO+_FLAGS ; Set locked bit in flags
+                                    ; Set locked bit in flags
+            lda     CURFINFO+FINFO::FLAGS
             and     #<(~FLLOCKED)   ; Clear locked bit
-            sta     CURFINFO+_FLAGS ;
+            sta     CURFINFO+FINFO::FLAGS
             jsr     UPDCFINFO       ; Updates file's FINFO structure
             rts
 .endproc

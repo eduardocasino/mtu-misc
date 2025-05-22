@@ -110,20 +110,20 @@ CONT:       sty     CMDLIDX         ; Update command line index
             bne     SET             ; There are arguments, go set the date
             ldx     #$08            ; No arguments, set "*UNDATED*"
 PRNC:       lda     UNDATED,x       ;
-            sta     TDATE,x         ;
+            sta     FILEHDR+FHDR::DATE,x
             dex                     ;
             bpl     PRNC            ;
             rts                     ; And return
 
 SET:        ldx     #$00            ; Just blindly copy what's in the buffer
-CPYC:       sta     TDATE,x         ;
+CPYC:       sta     FILEHDR+FHDR::DATE,x
             inx                     ;
             cpx     #$09            ; Max length reached?
             beq     RETURN          ; Yes, return
             jsr     GETNEXTCH1      ; No, advance and get next char from input buffer
             bne     CPYC            ; If any, copy it
 CPSP:       lda     #' '            ; If not, fill with spaces
-            sta     TDATE,x         ;
+            sta     FILEHDR+FHDR::DATE,x
             inx                     ;
             cpx     #$09            ;
             bcc     CPSP            ; Until length is reached

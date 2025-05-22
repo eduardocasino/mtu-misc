@@ -487,14 +487,15 @@ SETMBUF:    lda     LBUFADDR,x      ;
             bcc     GETFPOS         ; If read less than LBUFSIZE bytes, skip
             lda     #FLNORMAL       ; Set "More bytes to read" flag 
             sta     MORETORD        ;
-GETFPOS:    lda     CURFINFO+_FPOS  ; Get position relative to of first data byte
+                                    ; Get position relative to of first data byte
+GETFPOS:    lda     CURFINFO+FINFO::FPOS 
             sec                     ; substracting the file header length
             sbc     #FHDRLEN        ;
             sta     SFILPOS         ;
-            lda     CURFINFO+_FPOS+1 ;
+            lda     CURFINFO+FINFO::FPOS+1
             sbc     #$00            ;
             sta     SFILPOS+1       ;
-            lda     CURFINFO+_FPOS+2 ;
+            lda     CURFINFO+FINFO::FPOS+2
             sbc     #$00            ;
             sta     SFILPOS+2       ;
             jsr     PUTDSTD         ; Ask for destination disk in drive 0
@@ -530,18 +531,18 @@ RETURN:     jsr     FREECH0         ; Free channel 0
             rts                     ;
 .endproc
 
-; Copy file name to FNAMBUF in current DIRENT
+; Copy file name to DIRENT+DIRE::FNAM in current DIRENT
 ;
 .proc CPYFNAM
-            ldy     #$00            ; Init index to name in FNAMBUF
+            ldy     #$00            ; Init index to name in DIRENT+DIRE::FNAM
 LOOP:       lda     FILETBL,x       ; Copy char
-            sta     FNAMBUF,y       ;
+            sta     DIRENT+DIRE::FNAM,y
             inx                     ; Advance to next char
             iny                     ;
             cmp     #'.'            ; Extension separator?
             bne     LOOP            ; No, continue
             lda     FILETBL,x       ; Copy extension
-            sta     FNAMBUF,y       ;
+            sta     DIRENT+DIRE::FNAM,y
             inx                     ; Advance index to file name table
             rts
 .endproc
@@ -659,7 +660,7 @@ LOOP:       sta     (BATP),y        ; Clean one byte
 .proc SETVOLID
             stx     CURRDRV         ; Set current drive
             jsr     SETBATP         ; Set the BATP to the current drive's BAT
-            ldy     #_BTVSN         ; Index to Disk Volume Number
+            ldy     #BAT::VSN       ; Index to Disk Volume Number
             lda     VOLID           ; Get VOLID
             sta     (BATP),y        ; Save it into the BAT
             iny                     ;
@@ -706,8 +707,9 @@ CLEAR:      ldx     CURRDRV         ; Get current drive
 SKTRACK:    txa                     ; Transfer track to A for CKSEEKTRK
             ldx     #$01            ; Drive 1
             jsr     CKSEEKTRK       ; Checks drive valid and seeks track A on drive X
-            dma     X, OVLORG       ; DMA address for overlays 
-            stx     CURFINFO+_DMABF ; Set buffer in current FINFO
+            dma     X, OVLORG       ; DMA address for overlays
+                                    ; Set buffer in current FINFO
+            stx     CURFINFO+FINFO::DMABF
             ldx     #$01            ; Set drive 1
             lda     OVLORG          ; Get overlay number (base 1)
             clc                     ; Clear carry for addition
@@ -745,7 +747,8 @@ SKTRACK:    txa                     ; Transfer track to A for CKSEEKTRK
             ldx     #$00            ; Drive 0
             jsr     CKSEEKTRK       ; Checks drive valid and seeks track A on drive X
             dma     X, OVLORG       ; DMA address for overlays 
-            stx     CURFINFO+_DMABF ; Set buffer in current FINFO
+                                    ; Set buffer in current FINFO
+            stx     CURFINFO+FINFO::DMABF
             ldx     #$00            ; Set drive 0
             lda     OVLORG          ; Get overlay number (base 1)
             clc                     ; Clear carry for addition
@@ -977,7 +980,8 @@ GETDRV:     ldx     CURRDRV         ; Get current drive
             lda     VERTRACK        ; Get current track
             jsr     CKSEEKTRK       ; Checks drive valid and seeks track A on drive X
             dma     A, DIRBUF       ; A = DMA encoded address of DIRBUF
-            sta     CURFINFO+_DMABF ; Set buffer in current FINFO
+                                    ; Set buffer in current FINFO
+            sta     CURFINFO+FINFO::DMABF
             ldx     CURRDRV         ; Get current drive
             lda     SECTOR          ; Get sector
             jsr     READSECT        ; Read sector into DIRBUF
@@ -1016,7 +1020,8 @@ GETDRV:     ldx     CURRDRV         ; Get current drive
             lda     VERTRACK        ; Get current track
             jsr     CKSEEKTRK       ; Checks drive valid and seeks track A on drive X
             dma     A, DIRBUF       ; A = DMA encoded address of DIRBUF
-            sta     CURFINFO+_DMABF ; Set buffer in current FINFO
+                                    ; Set buffer in current FINFO
+            sta     CURFINFO+FINFO::DMABF
             ldx     CURRDRV         ; Get current drive
             lda     SECTOR          ; Get sector
             jsr     WRITSECT        ; Write sector

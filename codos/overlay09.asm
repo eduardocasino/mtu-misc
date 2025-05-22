@@ -35,7 +35,8 @@ GLOCLINELEN = $2C                   ; Length of GETLOC info lines
 ERROR:      jsr     ERROR13         ; Not a loadable ("SAVEd") file
             ; Not reached
 
-CONT:       lda     SAVEDHDR+_OVLAY ; Get file overlay
+                                    ; Get file overlay
+CONT:       lda     SAVEDHDR+SHDR::OVLAY
             bne     ERROR           ; Must be 0
             ldy     #GLOCLINELEN    ; Clear output buffer with spaces
             lda     #' '            ;
@@ -44,13 +45,15 @@ CLRB:       sta     (OUTBUFP),y     ;
             bpl     CLRB            ;
             ldx     #$00            ; Copy file name to output buffer
             ldy     #$00            ;
-CPCH:       lda     FNAMBUF,x       ; Copy one char
+                                    ; Copy one char
+CPCH:       lda     DIRENT+DIRE::FNAM,x
             sta     (OUTBUFP),y     ;
             inx                     ; Advance in both file name and buffer
             iny                     ;
             cmp     #'.'            ; Last was extension delimiter?
             bne     CPCH            ; No, copy next char
-            lda     FNAMBUF,x       ; Copy extension
+                                    ; Copy extension
+            lda     DIRENT+DIRE::FNAM,x
             sta     (OUTBUFP),y     ;
             iny                     ; Leave an space
             iny                     ; Advance one pos
@@ -58,7 +61,8 @@ CPCH:       lda     FNAMBUF,x       ; Copy one char
             sta     (OUTBUFP),y     ;
             iny                     ; Advance to next pos
             ldx     #$05            ; Copy pointers to page 0 (entry will be at
-CPPT:       lda     SAVEDHDR+_PNTRS,x ; P0SCRATCH, load address at MEMBUFF and size
+                                    ; P0SCRATCH, load address at MEMBUFF and size
+CPPT:       lda     SAVEDHDR+SHDR::ENTRY,x
             sta     P0SCRATCH,x     ; at MEMCOUNT)
             dex                     ;
             bpl     CPPT            ;
@@ -71,14 +75,16 @@ PRBLK:      ldx     #_MEMBUFF       ; Convert load address to ASCII HEX
             jsr     HEXENCOD        ;
             iny                     ; Leave two spaces
             iny                     ;
-            lda     SAVEDHDR+_MEMBK ; Get memory bank
+                                    ; Get memory bank
+            lda     SAVEDHDR+SHDR::MEMBK
             beq     PRSZ            ; If bank 0, skip to print size
             dey                     ; Go back just after the address
             dey                     ;
             lda     #':'            ; Print bank delimiter
             sta     (OUTBUFP),y     ;
             iny                     ; Advance one pos
-            lda     SAVEDHDR+_MEMBK ; Get bank number
+                                    ; Get bank number
+            lda     SAVEDHDR+SHDR::MEMBK
             clc                     ; Convert to ascii
             adc     #'0'            ;
             sta     (OUTBUFP),y     ; Print it
@@ -96,14 +102,15 @@ SKIP:       dex                     ;
             adc     MEMCOUNT+1      ;
             sta     P0SCRATCH+1     ;
             jsr     HEXENCOD0       ; Print it
-            lda     CURFINFO+_FPOS  ; Calculate file pos for next block
+                                    ; Calculate file pos for next block
+            lda     CURFINFO+FINFO::FPOS
             clc                     ; adding size to current position
             adc     MEMCOUNT        ;
             sta     FILEPOS         ; and store into FILEPOS
-            lda     CURFINFO+_FPOS+1 ;
+            lda     CURFINFO+FINFO::FPOS+1
             adc     MEMCOUNT+1      ;
             sta     FILEPOS+1       ;
-            lda     CURFINFO+_FPOS+2 ;
+            lda     CURFINFO+FINFO::FPOS+2
             adc     #$00            ;
             sta     FILEPOS+2       ;
             lda     FILEPOS         ; Now adjusts FILEPOS to point at the
@@ -131,7 +138,8 @@ NOMORE:     jsr     FREECH0         ; No more blocks. Free channel
             beq     RETURN          ; No more, we're finished
             jmp     GETLOC          ; Go process next file
 
-NXBLK:      lda     SAVEDHDR+_OVLAY ; If overlay is not 0
+                                     ; If overlay is not 0
+NXBLK:      lda     SAVEDHDR+SHDR::OVLAY
             bne     NOMORE          ; Then no more blocks
             ldy     #GLOCLINELEN-5  ; Clear output buffer. Last 5 bytes will
             lda     #' '            ; be overwritten anyways, so save a few
@@ -139,7 +147,8 @@ CLRB2:      sta     (OUTBUFP),y     ; cycles here
             dey                     ;
             bpl     CLRB2           ;
             ldx     #$03            ; Copies load address and size
-CPPT2:      lda     SAVEDHDR+_LOAD,x ; for next block
+                                    ; for next block
+CPPT2:      lda     SAVEDHDR+SHDR::LOAD,x
             sta     MEMBUFF,x       ;
             dex                     ;
             bpl     CPPT2           ;

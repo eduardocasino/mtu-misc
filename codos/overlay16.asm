@@ -38,7 +38,7 @@ PRINFO:     stx     CURRDRV         ; Sets drive as current
             jsr     DRVVALIDO       ; Ensure it is open
             jsr     SETOUTBCH       ; Set output buffer to output line buffer
             jsr     SETBATP         ; Set BATP to the current drive's BAT
-            ldy     #_BNENT         ; Get number of entries
+            ldy     #BAT::NENT      ; Get number of entries
             lda     (BATP),y        ;
             sta     P0SCRATCH       ; Store into P0SCRATCH
             lda     #$00            ;
@@ -53,7 +53,7 @@ PRINFO:     stx     CURRDRV         ; Sets drive as current
             jsr     POUTBUFF02      ; Print output buffer to console
             jsr     OUTSTR          ; Print string
             .byte   " (VSN=", $00
-            ldy     #_BTVSN         ; Get VSN
+            ldy     #BAT::VSN       ; Get VSN
             lda     (BATP),y        ;
             sta     P0SCRATCH       ; And store into P0SCRATCH
             iny                     ;
@@ -90,7 +90,7 @@ PRFREE:     ldy     #$00            ; Set index to output buffer
 ;
 .proc GETFREE
             ldx     #$00            ; Inits number of free blocks
-            ldy     #_BTOPB         ; Y points to last block slot
+            ldy     #BAT::TOPB      ; Y points to last block slot
 LOOP:       lda     (BATP),y        ; Get block info
             bne     NEXT            ; If not free, go check the next
             inx                     ; Increment free block count

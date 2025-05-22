@@ -33,7 +33,7 @@ CONT:       jsr     GETCHANN        ; Get channel number from command line into 
                                     ; (in fact, from A, which contains first NN
                                     ;  char after the command name)
             jsr     GETDEVORFIL     ; Get device or file from command line. If it
-                                    ; is a file, sets CURRDRV, FNAMBUF
+                                    ; is a file, sets CURRDRV, DIRENT+DIRE::FNAM
                                     ; If it is a device, CURRDRV contains the device name
             ldx     CHANNEL         ; Assign channel
             jsr     ASSIGN          ;   to file/device
@@ -52,13 +52,14 @@ SKIP:       jsr     OUTSTR          ;
             .byte   " FILE ", $00   ;
 
             ldy     #$00            ; Copy file name to output buffer
-LOOP:       lda     FNAMBUF,y       ;  copy chars until "." found (inclusive)
+                                    ; Copy chars until "." found (inclusive)
+LOOP:       lda     DIRENT+DIRE::FNAM,y
             sta     (OUTBUFP),y     ;
             iny                     ;
             cmp     #'.'            ;
             bne     LOOP            ;
-
-            lda     FNAMBUF,y       ; Copy the extension
+                                    ; Copy the extension
+            lda     DIRENT+DIRE::FNAM,y
             sta     (OUTBUFP),y     ;
             iny
             lda     COLON           ; Copy a colon
@@ -121,7 +122,7 @@ ISFILE:     sty     SAVEY7          ; Save output buffer index
             jsr     CPYCFINFO       ; Fills current FINFO structure for DEVICE
             jsr     ZEROFILEP       ; Zeroes file pointer
             dma     A, DIRBUF       ; Set transfer buffer to DIRBUF (Directory buffer)
-            sta     CURFINFO+_DMABF ;
+            sta     CURFINFO+FINFO::DMABF
             jsr     GETFPSECT       ; Get sector of current file pointer
             jsr     READSECT        ; Read sector
             ldy     SAVEY7          ; Recover output buffer position
@@ -139,7 +140,8 @@ FEXT:       lda     DIRBUF+2,x      ; Store extension name
             lda     #':'            ; Print drive separator
             sta     (OUTBUFP),y     ;
             iny                     ; Advance
-            lda     CURFINFO+_DRIVE ; Get drive number 
+                                    ; Get drive number 
+            lda     CURFINFO+FINFO::DRIVE
             cld                     ; Convert to ASCII
             clc                     ;
             adc     #'0'            ;

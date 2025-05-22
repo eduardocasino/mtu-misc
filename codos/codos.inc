@@ -3,34 +3,34 @@
 ; Codos 11 is the same as Codos 15
 ;
 .ifndef CODOS2_VER
-    CODOS2_VER  = 15
+CODOS2_VER  = 15
 .endif
 
 .if .defined(SIM1)
-RELEASE         = $10               ; Release level of CODOS
-SYSTEM          = 5                 ; SYM-1 with 8-inch floppy disk(s)
+RELEASE     = $10                   ; Release level of CODOS
+SYSTEM      = 5                     ; SYM-1 with 8-inch floppy disk(s)
 .elseif .defined(PET)
-RELEASE         = $10               ; Release level of CODOS
-SYSTEM          = 4                 ; PET or CBM with 8-inch floppy disk
+RELEASE     = $10                   ; Release level of CODOS
+SYSTEM      = 4                     ; PET or CBM with 8-inch floppy disk
 .elseif .defined(AIM65)
-RELEASE         = $10               ; Release level of CODOS
-SYSTEM          = 3                 ; AIM-65 with 8-inch floppy disk(s)
+RELEASE     = $10                   ; Release level of CODOS
+SYSTEM      = 3                     ; AIM-65 with 8-inch floppy disk(s)
 .elseif .defined(KIM1)
-RELEASE         = $10               ; Release level of CODOS
-SYSTEM          = 2                 ; KIM-1 with 8-inch floppy disk(s)
+RELEASE     = $10                   ; Release level of CODOS
+SYSTEM      = 2                     ; KIM-1 with 8-inch floppy disk(s)
 .else
-RELEASE         = $20               ; Release level of CODOS
-SYSTEM          = 1                 ; MTU-130 with 8-inch floppy disk(s)
+RELEASE     = $20                   ; Release level of CODOS
+SYSTEM      = 1                     ; MTU-130 with 8-inch floppy disk(s)
 .endif
 
-NCYLS           = 77                ; Number of cylinders
-NSECTS          = 26                ; Sectors per track/side
+NCYLS       = 77                    ; Number of cylinders
+NSECTS      = 26                    ; Sectors per track/side
 
-MAXFILES        = 247               ; Maximum number of files per disk
-FNAMLEN         = 14                ; Max file name length
-DATELEN         = 9                 ; Date string length (excluding null terminator)
+MAXFILES    = 247                   ; Maximum number of files per disk
+FNAMLEN     = 14                    ; Max file name length
+DATELEN     = 9                     ; Date string length (excluding null terminator)
 
-NUMSVCS         = $1F               ; Number of available SVCs
+NUMSVCS     = $1F                   ; Number of available SVCs
 
 ; FINFO flags definitions
 ;
@@ -49,18 +49,20 @@ _BYTRES     = BYTRES-P0SCRATCH
 _PCSAVE     = PCSAVE-P0SCRATCH
 _TMPPTR     = TMPPTR-P0SCRATCH
 
-; Current file info structure
-; FINFO structure offsets:
+; File info (FINFO) structure
 ;
-_FLAGS      = 0                     ; Flags
-_DRIVE      = 1                     ; Drive
-_BATPT      = 2                     ; First block in BAT
-_FSIZE      = 3                     ; (3 bytes) file size (including 64 byte header)
-_FPOS       = 6                     ; (3 bytes) file pos (including 64 byte header)
-_BUFF       = 9                     ; (word) File buffer
-_DMABF      = 11                    ; Encoded K-1013 DMA file buffer
+.struct     FINFO
+    FLAGS   .byte                   ; Flags
+    DRIVE   .byte                   ; Drive
+    BATPT   .byte                   ; First block in BAT
+    FSIZE   .faraddr                ; (3 bytes) file size (including 64 byte header)
+    FPOS    .faraddr                ; (3 bytes) file pos (including 64 byte header)
+    BUFF    .addr                   ; (word) File buffer
+    DMABF   .byte                   ; Encoded K-1013 DMA file buffer
+    RESVD   .byte
+.endstruct
 
-FINFOLEN    = 13                    ; FINFO structure length
+FINFOLEN    = .sizeof(FINFO)        ; FINFO structure length
 
 ; BAT block identifiers:
 ;
@@ -69,44 +71,60 @@ BLKLAST     = $FC                   ; Last block in a series
 BLKOVLY     = $FE                   ; System overlay block
 BLKUNUS     = $FF                   ; Unusable block
 
-; Offsets in BAT:
+; Disk BAT:
 ;
-_BTOPB      = $F8                   ; Last block slot
-_BTVSN      = $FA                   ; (word) Disk volume number
-_BNENT      = $FD                   ; Number of files on disk
-_BLAST      = $FF                   ; Last allocated block number
+.struct     BAT
+            .org $F8
+    TOPB    .byte                   ; Last block slot
+    UNUS1   .byte
+    VSN     .word                   ; (word) Disk volume number
+    UNUS2   .byte
+    NENT    .byte                   ; Number of files on disk
+    UNUS3   .byte
+    LAST    .byte                   ; Last allocated block number
+.endstruct
 
-; File header length
+; Directory entry
 ;
-FHDRLEN     = $40
+.struct     DIRE
+    TAG     .byte
+    FNAM    .byte ::FNAMLEN
+    BATP    .byte
+.endstruct
 
-; Offsets in directory entry
+; File header
 ;
-_FNAM       = 1
-_FBATP      = 15
+.struct     FHDR
+    DIRE    .tag DIRE
+    FLAG    .byte                   ; File flags
+    FLEN    .faraddr                ; File length
+    NENT    .byte                   ; Offset to entry in directory sector
+    NSEC    .byte                   ; Sector in track 12 of the directory
+    DATE    .byte ::DATELEN+1       ; Date of creation
+    RSVD    .byte 28                ; Reserved for future use
+    LAST    .byte                   ; Last sector to load
+    DMA     .byte                   ; DMA encoded vaddress for loading the system 
+    ENTRY   .addr                   ; Entry point - 1
+.endstruct
 
-; Offsets in file header
-;
-_FLAG       = 16                    ; File flags
-_FLEN       = 17                    ; File length
-_NENT       = 20                    ; Offset to entry in directory sector
-_NSEC       = 21                    ; Sector in track 12 of the directory
-_DATE       = 22                    ; Date of creation
+FHDRLEN     = .sizeof(FHDR)
 
 ; Saved (loadable) files header
 ;
-_MAGIC      = 0
-_OVLAY      = 1
-_MEMBK      = 2
-_RSRVD      = 3
-_PNTRS      = 4
-_ENTRY      = _PNTRS
-_LOAD       = 6
-_SIZE       = 8
+.struct     SHDR
+    MAGIC   .byte
+    OVLAY   .byte
+    MEMBK   .byte
+    RSRVD   .byte
+    ENTRY   .addr
+    LOAD    .addr
+    SIZE    .word
+.endstruct
 
-SAVEDHDRLEN = 10
+SAVEDHDRLEN = .sizeof(SHDR)
 
 ; Saved file magic number
+;
 SVDMAGIC    = $58
 
 .macro dma reg, addr

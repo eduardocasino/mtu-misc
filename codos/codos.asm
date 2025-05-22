@@ -109,14 +109,14 @@ IODISABLE   := $FFFF                ; Disable I/O space (enable RAM) from $BE00 
 
             .export HSRCW, ADMA
 
-    HSRCW           := SYSRAM+$1FE8 ; Read  - Hardware Status Read
+HSRCW       := SYSRAM+$1FE8         ; Read  - Hardware Status Read
                                     ; Write - Hardware Control Write
-    ADMA            := SYSRAM+$1FEA ; Write - Set DMA Address Register
+ADMA        := SYSRAM+$1FEA         ; Write - Set DMA Address Register
 
             ;   uPD765 Registers
             ;
-    MSTR            := SYSRAM+$1FEE ; Read  - uPD765 Main Status Register
-    DATR            := SYSRAM+$1FEF ; R/W   - uPD765 Data Register
+MSTR        := SYSRAM+$1FEE         ; Read  - uPD765 Main Status Register
+DATR        := SYSRAM+$1FEF         ; R/W   - uPD765 Data Register
 
             ; uPD765 command index
             ;
@@ -181,7 +181,9 @@ PCSAVE:     .res 2                  ; $DA-$DB (word) Program counter
 
             .export CURFINFO, BATP
 
-CURFINFO:   .res FINFOLEN           ; $DC-$E8
+CURFINFO:   .tag FINFO
+
+;CURFINFO:   .res FINFOLEN           ; $DC-$E8
 
 BATP:       .res 2                  ; $E9-$EA (word) Pointer to Block Allocation Table for current drive
 
@@ -354,39 +356,47 @@ CHANN2:     .byte   $82             ; Channel 2: Output from system monitor
 ;
             .export FINFOTBL
 
-FINFOTBL:   .byte   $06, $00, $00, $00, $00, $00, $00, $00, $00, $00
+FINFOTBL:   .byte   $06
+
+            .byte   $00, $00, $00, $00, $00, $00, $00, $00, $00
             .word   SYSRAM+$200     ; File buffer
             .byte   $88             ; SYSRAM+$200 K-1013 DMA encoded
+            .byte   $00
 
-            .byte   $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
+            .byte   $00, $00, $00, $00, $00, $00, $00, $00, $00
             .word   SYSRAM+$100     ; File buffer
             .byte   $84             ; SYSRAM+$100 K-1013 DMA encoded
+            .byte   $00
 
-            .byte   $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
+            .byte   $00, $00, $00, $00, $00, $00, $00, $00, $00
             .word   SYSRAM          ; File buffer           
             .byte   $80             ; SYSRAM K-1013 DMA encoded
+            .byte   $00
 
-            .byte   $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
+            .byte   $00, $00, $00, $00, $00, $00, $00, $00, $00
             .word   USRRAM+$1700    ; File buffer
             .byte   $5C             ; USRRAM+$1700 K-1013 DMA encoded
+            .byte   $00
 
-            .byte   $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
+            .byte   $00, $00, $00, $00, $00, $00, $00, $00, $00
             .word   USRRAM+$1600    ; File buffer
             .byte   $58             ; USRRAM+$1600 K-1013 DMA encoded
+            .byte   $00
 
-            .byte   $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
+            .byte   $00, $00, $00, $00, $00, $00, $00, $00, $00
             .word   USRRAM+$1500    ; File buffer
             .byte   $54             ; USRRAM+$1500 K-1013 DMA encoded
+            .byte   $00
 
-            .byte   $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
+            .byte   $00, $00, $00, $00, $00, $00, $00, $00, $00
             .word   USRRAM+$1400    ; File buffer
             .byte   $50             ; USRRAM+$1400 K-1013 DMA encoded
+            .byte   $00
 
-            .byte   $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
+            .byte   $00, $00, $00, $00, $00, $00, $00, $00, $00
             .word   USRRAM+$1300    ; File buffer
             .byte   $4C             ; USRRAM+$1300 K-1013 DMA encoded
-
-            .byte   $00             ; ?? END OF TABLE MARKER ???
+            .byte   $00
 
 ; K-1013 DMA encoded addresses for drive BATs
 ;
@@ -435,23 +445,24 @@ CURRDRV:    .byte   $00             ; Current disk drive number
 ; The following 64 bytes comprise the file header that prepends every file
 ; in the CODOS file system
 ;
+
+            .export FILEHDR, DIRENT
+
 FILEHDR:
 ; Directory entry
 ;
-            .export FNAMBUF, TDATE
-
 DIRENT:     .byte   $01             ; Always $01
-FNAMBUF:    .byte   "NONAME.Z  ", $00, $00, ".", $00
-BATPTR:     .byte   $00             ; Pointer to first block in BAT
+            .byte   "NONAME.Z  ", $00, $00, ".", $00
+            .byte   $00             ; Pointer to first block in BAT
 
 
             .byte   $80             ; Flag: $80 : Normal read/write file
                                     ;       $C0 : Locked file
             .byte   $40, $00, $00   ; File size (24 bits) includes header size ($40)
 
-DRCTRYPNT:  .word   $00             ; Relative pointer to the directory entry
+            .word   $00             ; Relative pointer to the directory entry
 
-TDATE:      .byte   "*UNDATED*", $00 ; Today's date
+            .byte   "*UNDATED*", $00 ; Today's date
 
             ; Reserved for future upgrades:
             ;
@@ -768,7 +779,7 @@ JMPTBL:     jmp     NMIPROC         ; Jump to NMI processor
             ;
             ldx     #$08            ; Copy file name to buffer 
 LOOP:       lda     STARTUPNAM,x    ;
-            sta     FNAMBUF,x       ;
+            sta     DIRENT+DIRE::FNAM,x
             dex                     ;
             bpl     LOOP            ;
             ldx     #$00            ; Set drive 0
@@ -1156,7 +1167,7 @@ OUTLONG:    bit     PERRPFLG        ; Are we here as part of the print error pro
             bpl     WARMST          ; No, just warm start
             ldx     #$0B            ; Yes, get file with error messages
 CPYFNAM:    lda     SYSERRMNAM,x    ;
-            sta     FNAMBUF,x       ;
+            sta     DIRENT+DIRE::FNAM,x
             dex                     ;
             bpl     CPYFNAM         ;
             inx                     ; X == 0
@@ -1381,7 +1392,7 @@ SKIP2:      sta     HSRCW           ;
 .proc LDCMDPR
             ldx     #$09            ; Get file name
 LOOP:       lda     CMDPROCNAM,x    ;
-            sta     FNAMBUF,x       ;
+            sta     DIRENT+DIRE::FNAM,x
             dex                     ;
             bpl     LOOP            ;
             ldx     #$00            ; Set drive 0
@@ -1729,7 +1740,8 @@ RETRY:      jsr     CLDRIVE         ; Close drive
 ; Execute READ or WRITE command
 ;
 .proc EXRDWR
-            lda     CURFINFO+_DMABF ; Set DMA buffer
+                                    ; Set DMA buffer
+            lda     CURFINFO+FINFO::DMABF
             sta     ADMA            ;
             lda     RWREOSEC        ; Get End Of Track sector
             cmp     #NSECTS         ; Compare with number of sectors
@@ -1879,7 +1891,8 @@ ISWRT:      inc     WRERRCNT        ; Increment write error count
 .proc GETFINFO
             jsr     CPYCFINFO       ; Copies file info structure to CURFINFO struct
                                     ; in page zero
-            lda     CURFINFO+_DRIVE ; Get file drive
+                                    ; Get file drive
+            lda     CURFINFO+FINFO::DRIVE
             sta     CURRDRV         ; Sets as current drive
             ; Fall through
 .endproc
@@ -1979,11 +1992,12 @@ ISWRT:      inc     WRERRCNT        ; Increment write error count
             lda     #$0C            ; Track $0C holds directory info
             jsr     CKSEEKTRK       ;
             lda     #$94            ; Set transfer buffer to $E500 (Directory buffer)
-            sta     CURFINFO+_DMABF ;
+            sta     CURFINFO+FINFO::DMABF
             lda     SECTNUM         ; If this is non-zero
             bne     PTR12RET        ;   just return
             lda     BATDMAT,x       ; Get DMA address of current drive's BAT
-            sta     CURFINFO+_DMABF ; Set transfer buffer to drive's BAT
+                                    ; Set transfer buffer to drive's BAT
+            sta     CURFINFO+FINFO::DMABF
             lda     #$00            ; Clears A and return
             ; Fallthrough
 .endproc
@@ -2028,46 +2042,46 @@ LOOP:       lda     CURFINFO,x      ; From current FINFO structure
 
 ; Check if end-of-file has been reached. Cy set if so.
 ;
-; Compares CURFINFO+_FPOS and CURFINFO+_FSIZE
-; Carry set if CURFINFO+_FPOS > CURFINFO+_FSIZE
+; Compares CURFINFO+FINFO::FPOS and CURFINFO+FINFO::FSIZE
+; Carry set if CURFINFO+FINFO::FPOS > CURFINFO+FINFO::FSIZE
 ;
 .proc FEOF
-            lda     CURFINFO+_FPOS      ;
-            cmp     CURFINFO+_FSIZE     ;
-            lda     CURFINFO+_FPOS+1    ;
-            sbc     CURFINFO+_FSIZE+1   ;
-            lda     CURFINFO+_FPOS+2    ;
-            sbc     CURFINFO+_FSIZE+2   ;
-            rts                         ;
+            lda     CURFINFO+FINFO::FPOS    ;
+            cmp     CURFINFO+FINFO::FSIZE   ;
+            lda     CURFINFO+FINFO::FPOS+1  ;
+            sbc     CURFINFO+FINFO::FSIZE+1 ;
+            lda     CURFINFO+FINFO::FPOS+2  ;
+            sbc     CURFINFO+FINFO::FSIZE+2 ;
+            rts                             ;
 .endproc
 
 ; Calculate remaining file size from current file pos
 ;   (FSIZE-FPOS) and stores it into FILEPOS
 ;
 .proc CALREMFSIZ
-            sec                         ; Clear borrow for substraction
-            lda     CURFINFO+_FSIZE     ; Substracts current position form file size
-            sbc     CURFINFO+_FPOS      ;
-            sta     FILEPOS             ; And store it into FILEPOS
-            lda     CURFINFO+_FSIZE+1   ;
-            sbc     CURFINFO+_FPOS+1    ;
-            sta     FILEPOS+1           ;
-            lda     CURFINFO+_FSIZE+2   ;
-            sbc     CURFINFO+_FPOS+2    ;
-            sta     FILEPOS+2           ;
-            rts                         ;
+            sec                             ; Clear borrow for substraction
+            lda     CURFINFO+FINFO::FSIZE   ; Substracts current position form file size
+            sbc     CURFINFO+FINFO::FPOS    ;
+            sta     FILEPOS                 ; And store it into FILEPOS
+            lda     CURFINFO+FINFO::FSIZE+1 ;
+            sbc     CURFINFO+FINFO::FPOS+1  ;
+            sta     FILEPOS+1               ;
+            lda     CURFINFO+FINFO::FSIZE+2 ;
+            sbc     CURFINFO+FINFO::FPOS+2  ;
+            sta     FILEPOS+2               ;
+            rts                             ;
 .endproc
 
 ; Sets file end at current position (truncates file)
 ;
 .proc SETEND
-            lda     CURFINFO+_FPOS+2    ; Just copies current fpos to fsize
-            sta     CURFINFO+_FSIZE+2   ;
-            lda     CURFINFO+_FPOS+1    ;
-            sta     CURFINFO+_FSIZE+1   ;
-            lda     CURFINFO+_FPOS      ;
-            sta     CURFINFO+_FSIZE     ;
-            rts                         ;
+            lda     CURFINFO+FINFO::FPOS+2  ; Just copies current fpos to fsize
+            sta     CURFINFO+FINFO::FSIZE+2 ;
+            lda     CURFINFO+FINFO::FPOS+1  ;
+            sta     CURFINFO+FINFO::FSIZE+1 ;
+            lda     CURFINFO+FINFO::FPOS    ;
+            sta     CURFINFO+FINFO::FSIZE   ;
+            rts                             ;
 .endproc
 
 ; Load overlay A from disk
@@ -2113,7 +2127,7 @@ SEEK:       txa                     ; Move track to A (where CKSEEKTRK expects i
             ldx     #$00            ; Seek track A on drive 0
             jsr     CKSEEKTRK       ;
             lda     #$F8            ; DMA address for overlays ( $FE00 ) 
-            sta     CURFINFO+_DMABF ;
+            sta     CURFINFO+FINFO::DMABF
             lda     CURROVL         ; Recover current overlay. Overlays start in 1.
             clc                     ; As overlay 1 start at sector 18, add 17 
             adc     #$11            ; to get the overlay sector number
@@ -2214,10 +2228,10 @@ RET:        tax                     ; Returns device in X
 ; Does not return if it is
 ;       
 .proc CHKLCK
-            lda     CURFINFO+_FLAGS ; Get file flags
-            and     #FLLOCKED       ; Is it locked?
-            beq     RET             ; No, just return
-            jsr     ERROR07         ; Locked file violation
+            lda     CURFINFO+FINFO::FLAGS ; Get file flags
+            and     #FLLOCKED             ; Is it locked?
+            beq     RET                   ; No, just return
+            jsr     ERROR07               ; Locked file violation
             ; Not reached
 RET:        rts
 .endproc
@@ -2242,12 +2256,14 @@ RET:        rts
             sta     CHEAD           ;
             lda     #$07            ; Sectors/block-1
             sta     SCTBLKM1        ;
-            ldx     CURFINFO+_DRIVE ; Get drive number
+                                    ; Get drive number
+            ldx     CURFINFO+FINFO::DRIVE
             lda     DRVNFO,x        ; Get flag for drive. If Bit 7 == 1, then dual side
             sta     DSFLAG          ; Store it
-            lda     CURFINFO+_FPOS+2 ; Get sector offset
-            sta     TEMP1            ;
-            lda     CURFINFO+_FPOS+1 ;
+                                    ; Get sector offset
+            lda     CURFINFO+FINFO::FPOS+2
+            sta     TEMP1           ;
+            lda     CURFINFO+FINFO::FPOS+1
             lsr     TEMP1           ; And divide it by 8
             ror     a               ;
             lsr     TEMP1           ;
@@ -2262,7 +2278,8 @@ RET:        rts
             lsr     TEMP1           ; And divide again (total is sector offset / 16)
             ror     a               ;
 CONT:       tax                     ; Transfer block offset to X
-            lda     CURFINFO+_BATPT ; Get first block of file
+                                    ; Get first block of file
+            lda     CURFINFO+FINFO::BATPT
             inx                     ; 
             bne     DECOFF          ; Past block?
 NXTBLK:     tay                     ; Get index of nex block
@@ -2308,7 +2325,8 @@ SKIP:       sta     TEMP1           ; Save in TEMP1
             lda     #NSECTS*2       ; Yes, double the sectors per track
             sta     SECSTRK         ;
             lda     #$0F            ; And adjust sector offset mask
-SKIP2:      and     CURFINFO+_FPOS+1 ; Calculate and store sector offset
+                                    ; Calculate and store sector offset
+SKIP2:      and     CURFINFO+FINFO::FPOS+1
             sta     BLKSCTOF        ; in the block
             clc                     ;
             adc     TEMP1           ; Add sector offset to sector calculation
@@ -2330,7 +2348,8 @@ TRKSBC:     inx                     ;   entering the loop)
             inx                     ; And increment track number
 GOTIT:      stx     CTRACK          ; Save track
             sta     CSECT           ; Save file sector for pointer
-            ldx     CURFINFO+_DRIVE ; Get file drive
+                                    ; Get file drive
+            ldx     CURFINFO+FINFO::DRIVE
             lda     CSECT           ; Get sector (again?)
             cmp     #NSECTS         ; Is it bigger that sectors per track?
             bcc     SEEK            ; No, skip to seek track
@@ -2353,8 +2372,8 @@ SEEK:       lda     CTRACK          ; Seek track
 ; current FINFO
 ;
 .proc FLUSH
-            bit     CURFINFO+_FLAGS ; Check flags
-            bvc     WRFRET          ; If there are no pending changes, return
+            bit     CURFINFO+FINFO::FLAGS ; Check flags
+            bvc     WRFRET                ; If there are no pending changes, return
             ; Fall through
 .endproc
 
@@ -2363,11 +2382,11 @@ SEEK:       lda     CTRACK          ; Seek track
             .export WRFPSECT
 
 .proc WRFPSECT
-            jsr     GETFPSECT       ; Calculate sector, track and head of file position
-            jsr     WRITSECT        ; Write sector buffer to disk
-            lda     CURFINFO+_FLAGS ; Get file flags
-            and     #<(~FISDIRTY)   ; Clear the changes pending flag
-            sta     CURFINFO+_FLAGS ;
+            jsr     GETFPSECT             ; Calc. sector, track and head of file pos
+            jsr     WRITSECT              ; Write sector buffer to disk
+            lda     CURFINFO+FINFO::FLAGS ; Get file flags
+            and     #<(~FISDIRTY)         ; Clear the changes pending flag
+            sta     CURFINFO+FINFO::FLAGS ;
             ; Fall through
 .endproc
 
@@ -2421,19 +2440,19 @@ SEEK:       lda     CTRACK          ; Seek track
             lda     FILEPOS         ; Add file header length to get the position
             clc                     ; relative to the beginning of data
             adc     #FHDRLEN        ;
-            sta     CURFINFO+_FPOS  ;
+            sta     CURFINFO+FINFO::FPOS
             lda     FILEPOS+1       ;
             adc     #$00            ;
-            sta     CURFINFO+_FPOS+1 ;
+            sta     CURFINFO+FINFO::FPOS+1
             lda     FILEPOS+2       ;
             adc     #$00            ;
-            sta     CURFINFO+_FPOS+2 ;
+            sta     CURFINFO+FINFO::FPOS+2
             bcs     FEND            ; If overflow, set file pos to file size
             jsr     FEOF            ; Check if end of file (Cy set if so)
             bcc     READ            ; No, read sector into buffer
 FEND:       ldx     #$02            ; Yes, set file pos to file size
-CPYFSIZ:    lda     CURFINFO+_FSIZE,x ;
-            sta     CURFINFO+_FPOS,x ;
+CPYFSIZ:    lda     CURFINFO+FINFO::FSIZE,x
+            sta     CURFINFO+FINFO::FPOS,x
             dex                     ;
             bpl     CPYFSIZ         ;
 READ:       jsr     RDFPSECT        ; Read sector of current file position
@@ -2485,12 +2504,13 @@ ISFILE:     jsr     PREPCPY         ; Check that dest memory is valid, flush any
                                     ; pending changes to disk, adjust MEMCOUNT to the
                                     ; available data in file (if MEMCOUNT is greater)
                                     ; and store the count into L00D2
-            lda     CURFINFO+_BUFF  ; Get pointer to file buffer and copies
+                                    ; Get pointer to file buffer and copies
+            lda     CURFINFO+FINFO::BUFF
             sta     LDALO3          ; to the lda insructions below
             sta     LDALO2          ;
             sta     LDALO4          ;
             sta     LDALO1          ;
-            lda     CURFINFO+_BUFF+1;
+            lda     CURFINFO+FINFO::BUFF+1
             sta     LDAHI3          ;
             sta     LDAHI2          ;
             sta     LDAHI4          ;
@@ -2500,7 +2520,8 @@ CPMEM:      lda     DSTBNKCFG       ; Set destination bank
             sta     BNKCTL          ;
             lda     L00D2+1         ; Current count > 256 (one page)
             beq     CPYREM          ; No, go copy remaining bytes
-            ldy     CURFINFO+_FPOS  ; Position at the beginning of a sector?
+                                    ; Position at the beginning of a sector?
+            ldy     CURFINFO+FINFO::FPOS
             bne     CPTOENDS        ; No, go copy bytes up to end of sector first
 
             ; Copy page loop. Does two lda,sta pairs per iteration to optimize for
@@ -2526,7 +2547,8 @@ LDAHI2:     .byte   >SYSRAM         ;
 
             ; Copy to end of sector
 
-CPTOENDS:   ldx     CURFINFO+_FPOS  ; Get current position in the sector
+                                    ; Get current position in the sector
+CPTOENDS:   ldx     CURFINFO+FINFO::FPOS
             ldy     #$00            ; Init index to MEMBUFF
 
 CPONE:      .byte   $BD             ; lda SYSRAM, x
@@ -2546,7 +2568,8 @@ LDAHI3:     .byte   >SYSRAM         ;
             bcc     DECOUNT         ; Not end of page
 
 INCMPGE:    inc     MEMBUFF+1       ; Increment dest page
-DECOUNT:    lda     CURFINFO+_FPOS  ; Did we started at the beginning of a sector?
+                                    ; Did we started at the beginning of a sector?
+DECOUNT:    lda     CURFINFO+FINFO::FPOS
             beq     DECCPGE         ; Yes, copied an entire page, decrement count page
             clc                     ; Calculate remaining count
             
@@ -2558,13 +2581,16 @@ DECOUNT:    lda     CURFINFO+_FPOS  ; Did we started at the beginning of a secto
             sta     L00D2           ;
             bcs     INCFPOS         ; If no borrow, skip decrement
 DECCPGE:    dec     L00D2+1         ; Decrement count page
-INCFPOS:    inc     CURFINFO+_FPOS+1 ; Increment second byte of file position
+                                    ; Increment second byte of file position
+INCFPOS:    inc     CURFINFO+FINFO::FPOS+1
             bne     RESTBNK         ; Skip next if not overflow
-            inc     CURFINFO+_FPOS+2 ; Increment third byte of file position
+                                    ; Increment third byte of file position
+            inc     CURFINFO+FINFO::FPOS+2
 RESTBNK:    lda     DEFBNKCFG       ; Restore default bank
             sta     BNKCTL          ;
             ldx     #$00            ; Zeroes first byte of file position
-            stx     CURFINFO+_FPOS  ; From now on, we are page aligned
+                                    ; From now on, we are page aligned
+            stx     CURFINFO+FINFO::FPOS
             jsr     RDFPSECT        ; Read sector for current file position
             jmp     CPMEM           ; Continue copying
 
@@ -2572,7 +2598,8 @@ RESTBNK:    lda     DEFBNKCFG       ; Restore default bank
 
 CPYREM:     lda     L00D2           ; Get remainig bytes count
             beq     CPDONE          ; If none, we're done
-            ldy     CURFINFO+_FPOS  ; Get position in sector
+                                    ; Get position in sector
+            ldy     CURFINFO+FINFO::FPOS
             ldx     #$00            ; Init index in MEMBUFF
 
 CPONEB:     .byte   $B9             ; lda SYSRAM, y
@@ -2591,7 +2618,8 @@ DECNT:      dec     L00D2           ; Decrement count
 
 ENDCPY:     iny                     ; Increment position in file buffer
             beq     INCFPOS         ; If overflow, advance file position
-            sty     CURFINFO+_FPOS  ; If not, update file position
+                                    ; If not, update file position
+            sty     CURFINFO+FINFO::FPOS
 
 CPDONE:     lda     DEFBNKCFG       ; Restore default bank
             sta     BNKCTL          ;
@@ -2782,12 +2810,13 @@ DESTOK3:    nop                     ;
 ISFILE:     jsr     SETDBNKCFG      ; Set destination bank config
 
             jsr     GETCURCHKLK     ; Get current file and ensures it's not locked
-            lda     CURFINFO+_BUFF  ; Get pointer to file buffer and copies
+                                    ; Get pointer to file buffer and copies
+            lda     CURFINFO+FINFO::BUFF
             sta     STALO3          ; to the sta insructions below
             sta     STALO1          ;
             sta     STALO2          ;
             sta     STALO4          ;
-            lda     CURFINFO+_BUFF+1 ;
+            lda     CURFINFO+FINFO::BUFF+1
             sta     STAHI3          ;
             sta     STAHI1          ;
             sta     STAHI2          ;
@@ -2798,8 +2827,8 @@ CPMEM:      lda     DSTBNKCFG       ;
             lda     MEMCOUNT+1      ; Current count > 256 (one page)
             bne     CHKBOS          ; Yes, check if file pos is at the start of sector
             jmp     CPYREM          ; No, go copy remaining bytes
-
-CHKBOS:     ldy     CURFINFO+_FPOS  ; Is file pos at the beginning of a sector?
+                                    ; Is file pos at the beginning of a sector?
+CHKBOS:     ldy     CURFINFO+FINFO::FPOS
             bne     CPTOENDS        ; No, go copy bytes up to end of sector first
 
             ; Copy page loop. Does two lda,sta pairs per iteration to optimize for
@@ -2824,8 +2853,8 @@ STAHI2:     .byte   $E0             ;
             ; Not reached
 
             ; Copy to end of sector
-
-CPTOENDS:   ldx     CURFINFO+_FPOS  ; Get current position in the sector
+                                    ; Get current position in the sector
+CPTOENDS:   ldx     CURFINFO+FINFO::FPOS
             ldy     #$00            ; Init index to MEMBUFF
 
 CPONE:      lda     (MEMBUFF),y     ; Get byte from membuff
@@ -2843,7 +2872,8 @@ STAHI3:     .byte   $E0             ;
             sta     MEMBUFF         ;
             bcc     DECOUNT         ;
 INCMPGE:    inc     MEMBUFF+1       ;
-DECOUNT:    lda     CURFINFO+_FPOS  ; Did we started at the beginning of a sector?
+                                    ; Did we started at the beginning of a sector?
+DECOUNT:    lda     CURFINFO+FINFO::FPOS
             beq     DECCPGE         ; Yes, copied an entire page, decrement count page
             clc                     ; Calculate remaining count
  
@@ -2859,11 +2889,14 @@ DECCPGE:    dec     MEMCOUNT+1
 WRSEC:      lda     DEFBNKCFG       ; Switch to default bank
             sta     BNKCTL          ;
             jsr     WRFPSECT        ; Write sector of current file pos
-            inc     CURFINFO+_FPOS+1 ; Increment second byte of file position
+                                    ; Increment second byte of file position
+            inc     CURFINFO+FINFO::FPOS+1
             bne     ZPOSLO          ; Skip next if no overflow
-            inc     CURFINFO+_FPOS+2 ; Increment third byte of file position
+                                    ; Increment third byte of file position
+            inc     CURFINFO+FINFO::FPOS+2
 ZPOSLO:     ldy     #$00            ; Zeroes first byte of file position
-            sty     CURFINFO+_FPOS  ; From now on, we are page aligned
+                                    ; From now on, we are page aligned
+            sty     CURFINFO+FINFO::FPOS
             jsr     FEOF            ; Check if end of file (Cy set if so)
             bcc     GETSECT         ; No, get sector into buffer
             jsr     SETEND          ; Yes, set new end of file
@@ -2879,7 +2912,8 @@ ZPOSLO:     ldy     #$00            ; Zeroes first byte of file position
 
 CPYREM:     lda     MEMCOUNT        ; Get remainig bytes count
             beq     CPDONE          ; If none, we're done
-            ldy     CURFINFO+_FPOS  ; Get position in sector
+                                    ; Get position in sector
+            ldy     CURFINFO+FINFO::FPOS
             ldx     #$00            ; Init index in MEMBUFF
 
 CPONEB:     lda     (MEMBUFF,x)     ; Get byte from MEMBUFF
@@ -2899,10 +2933,12 @@ DECNT:      dec     MEMCOUNT        ; Decrement count
 
 ENDCPY:     iny                     ; Increment position in file buffer
             beq     WRSEC           ; If complete sector, write it to disk
-            sty     CURFINFO+_FPOS  ; Update file position
-            lda     CURFINFO+_FLAGS ; Set the pending changes flag
+                                    ; Update file position
+            sty     CURFINFO+FINFO::FPOS
+                                    ; Set the pending changes flag
+            lda     CURFINFO+FINFO::FLAGS
             ora     #FISDIRTY       ;
-            sta     CURFINFO+_FLAGS ;
+            sta     CURFINFO+FINFO::FLAGS
 
 CPDONE:     lda     DEFBNKCFG       ; Switch to the default bank
             sta     BNKCTL          ;
@@ -2970,11 +3006,11 @@ RETURN:     rts
 .endproc
 
 ; Get the first free block available
-; Marks  it as last block in the series, updates (BATP),_BLAST
+; Marks  it as last block in the series, updates (BATP),BAT::LAST
 ; and returns block number in A
 ;
 .proc GETFREEB
-            ldy     #_BLAST         ; Get last allocated block
+            ldy     #BAT::LAST      ; Get last allocated block
             lda     (BATP),y        ;
             tay                     ; 
 NEXTB:      iny                     ; Get next block
@@ -2989,11 +3025,12 @@ NEXTD:      iny                     ; Get next block
             bne     NEXTD           ; No, check next
             cpy     #$F9            ; Are we past the allocated blocks space?
             bcc     FOUND           ; No, then we found it
-            lda     CURFINFO+_FPOS+1 ; Decrement file position as no block was found
+                                    ; Decrement file position as no block was found
+            lda     CURFINFO+FINFO::FPOS+1
             bne     DECFP1          ;
-            dec     CURFINFO+_FPOS+2 ;
-DECFP1:     dec     CURFINFO+_FPOS+1 ;
-            dec     CURFINFO+_FPOS  ;
+            dec     CURFINFO+FINFO::FPOS+2
+DECFP1:     dec     CURFINFO+FINFO::FPOS+1
+            dec     CURFINFO+FINFO::FPOS
             jsr     SETEND          ; Truncate file
             jsr     UPDCFINFO       ; Updates file's FINFO structure
             jsr     ERROR38         ; Diskette is full; all blocks already allocated.
@@ -3001,7 +3038,7 @@ DECFP1:     dec     CURFINFO+_FPOS+1 ;
 FOUND:      lda     #BLKLAST        ; Mark block as last in the series
             jsr     SETNEXTBLK      ;
             tya                     ; Transfer new block to A
-            ldy     #_BLAST         ; Sets block as last allocated in BAT
+            ldy     #BAT::LAST      ; Sets block as last allocated in BAT
             sta     (BATP),y        ;
             rts                     ;
 .endproc
@@ -3048,7 +3085,8 @@ LOOP:       jsr     GETDEV          ; Get device for channel
             beq     NEXT            ; Not assigned, check next
             bmi     NEXT            ; Not a file, check next
             tax
-            lda     FINFOTBL+_DRIVE,x ; Get drive of file
+                                    ; Get drive of file
+            lda     FINFOTBL+FINFO::DRIVE,x
             cmp     CURRDRV         ; Is it ours?
             bne     CNEXT           ; No, check next
             ldx     CHANNEL         ; Recover channel
@@ -3086,11 +3124,13 @@ RETURN:     rts                     ;
 LOOP:       ldx     IOCHTBL,y       ; Get channel's device or file
             bmi     NEXT            ; Check next if it is a device driver
             beq     NEXT            ; or not assigned
-            lda     FINFOTBL+_DRIVE,x ; Get drive
+                                    ; Get drive
+            lda     FINFOTBL+FINFO::DRIVE,x
             cmp     SAVEDRV         ; Is it our drive
             bne     NEXT            ; No, check next
-            lda     #FLUNUSED       ; 
-            sta     FINFOTBL+_FLAGS,x ; Invalidate
+            lda     #FLUNUSED       ;
+                                    ; Invalidate
+            sta     FINFOTBL+FINFO::FLAGS,x
             sta     IOCHTBL,y       ; Unassign channel
 NEXT:       dey                     ; Repeat for next channel
             bpl     LOOP            ;
@@ -3136,14 +3176,15 @@ NEWFIL:     lsr     ASSIGNFLAG      ; Sets bit 6: It is a file
             bvc     WRITABLE        ; Check if write protected
             jsr     ERROR21         ; New file on write-protected diskette
             ; Not reached
-WRITABLE:   ldy     #_BNENT         ; Get number of files on disk
+WRITABLE:   ldy     #BAT::NENT      ; Get number of files on disk
             lda     (BATP),y        ;
             cmp     #MAXFILES+1     ; Have we reached the maximum?
             bcc     AVAIL           ; No, still room for more
             jsr     ERROR39         ; Diskette is full; no room left in directory
             ; Not reached
 AVAIL:      jsr     GETFREEB        ; Get the first free block
-            sta     BATPTR          ; Stores it into the directory entry
+                                    ; Stores it into the directory entry
+            sta     DIRENT+DIRE::BATP
             jsr     GETAFTNTRY      ; Find a free entry in the active files table,
                                     ; assigns the DEVICE number and copy the entry
                                     ; to CURFINFO
@@ -3153,11 +3194,13 @@ AVAIL:      jsr     GETFREEB        ; Get the first free block
                                     ; System crash: directory/file table check error
             ; Not reached
 ISNEW:      jsr     INITFILE        ; Init file size and file position
-            lda     DRCTRYPNT+1     ; Get sector of first free entry
+                                    ; Get sector of first free entry
+            lda     FILEHDR+FHDR::NSEC
             jsr     RDSECTATR12     ; Read sector from track 12 (directory)
-            ldy     DRCTRYPNT       ; Index to the entry in the sector
-            dey                     ; Back one byte, as DRCTRYPNT points to the file
-                                    ; name
+                                    ; Index to the entry in the sector
+            ldy     FILEHDR+FHDR::NENT
+            dey                     ; Back one byte, as FILEHDR+FHDR::NENT points to
+                                    ; the file name
             ldx     #$00            ; Copy the new DIRENT to the directory buffer
 LOOP:       lda     DIRENT,x        ;
             sta     DIRBUF,y        ;
@@ -3167,7 +3210,7 @@ LOOP:       lda     DIRENT,x        ;
             bcc     LOOP            ; No, next one
             jsr     WRTRCK12        ; Write changes to disk
             lda     #$80            ; Set flag to "Normal file"
-            sta     CURFINFO+_FLAGS ;
+            sta     CURFINFO+FINFO::FLAGS
             jsr     UPDFINCHAN      ; Update active file and I/O channel tables
             lda     #FHDRLEN        ; Header length
             sta     MEMCOUNT        ;
@@ -3181,12 +3224,12 @@ LOOP:       lda     DIRENT,x        ;
             jsr     OUTMBUFF        ;    (write to new file)
             jsr     WRFPSECT        ; Write buffer to disk
             jsr     UPDCFINFO       ; Update FINFO entry in active files table
-            ldy     #_BNENT         ; Get number of files on disk
+            ldy     #BAT::NENT      ; Get number of files on disk
             lda     (BATP),y        ;
             clc                     ; Clear carry for addition
             adc     #$01            ; Increase nuber of files
                                     ; Now it uses SETNEXTBLK to update the number of
-                                    ; files in the BAT (Y is _BNENT, A is the new
+                                    ; files in the BAT (Y is BAT::NENT, A is the new
                                     ; file count)
             jsr     SETNEXTBLK      ; Set new file count A for offset Y into the current
             jmp     WRTBAT          ; BAT and write BAT to disk
@@ -3196,10 +3239,12 @@ LOOP:       lda     DIRENT,x        ;
 ;
 .proc FASSIGN
             ldx     DIRPOINT        ; Get pointer to filename of directory entry
-            lda     DIRBUF+_FBATP-1,x ; Get pointer to firsrt block in bat (We use
-                                    ; _FBATP-1 because X points to the file name,
+                                    ; Get pointer to firsrt block in bat (We use
+                                    ; DIRE::BATP-1 because X points to the file name,
                                     ; not to the first byte)
-            sta     BATPTR          ; Stores it into the directory entry
+            lda     DIRBUF+DIRE::BATP-1,x
+                                    ; Stores it into the directory entry
+            sta     DIRENT+DIRE::BATP
             jsr     GETAFTNTRY      ; Find a free entry in the active files table,
                                     ; assigns the DEVICE number and copy the entry
                                     ; to CURFINFO
@@ -3208,19 +3253,21 @@ LOOP:       lda     DIRENT,x        ;
 INIFP:      lda     #FHDRLEN        ; Inits file pointer to the first data byte
             jsr     SETFILEP        ;   (just past the 64 byte file header)
             jsr     RDFPSECT        ; Read sector pointer by current file pos
-            lda     CURFINFO+_FLAGS ; Check file flags
+                                    ; Check file flags
+            lda     CURFINFO+FINFO::FLAGS
             bne     UPDFLG          ; If set, (existing entry), skip to update flags
             ldx     #$02            ; Not set, copy file length to current FINFO
-            ldy     #_FLEN+2        ; from the file header
-CPSIZ:      lda     (CURFINFO+_BUFF),y ;
-            sta     CURFINFO+_FSIZE,x  ;
+            ldy     #FHDR::FLEN+2   ; from the file header
+CPSIZ:      lda     (CURFINFO+FINFO::BUFF),y
+            sta     CURFINFO+FINFO::FSIZE,x
             dey                     ;
             dex                     ;
             bpl     CPSIZ           ; Repeat until done
-            ldy     #_FLAG          ; Copy file flags from file header
-            lda     (CURFINFO+_BUFF),y ;
-            sta     CURFINFO+_FLAGS ;
-UPDFLG:     lda     CURFINFO+_FLAGS ; Get flags, again
+            ldy     #FHDR::FLAG     ; Copy file flags from file header
+            lda     (CURFINFO+FINFO::BUFF),y
+            sta     CURFINFO+FINFO::FLAGS
+                                    ; Get flags, again
+UPDFLG:     lda     CURFINFO+FINFO::FLAGS
             ora     #$C0            ; Mark as an existing file (bits 7 and 6 set)
             sta     ASSIGNFLAG      ;
             ; Fall through
@@ -3331,41 +3378,46 @@ NEXT:       dex                     ; Yes, continue search
             jsr     FFLUSH          ; Flush pending changes to disk
             jsr     ZEROFILEP       ; Zeroes file pointer
             jsr     RDFPSECT        ; Reads first sector of file
-            lda     CURFINFO+_FSIZE+1 ; Check if file size >= 256
-            ora     CURFINFO+_FSIZE+2 ;
+                                    ; Check if file size >= 256
+            lda     CURFINFO+FINFO::FSIZE+1
+            ora     CURFINFO+FINFO::FSIZE+2
             bne     CONT            ; Yes, continue
-            lda     CURFINFO+_FSIZE ; Check if file size is at least 1 byte
+                                    ; Check if file size is at least 1 byte
+            lda     CURFINFO+FINFO::FSIZE
             cmp     #FHDRLEN+1      ; (excluding the file header)
             bcs     CONT            ; Yes, continue
             jmp     FDELCURR        ; No, delete file
 
-CONT:       ldy     #_FLEN+2        ; Compare FINFO file length to header file length
+CONT:       ldy     #FHDR::FLEN+2   ; Compare FINFO file length to header file length
             ldx     #$02            ;
-CMPBYT:     lda     CURFINFO+_FSIZE,x ;
-            cmp     (CURFINFO+_BUFF),y ;
+CMPBYT:     lda     CURFINFO+FINFO::FSIZE,x
+            cmp     (CURFINFO+FINFO::BUFF),y
             beq     NXTBYT          ; This byte is the same, continue to next one
-            sta     (CURFINFO+_BUFF),y ; Different, update FINFO
-            lda     CURFINFO+_FLAGS ; And pending changes flag
+                                    ; Different, update FINFO
+            sta     (CURFINFO+FINFO::BUFF),y
+                                    ; And pending changes flag
+            lda     CURFINFO+FINFO::FLAGS
             ora     #FISDIRTY       ;
-            sta     CURFINFO+_FLAGS ;
+            sta     CURFINFO+FINFO::FLAGS
 NXTBYT:     dey                     ; Advance no next byte
             dex                     ;
             bpl     CMPBYT          ; And continue until no more
             jsr     FLUSH           ; Flush buffer changes to disk
-            ldx     CURFINFO+_DRIVE ; Get drive
+                                    ; Get drive
+            ldx     CURFINFO+FINFO::DRIVE
             lda     BATCHG,x        ; Check if its BAT has changes
             bpl     SKIP            ; No, skip updating
             jsr     WRTBAT          ; Write BAT to disk
 SKIP:       lda     #FLUNUSED       ; Mark entry for this deviceas unused
             ldx     DEVICE          ;
-            sta     FINFOTBL+_FLAGS,x ;
+            sta     FINFOTBL+FINFO::FLAGS,x
 DOFREE:     ldx     CHANNEL         ; 
             lda     #$00            ; Free channel and return
             sta     IOCHTBL,x       ;
 RETURN:     rts                     ;
 .endproc
 
-; Delete file in FNAMBUF from drive X
+; Delete file in DIRENT+DIRE::FNAM from drive X
 ;
             .export FDELETE
 
@@ -3380,19 +3432,20 @@ RETURN:     rts                     ;
 ; Delete current file
 ;
 .proc FDELCURR
-            ldy     #_NSEC          ; Get sector in track 12 of the directory
-            lda     (CURFINFO+_BUFF),y ;
+            ldy     #FHDR::NSEC     ; Get sector in track 12 of the directory
+            lda     (CURFINFO+FINFO::BUFF),y
             jsr     RDSECTATR12     ; Read it
-            ldy     #_NENT          ; Get offset to entry in directory sector
-            lda     (CURFINFO+_BUFF),y ;
+            ldy     #FHDR::NENT     ; Get offset to entry in directory sector
+            lda     (CURFINFO+FINFO::BUFF),y
             tax                     ; Transfer to X to use it as index
             sta     DIRPOINT        ; Save it into DIRPOINT
-            ldy     #_FNAM          ; Index to file name in the FINFO
+            ldy     #DIRE::FNAM     ; Index to file name in the FINFO
                                     ; Check that file names match
 CMPCHR:     lda     DIRBUF,x        ; Get char of file name
             cmp     #'.'            ; Is it the extension separator
             beq     DELETE          ; Yes, seems good, start deleting
-            cmp     (CURFINFO+_BUFF),y ; No, compare to file in directory entry
+                                    ; No, compare to file in directory entry
+            cmp     (CURFINFO+FINFO::BUFF),y
             beq     CMPNXT          ; Match, go compare the next char
             jsr     ERROR50         ; System crash: Directory redundancy check failed.
 CMPNXT:     iny                     ;
@@ -3402,19 +3455,20 @@ DELETE:     ldx     DIRPOINT        ; Get offset to entry in directory sector
             lda     #$00            ; Mark entry as deletes
             sta     DIRBUF,x        ;
             jsr     WRTRCK12        ; Update directory on disk
-            ldy     #_BNENT         ; Get number of files on disk
+            ldy     #BAT::NENT      ; Get number of files on disk
             lda     (BATP),y        ; 
             sec                     ; Clear borrow for substraction
             sbc     #$01            ; Decrease number
                                     ; Now it uses SETNEXTBLK to update the number of
-                                    ; files in the BAT (Y is _BNENT, A is the new
+                                    ; files in the BAT (Y is BAT::NENT, A is the new
                                     ; file count)
             jsr     SETNEXTBLK      ; Set new file count A for offset Y into the current
-            ldy     CURFINFO+_BATPT ; Get index to first block of file
+                                    ; Get index to first block of file
+            ldy     CURFINFO+FINFO::BATPT
             jsr     FREEBLK         ; Free chain of blocks starting at block Y
             lda     #FLUNUSED       ; Mark as unused in active files table
             ldx     DEVICE          ;
-            sta     FINFOTBL+_FLAGS,x ;
+            sta     FINFOTBL+FINFO::FLAGS,x
             ldx     #$09            ; Search for file's device in the IO Channel table
 UNASSGN:    lda     IOCHTBL,x       ; Check if assigned to this channel
             cmp     DEVICE          ;
@@ -3443,7 +3497,7 @@ UPDBAT:     jmp     WRTBAT          ; Update disk's BAT and return
             ; Not reached
 .endproc
 
-; Check if the file in CURRDRV starting at BATPTR is already an active file
+; Check if the file in CURRDRV starting at DIRENT+DIRE::BATP is already an active file
 ;
 ; If so, reuses the file (DEVICE) number to that entry and copies the latter to the
 ; CURFINFO structure in page zero.
@@ -3465,18 +3519,22 @@ LOOP:       txa                     ; Calculate start of this entry
             sbc     #FINFOLEN       ;
             bmi     NOMORE          ; Start is negative, there are no more entries
             tax
-            lda     FINFOTBL+_FLAGS,x ; Get flags
-            beq     NEXT              ; If unused, mark as candidate and get next entry
-            lda     FINFOTBL+_DRIVE,x ; Active, get drive
-            cmp     CURRDRV           ; In current drive?
-            bne     LOOP              ; No, get next entry
-            lda     FINFOTBL+_BATPT,x ; Same file as current file?
-            cmp     BATPTR            ;
-            bne     LOOP              ; No, get next entry
-            stx     DEVICE            ; Yes, store DEVICE
-            jsr     CPYCFINFO         ; Copy FINFO structure to CURINFO struct in page zero
-            lda     CURFINFO+_FLAGS   ; Return flags in A
-            rts                       ;
+                                    ; Get flags
+            lda     FINFOTBL+FINFO::FLAGS,x
+            beq     NEXT            ; If unused, mark as candidate and get next entry
+                                    ; Active, get drive
+            lda     FINFOTBL+FINFO::DRIVE,x
+            cmp     CURRDRV         ; In current drive?
+            bne     LOOP            ; No, get next entry
+                                    ; Same file as current file?
+            lda     FINFOTBL+FINFO::BATPT,x
+            cmp     DIRENT+DIRE::BATP
+            bne     LOOP            ; No, get next entry
+            stx     DEVICE          ; Yes, store DEVICE
+            jsr     CPYCFINFO       ; Copy FINFO structure to CURINFO struct in page zero
+                                    ; Return flags in A
+            lda     CURFINFO+FINFO::FLAGS
+            rts                     ;
 
 NEXT:       stx     DEVICE          ; Save unused entry
             jmp     LOOP            ; And go check next
@@ -3488,11 +3546,14 @@ NOMORE:     ldx     DEVICE          ; Get file number
 
 FREE:       jsr     CPYCFINFO       ; Copy FINFO structure to CURINFO struct in page zero
             lda     CURRDRV         ; Get current drive
-            sta     CURFINFO+_DRIVE ; Store into FINFO
-            lda     BATPTR          ; Get first block of file
-            sta     CURFINFO+_BATPT ; Store into FINFO
+                                    ; Store into FINFO
+            sta     CURFINFO+FINFO::DRIVE
+                                    ; Get first block of file
+            lda     DIRENT+DIRE::BATP
+                                    ; Store into FINFO
+            sta     CURFINFO+FINFO::BATPT
             lda     #FLUNUSED       ; Mark it as unused   
-            sta     CURFINFO+_FLAGS ;
+            sta     CURFINFO+FINFO::FLAGS
             rts                     ;
 .endproc
 
@@ -3528,7 +3589,7 @@ FILE:       lda     DEFDRV          ; Set current drive to the default
             lda     #$00            ;
             sta     SCANFLG         ; inits SCANFLG
             jsr     FNAMFROMBUF     ; Copy file name from buffer pointed by (TMPBUFP),y
-                                    ; to FNAMBUF
+                                    ; to DIRENT+DIRE::FNAM
             bcs     NVALID          ; If not valid file name, jump
             lda     (TMPBUFP),y     ; Get drive number, if specified
             cmp     COLON           ; Drive separator?
@@ -3591,10 +3652,10 @@ DEFAULT:    jsr     SRVINTX         ; Serve pending interrupt and get drive in X
             rts                     ;
 .endproc
 
-; Search for FNAMBUF in the directory table
+; Search for DIRENT+DIRE::FNAM in the directory table
 ; Returns:
 ;    A == 0 if file exists
-;    A != 0 if file does not exist, DRCTRYPNT point to the first empty
+;    A != 0 if file does not exist, FILEHDR+FHDR::NENT point to the first empty
 ;           entry in the directory table
 ;
             .export FEXIST
@@ -3602,46 +3663,53 @@ DEFAULT:    jsr     SRVINTX         ; Serve pending interrupt and get drive in X
 .proc FEXIST
             jsr     SETBATP         ; Set BATP to the current drive's BAT
             ldx     #$00            ; Init
-            stx     DRCTRYPNT+1     ;   sector and
-            stx     DRCTRYPNT       ;   offset to first free entry
+                                    ;   sector and
+            stx     FILEHDR+FHDR::NSEC
+                                    ;   offset to first free entry
+            stx     FILEHDR+FHDR::NENT
             inx                     ;
             stx     SECTNUM         ; Start from sector 1 (directory entries)
             stx     DIRPOINT        ; Points to filename of first entry
-            ldy     #_BNENT         ; Get number of files on disk
+            ldy     #BAT::NENT      ; Get number of files on disk
             lda     (BATP),y        ;
             sta     NFILES          ; And save them
             bne     NOEMPTY         ; Disk empty?. No, continue
-            inc     DRCTRYPNT+1     ; Yes, first free entry is in the
-            inc     DRCTRYPNT       ; first one in the first sector
-RETURN:     lda     DRCTRYPNT       ;
+                                    ; Yes, first free entry is in the
+            inc     FILEHDR+FHDR::NSEC
+                                    ; first one in the first sector
+            inc     FILEHDR+FHDR::NENT
+RETURN:     lda     FILEHDR+FHDR::NENT
             rts                     ;
 
 NOEMPTY:    jsr     RDSECTNTR12     ; Read SECTNUM sector into DIR buffer
 ENTRYLP:    ldy     DIRPOINT        ; Get pointer to filename of entry
-            ldx     #$00            ; Init FNAMBUF index
+            ldx     #$00            ; Init DIRENT+DIRE::FNAM index
 CMPLP:      lda     DIRBUF,y        ; Get first char
             beq     DELETED         ; If it is a NULL, it is deleted
             cmp     #'.'            ; Extension separator?
             beq     CHKEXT          ;   yes, go compare extension
-            cmp     FNAMBUF,x       ; Compare with our file name
+                                    ; Compare with our file name
+            cmp     DIRENT+DIRE::FNAM,x
             bne     NEXT            ; Different, go check next entry
             inx                     ; Equal, go check next char
             iny                     ;
             jmp     CMPLP           ;
             ; Not reached
-CHKEXT:     lda     FNAMBUF,x       ; Get char of our file name
+                                    ; Get char of our file name
+CHKEXT:     lda     DIRENT+DIRE::FNAM,x
             cmp     #'.'            ; Extension?
             bne     NEXT            ; No, then different. Go check next entry
             lda     $E501,y         ; Compare the exension letter
-            cmp     FNAMBUF+1,x     ;
+            cmp     DIRENT+DIRE::FNAM+1,x
             bne     NEXT            ; Different, go check next entry
-            lda     #$00            ; Return 0 and clear DRCTRYPNT
-            sta     DRCTRYPNT       ;
+            lda     #$00            ; Return 0 and clear FILEHDR+FHDR::NENT
+            sta     FILEHDR+FHDR::NENT
             rts                     ; and done.
 
 NEXT:       dec     NFILES          ; Decrement file count
             bne     NDIRE           ; Still files left, advance to next entry
-            lda     DRCTRYPNT       ; No more files, were there any deleted?
+                                    ; No more files, were there any deleted?
+            lda     FILEHDR+FHDR::NENT
             bne     RETURN          ; Yes, return 
             beq     NXTFREE         ; No, advance to next entry and report it
                                     ; as free
@@ -3649,12 +3717,14 @@ NEXT:       dec     NFILES          ; Decrement file count
 NDIRE:      jsr     NXTDIRENT       ; Point DIRPOINT to next entry in buffer
             jmp     ENTRYLP         ; And process it
 
-DELETED:    lda     DRCTRYPNT+1     ; First deleted entry?
+                                    ; First deleted entry?
+DELETED:    lda     FILEHDR+FHDR::NSEC
             bne     NDIRE           ; No, go get next entry
             lda     SECTNUM         ; Yes, store sector
-            sta     DRCTRYPNT+1     ;
+            sta     FILEHDR+FHDR::NSEC
             lda     DIRPOINT        ;    and pointer
-            sta     DRCTRYPNT       ;    of first deleted (free) entry 
+                                    ;    of first deleted (free) entry 
+            sta     FILEHDR+FHDR::NENT 
             lda     NFILES          ; Any more files?
             bne     NDIRE           ;    yes, go get next entry
             jmp     RETURN          ;    no, return with deleted pointer in A
@@ -3685,11 +3755,11 @@ RETURN:     rts                     ;
             .export INITFILE
 
 .proc INITFILE
-            lda     #FHDRLEN          ; Set file size to 64
-            sta     CURFINFO+_FSIZE   ;
-            lda     #$00              ;
-            sta     CURFINFO+_FSIZE+1 ;
-            sta     CURFINFO+_FSIZE+2 ;
+            lda     #FHDRLEN                ; Set file size to 64
+            sta     CURFINFO+FINFO::FSIZE   ;
+            lda     #$00                    ;
+            sta     CURFINFO+FINFO::FSIZE+1 ;
+            sta     CURFINFO+FINFO::FSIZE+2 ;
             ; Fall through
 .endproc
 
@@ -3698,21 +3768,21 @@ RETURN:     rts                     ;
             .export ZEROFILEP
 
 .proc ZEROFILEP
-            lda     #$00            ; Value to store in CURFINFO+_FPOS
+            lda     #$00            ; Value to store in CURFINFO+FINFO::FPOS
             ; Fall through
 .endproc
 
 ; Sets file pointer to value in A
 ;
 .proc SETFILEP
-            sta     CURFINFO+_FPOS   ; Set file pointer to A
-            lda     #$00             ; Set file pointer MSBs to 0
-            sta     CURFINFO+_FPOS+1 ;
-            sta     CURFINFO+_FPOS+2 ;
-            rts                      ;
+            sta     CURFINFO+FINFO::FPOS   ; Set file pointer to A
+            lda     #$00                   ; Set file pointer MSBs to 0
+            sta     CURFINFO+FINFO::FPOS+1 ;
+            sta     CURFINFO+FINFO::FPOS+2 ;
+            rts                            ;
 .endproc
 
-; Copy file name from buffer pointed by (TMPBUFP) to FNAMBUF
+; Copy file name from buffer pointed by (TMPBUFP) to DIRENT+DIRE::FNAM
 ;
             .export FNAMFROMBUF0
 
@@ -3721,7 +3791,7 @@ RETURN:     rts                     ;
             ; Fall through    
 .endproc
 
-; Copy file name from buffer pointed by (TMPBUFP),y to FNAMBUF
+; Copy file name from buffer pointed by (TMPBUFP),y to DIRENT+DIRE::FNAM
 ;
             .export FNAMFROMBUF
 
@@ -3730,7 +3800,8 @@ RETURN:     rts                     ;
 LOOP:       lda     (TMPBUFP),y     ; Get char from buffer
             jsr     VALFNCHR        ; Is it a valid file name character?
             bcs     CHKEXT          ; No, check if extension
-            sta     FNAMBUF,x       ; Yes, store
+                                    ; Yes, store
+            sta     DIRENT+DIRE::FNAM,x
             iny                     ; And advance
             inx                     ;
             cpx     #FNAMLEN-1      ; Have we reached max filename lenght?
@@ -3740,7 +3811,8 @@ LOOP:       lda     (TMPBUFP),y     ; Get char from buffer
 
 CHKEXT:     cmp     #'.'            ; Extension?
             bne     NOEXT           ; No, assume end and add default extension
-            sta     FNAMBUF,x       ; Yes, store the dot
+                                    ; Yes, store the dot
+            sta     DIRENT+DIRE::FNAM,x
             iny                     ; Get the extension char
             lda     (TMPBUFP),y     ;
             iny                     ; Advance 1 pos
@@ -3748,14 +3820,17 @@ CHKEXT:     cmp     #'.'            ; Extension?
             ; Not reached
 
 NOEXT:      lda     #'.'            ; Store default extension
-            sta     FNAMBUF,x       ;
+            sta     DIRENT+DIRE::FNAM,x
             lda     DEFAULTEXT      ;
-STOREXT:    sta     FNAMBUF+1,x     ; Store extension
-            lda     FNAMBUF         ; Check that the first char of file name
+                                    ; Store extension
+STOREXT:    sta     DIRENT+DIRE::FNAM+1,x
+                                    ; Check that the first char of file name
+            lda     DIRENT+DIRE::FNAM
             jsr     ISALPHA         ; is a letter
             bcs     RETURN          ; If not, return with CS (error)
             ldx     #$01            ; Advance to second char
-LOOP2:      lda     FNAMBUF,x       ; Get char
+                                    ; Get char
+LOOP2:      lda     DIRENT+DIRE::FNAM,x
             cmp     #'.'            ; Is it the extension separator?
             beq     VALEXT          ; Yes, go validate extension
             jsr     VALFNCHR        ; No, check it is a valid file name char
@@ -3768,7 +3843,8 @@ LOOP2:      lda     FNAMBUF,x       ; Get char
 
 VALEXT:     cpx     #$01            ; File name length too short?
             beq     RETURN          ; Yes, return (Shouldn't it set the carry flag?)
-            lda     FNAMBUF+1,x     ; Get the extension char
+                                    ; Get the extension char
+            lda     DIRENT+DIRE::FNAM+1,x
             jsr     ISALPHANUM      ; Validate that it is alphanumeric
 RETURN:     rts                     ;
 .endproc
@@ -4726,16 +4802,18 @@ RETURN:     rts                     ; No more digits, return
             .export SAVEBLK
 
 .proc SAVEBLK
-            sta     SAVEDHDR+_OVLAY ; Set overlay
+                                    ; Set overlay
+            sta     SAVEDHDR+SHDR::OVLAY
             lda     #$00            ; Reserved: always 0
-            sta     SAVEDHDR+_RSRVD ;
+            sta     SAVEDHDR+SHDR::RSRVD
             lda     SVDFROMBNK      ; Get <from> bank
             bit     SAVDESTPF       ; Check if <dest> is set
             bpl     NODEST          ; No, use <from> info
             lda     SVDDESTBNK
-NODEST:     sta     SAVEDHDR+_MEMBK ; Set memory bank
+                                    ; Set memory bank
+NODEST:     sta     SAVEDHDR+SHDR::MEMBK
             lda     #SVDMAGIC       ; Set saved files magic number
-            sta     SAVEDHDR+_MAGIC ;
+            sta     SAVEDHDR+SHDR::MAGIC
             lda     MEMCOUNT        ; Get <to> address
             sec                     ; And convert to bytes count
             sbc     MEMBUFF         ;
@@ -4760,7 +4838,7 @@ NOENT:      jsr     UNU0            ; Copy P0SCRATCH,x to P0SCRATCH
                                     ;   (either MEMBUFF or TMPBUFP)
             ldx     #_MEMCOUNT+1    ; Copy starting and entry addresses
 CPYADD:     lda     P0SCRATCH,x     ;
-            sta     SAVEDHDR+_PNTRS,x ;
+            sta     SAVEDHDR+SHDR::ENTRY,x
             dex                     ;
             bpl     CPYADD          ;
             jsr     SVDRWPREP       ; Prepare read/write of "saved file" header
@@ -4797,7 +4875,7 @@ OUTB:       ldx     CHANNEL         ; Get channel
 ;
 .proc CPYPTRS
             ldx     #_MEMCOUNT+1      ;
-LOOP:       lda     SAVEDHDR+_PNTRS,x ;
+LOOP:       lda     SAVEDHDR+SHDR::ENTRY,x
             sta     P0SCRATCH,x       ;
             dex                       ;
             bpl     LOOP              ;
@@ -4829,11 +4907,13 @@ LOOP:       lda     DESTBUFF,x      ;
             sta     SAVEA3          ; Save A in temporary storage
             jsr     LD58HDR         ; Load "saved file" hdr from file at current pos
             bcs     RETCS           ; Return with error
-            lda     SAVEDHDR+_OVLAY ; Check if overlay is same as requested
+                                    ; Check if overlay is same as requested
+            lda     SAVEDHDR+SHDR::OVLAY
             cmp     SAVEA3          ;
             bne     RETCS           ; No, return with error
             jsr     CPYPTRS         ; Yes, copy pointers from header to page 0
-            lda     SAVEDHDR+_MEMBK ; Set destination bank from header
+                                    ; Set destination bank from header
+            lda     SAVEDHDR+SHDR::MEMBK
             sta     DSTBANK         ;
             bit     SAVDESTPF       ; Was a <dest> specified?
             bpl     CONT            ; No, continue
@@ -4861,7 +4941,8 @@ RETCS:      sec                     ; Return with error
             jsr     GETMBUFF        ; Get header from file into MEMBUFF
             bcs     RETURN          ; If error, return
             rol     IGNORWRP        ; Clear ignore memory write protection flag
-            lda     SAVEDHDR+_MAGIC ; Check that the magic number is correct
+                                    ; Check that the magic number is correct
+            lda     SAVEDHDR+SHDR::MAGIC
             cmp     #$58            ;
             beq     RETOK           ; Yes, jump to return OK
             sec                     ; Return error
@@ -4961,7 +5042,7 @@ LOOP:       lda     IOCHTBL,x       ; Search for file in the I/O channel table
             bpl     LOOP            ; Repeat until no more channels
             ldx     DEVICE          ; Not found in the device table
             lda     #FLUNUSED       ; Close or free entry
-            sta     FINFOTBL+_FLAGS,x ;
+            sta     FINFOTBL+FINFO::FLAGS,x
 RETURN:     rts                     ;
 .endproc
 

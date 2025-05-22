@@ -124,10 +124,11 @@ JCMDFNP:    jmp     (CMDFNP)        ; Jump to the command function pointer
             txa                     ; Set overlay 0
             jsr     LOADSVD         ; Load first block
             bcc     CONT            ; OK, continue
-            jsr     ERROR13         ; Not a loadable ("SAVEd") file.
-CONT:       lda     SAVEDHDR+_PNTRS ; Store entry point into PCSAVE
+            jsr     ERROR13         ; Not a loadable ("SAVEd") file
+                                    ; Store entry point into PCSAVE
+CONT:       lda     SAVEDHDR+SHDR::ENTRY
             sta     PCSAVE          ;
-            lda     SAVEDHDR+_PNTRS+1 ;
+            lda     SAVEDHDR+SHDR::ENTRY+1
             sta     PCSAVE+1        ;
             lda     DSTBANK         ; Sets program and data banks
             sta     PRGBANK         ;
@@ -248,7 +249,7 @@ CONT:       lda     P0SCRATCH       ; Get result number
 .endproc
 
 ; Get file and drive from command line and ensures that drive is open
-; Returns drive in X. Sets CURRDRV, FNAMBUF and updates CMDLIDX.
+; Returns drive in X. Sets CURRDRV, DIRENT+DIRE::FNAM and updates CMDLIDX.
 ;
             .export GETFILNDRV
 
@@ -259,7 +260,7 @@ CONT:       lda     P0SCRATCH       ; Get result number
             sta     TMPBUFP+1       ;
             jsr     GETNEXTNB       ; Get next non blank from command line
                                     ; This sets Y to the first char of the file name
-            jsr     FNAMFROMBUF     ; Copy file name from (TMPBUFP),y to FNAMBUF
+            jsr     FNAMFROMBUF     ; Copy file name from (TMPBUFP),y to DIRENT+DIRE::FNAM
             bcc     CONT 
             jsr     ERROR12         ; Missing or illegal file name
 CONT:       jsr     GETNEXTNB       ; Get next non blank from command line
@@ -688,7 +689,7 @@ NEXT:       ldy     CMDLIDX         ; Recover command line index
 ; 
 .proc DELETE
             jsr     GETFILNDRV      ; Get file and drive from command line
-            jsr     FDELETE         ; Delete file in FNAMBUF from drive X
+            jsr     FDELETE         ; Delete file in DIRENT+DIRE::FNAM from drive X
             ldy     CMDLIDX         ; Get command line index
             jsr     GETNEXTNB       ; Get next non-blank
             bne     DELETE          ; Repeat until last argument
