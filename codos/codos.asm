@@ -42,7 +42,7 @@
             ;   Disk Controller Registers
             ;
 
-            .export HSRCW
+            .export HSRCW, ADMA
 
     HSRCW           := SYSRAM+$1FE8 ; Read  - Hardware Status Read
                                     ; Write - Hardware Control Write
@@ -53,15 +53,8 @@
     MSTR            := SYSRAM+$1FEE ; Read  - uPD765 Main Status Register
     DATR            := SYSRAM+$1FEF ; R/W   - uPD765 Data Register
 
-             ; uPD765 command index
-             ;
-    SPECIFY         = $00
-    RECALIBRATE     = $04
-    SEEK            = $07
-    SENSEINT        = $0B
-    READWRITE       = $0D
-    FORMAT          = $17
-    SENSEDRV        = $1E
+            ; uPD765 command index
+            ;
 
             .segment "header"
 
@@ -162,7 +155,7 @@ UNKNWN17:   .res 1                  ; $FF
 
             .segment "scratch1"
 
-            .export NFILES, TEMP4, SAVEY7, SAVEAX, SAVEA5, SAVEA6, SAVEY8
+            .export NFILES, TEMP2, TEMP4, SAVEY7, SAVEAX, SAVEA5, SAVEA6, SAVEY8
 
 TEMP1:      .res 1                  ; $0283
 TEMP2:      .res 1                  ; $0284
@@ -422,18 +415,20 @@ SAVEDHDR:   .byte   $58             ; Magic number for loadable (SAVEd) files
 
 ; uPD765 Command Table
 ;
-; $00   SPECIFY
-; $04   RECALIBRATE
-; $07   SEEK
-; $0B   SENSE INTERRUPT STATUS
-; $0D   READ/WRITE
-; $17   FORMAT WRITE
-; $1E   SENSE DRIVE STATUS
-;
-CMDTBL:
-            ; SPECIFY
+            .export _FORMAT
 
-            .byte   $03             ; Command length 3
+_SPECIFY    = SPECIFY-CMDTBL
+_RECAL      = RECAL-CMDTBL
+_SEEK       = SEEK-CMDTBL
+_SENSEINT   = SENSEINT-CMDTBL
+_RDWR       = RDWR-CMDTBL
+_FORMAT     = FORMAT-CMDTBL
+_SENSEDRV   = SENSEDRV-CMDTBL
+
+
+CMDTBL:
+
+SPECIFY:    .byte   $03             ; Command length 3
             .byte   $03             ; Specify
 .if CODOS2_VER = 14
             .byte   $AF             ; Stepping Rate Time $A (6ms), Head Unload Time $F (240ms)
@@ -442,32 +437,26 @@ CMDTBL:
             .byte   $DF             ; Stepping Rate Time $D (3ms), Head Unload Time $F (240ms)
             .byte   $26             ; Head Load Time $26 (38ms)
 .endif
-            ; RECALIBRATE
 
-            .byte   $02             ; Command length 2
+RECAL:      .byte   $02             ; Command length 2
             .byte   $07             ; Recalibrate
 RECDRVHD:   .byte   $00             ; Drive and head:
                                     ;   XXXXX 0 00
                                     ;         | ||
                                     ;         | ++-> Drive (0-3)
                                     ;         +----> Head
-            ; SEEK
 
-            .byte   $03             ; Command length 3
+SEEK:       .byte   $03             ; Command length 3
             .byte   $0F             ; Seek
 SEKDRVHD:   .byte   $00             ; Drive and head (see above)
 SEKTRACK:   .byte   $00             ; Track
 
-            ; SENSE INTERRUPT
-
-            .byte   $01             ; Command length 1
+SENSEINT:   .byte   $01             ; Command length 1
             .byte   $08             ; Sense interrupt status
 
-            ; READ/WRITE
-
-            .byte   $09             ; Command length 9
+RDWR:       .byte   $09             ; Command length 9
                                     ; Read command. Same sequence is used for write,
-RDWRD:      .byte   $46             ; storing $45 at this location
+RDWRCMD:    .byte   $46             ; storing $45 at this location
                                     ; MFM, no MT, no skip
 RWRDRVHD:   .byte   $00             ; Disk and Head info
 RWRTRACK:   .byte   $00             ; C- Cylinder
@@ -478,24 +467,24 @@ RWREOSEC:   .byte   $00             ; EOT sector
             .byte   $0E             ; GPL
             .byte   $FF             ; DTL (ignored as N != 0)
 
-            ; FORMAT (UNUSED?)
+            .export FMTDRVHD
 
-            .byte   $06             ; Command length 6
+FORMAT:     .byte   $06             ; Command length 6
             .byte   $4D             ; Format command (MFM)
-            .byte   $00             ; HD = 0, Drive = 0
+FMTDRVHD:   .byte   $00             ; HD = 0, Drive = 0
             .byte   $01             ; 256 bytes sectors
             .byte   $1A             ; 26 sectors/track
             .byte   $34             ; Gap 3
             .byte   $00             ; Filler byte
 
-            ; SENSE DRIVE
-
-            .byte   $02             ; Command length 2
+SENSEDRV:   .byte   $02             ; Command length 2
             .byte   $04             ; Sense drive status command   
 SENDRVHD:   .byte   $00             ;
 
 ; Disk status registers
 ;
+            .export DSKSTAT
+
 DSKSTAT:
 ST0:        .byte   $00             ;
 ST1:        .byte   $00             ;
@@ -545,7 +534,7 @@ RCERRCNT:   .byte   $00             ; Cumulative count of recalibrate commands i
 SECERRNUM:  .byte   $FF             ; Sector number for last disk error causing a recalibrate.
 TRKERRNUM:  .byte   $FF             ; Track number for last disk error causing a recalibrate.
 
-            .export CSECT, CHEAD, SECTNUM
+            .export CSECT, CHEAD, DSFLAG, SECTNUM
 
 RETRIES:    .byte   $00             ; uPD765 read/write retries
 N765ECNT:   .byte   $00             ; uPD765 error count
@@ -653,7 +642,7 @@ SYSERRMNAM: .byte   "SYSERRMSG.Z"
 CMDPROCNAM: .byte   "COMDPROC.Z"
 STARTUPNAM: .byte   "STARTUP.J"
 
-            .export INPLBUF, INTSRVP, ERRRCVRYP, CMDFNP
+            .export INPLBUF, LBUFADDR, LBUFSIZE, INTSRVP, ERRRCVRYP, SECSTRK, CMDFNP
 
 INPLBUF:    .word   $0500           ; Pointer to start of system input line buffer.
 OUTLBUF:    .word   $0600           ; Pointer to start of system output line buffer
@@ -997,6 +986,8 @@ ERROR01:  	inc     ERRNUM          ; Command not found
 
 ; Error recovery routine
 ;
+            .export ERRRCVRY
+
 ERRRCVRY:   pha                     ; Save accumulator
             lda     #$00            ; Unprotect K-1013 SYSRAM
             sta     HSRCW           ;
@@ -1376,6 +1367,8 @@ EXINBNKLEN = EXINBNKEND - EXINBNK_O ; Calculate routine length
 ;       Send command to uPD765
 ;       X : Command index
 ;
+            .export SNDCMD
+
 SNDCMD:     sty     SAVEY1          ; Save Y register (restored in COMMPH)
             stx     CMDIDX          ; Save command index
             ldy     CMDTBL,x        ; Get command length
@@ -1417,13 +1410,13 @@ COMMPH:
 ; Sense drive X status command
 ;
 EXSENSEDRV: stx     SENDRVHD        ; Set drive into sense command
-            ldx     #SENSEDRV       ; Send Sense drive command to the disk controller
+            ldx     #_SENSEDRV      ; Send Sense drive command to the disk controller
             bne     EXSENSECMD      ;
             ; Always jump
 
 ; Sense interrupt command
 ;
-EXSENSEINT: ldx     #SENSEINT       ; Send Sense interrupt command to the disk controller
+EXSENSEINT: ldx     #_SENSEINT      ; Send Sense interrupt command to the disk controller
             ; Fall through
 
 ; Execute SENSE type of command
@@ -1433,6 +1426,8 @@ EXSENSECMD: jsr     SNDCMD          ; Send command
 
 ;       Read result from uPD765 Data Register
 ;
+            .export RSLTPH
+
 RSLTPH:     ldx     #$00            ; Init disk status index
 @WAITRD:    lda     MSTR            ; Read uPD765 Main Status Register
             bpl     @WAITRD         ; Wait until bit 7 is 1 (Ready)
@@ -1471,6 +1466,8 @@ SNSINTST:   jsr     EXSENSEINT      ; Execute a sense interrupt command
 ; Performs a complete init sequence of SPECIFY and RECALIBRATE and get
 ; disk information (single or dual side)
 ;
+            .export INITDRV
+
 INITDRV:    jsr     DRVVALID        ; Ensure that drive is valid
             stx     RECDRVHD        ; Set drive into recalibrate command
 @LOOP:      lda     HSRCW           ; Check if interrupt pending
@@ -1478,9 +1475,9 @@ INITDRV:    jsr     DRVVALID        ; Ensure that drive is valid
             jsr     EXSENSEINT      ; Serve interrupt
             jmp     @LOOP           ; And go check again
 
-@CONT:      ldx     #SPECIFY        ; Send specify command
+@CONT:      ldx     #_SPECIFY       ; Send specify command
             jsr     SNDCMD          ;
-            ldx     #RECALIBRATE    ; Send recalibrate command
+            ldx     #_RECAL         ; Send recalibrate command
             jsr     SNDSKCMDST      ;
             and     #$D8            ; Delete don't care bits from ST0
             beq     @GETST          ; No error, get status
@@ -1511,8 +1508,16 @@ INITDRV:    jsr     DRVVALID        ; Ensure that drive is valid
 ; Seeks track A on drive X, checking that drive is valid and performing
 ; a retry
 ;
-SEEKTRK:    jsr     DRVVALIDO       ; Verify drive X is valid and open
-            jsr     EXSEEK          ; Execute seek command (X drive, A track)
+            .export CKSEEKTRK
+
+CKSEEKTRK:  jsr     DRVVALIDO       ; Verify drive X is valid and open
+            ; Fall through
+
+; Seeks track A on drive X, performing retries
+;
+            .export SEEKTRK
+
+SEEKTRK:    jsr     EXSEEK          ; Execute seek command (X drive, A track)
             bcs     DORTS           ; Return if OK
             jsr     INITDRV         ; Reinit drive (SPECIFY + RECALIBRATE)
             jsr     GETDRVTRK       ; Recover Drive/Track info
@@ -1541,7 +1546,7 @@ EXSEEK:     stx     SEKDRVHD        ; Set drive for seek command
             ora     SEKDRVHD        ; Combine with drive number
             sta     SEKDRVHD        ; Update drive and head
 DOSEEK:     jsr     SRVINT          ; Serve any pending interrupt (if any)
-            ldx     #SEEK           ; Send SEEK command
+            ldx     #_SEEK          ; Send SEEK command
             jsr     SNDSKCMDST      ;
             bcs     SKERROR         ; Jump if error
             and     #$F8            ; Mask out non important bits
@@ -1579,7 +1584,7 @@ EXRDWR:     lda     CURFINFO+_DMABF ; Set DMA buffer
             ; Not reached
 @CONT:      lda     DMADIR          ; Set DMA direction
             sta     HSRCW           ;
-            ldx     #READWRITE      ; Execute READ or WRITE command
+            ldx     #_RDWR          ; Execute READ or WRITE command
             jsr     SNDCMD          ;
 @WAITINT:   lda     HSRCW           ; Wait for interrupt ( Bit 7 of HSRCW is 0)
             bmi     @WAITINT        ;
@@ -1608,7 +1613,7 @@ EXRDWR:     lda     CURFINFO+_DMABF ; Set DMA buffer
 
 WRITSECT:   sta     RWRSECTR        ; Set sector for write command
             lda     #$45            ; Set command to write
-            sta     RDWRD           ;
+            sta     RDWRCMD         ;
             lda     #$00            ; Set DMA to read mode
             beq     RDWRSECT        ; Always jump
             ; Not reached
@@ -1624,7 +1629,7 @@ RDFPSECT:   jsr     GETFPSECT       ; Get physical sector coordinates
 
 READSECT:   sta     RWRSECTR        ; Set sector for write command
             lda     #$46            ; Set command to read
-            sta     RDWRD           ;
+            sta     RDWRCMD         ;
             lda     #$01            ; Set DMA to write mode
             ; Fall through
 
@@ -1670,7 +1675,7 @@ RDWRSECT:   sta     DMADIR          ; Set DMA direction
             lda     RWRSECTR        ;
             rts                     ;
 
-@FAILED:    lda     RDWRD           ; Check if read or write
+@FAILED:    lda     RDWRCMD         ; Check if read or write
             cmp     #$46            ; Is it a read command?
             bne     @ISWRT          ; No, it's write
             inc     RDERRCNT        ; Yes, increment read error count
@@ -1681,7 +1686,7 @@ RDWRSECT:   sta     DMADIR          ; Set DMA direction
             jsr     INITDRV         ; Reinit drive (SPECIFY + RECALIBRATE)
             lda     RWRTRACK        ; Recover and set track where error occurred
             sta     TRKERRNUM       ;
-            jsr     SEEKTRK         ; Seek to it
+            jsr     CKSEEKTRK       ; Seek to it
             lda     RWREOSEC        ; Set sector of last error
             sta     SECERRNUM       ; causing a recalibrate
             lda     #$10            ; Set retries to 16
@@ -1728,6 +1733,8 @@ SETBATP:    lda     #$00            ; BAT begins at page start
 
 ;  Set next block A for block Y into the current BAT
 ;
+            .export SETNEXTBLK
+
 SETNEXTBLK: stx     SAVEX7          ; Save X
             sta     (BATP),y        ; Store next block A for block Y
             lda     #$E4            ; Drive 0 BAT page
@@ -1763,6 +1770,8 @@ RDSECTNTR12:
 
 ; Write BAT to current drive
 ;
+            .export WRTBAT
+
 WRTBAT:     lda     #$00            ;
             sta     SECTNUM         ; BAT's sector number is 0
             ; Fall Through
@@ -1792,7 +1801,7 @@ PREPRDTR12: lda     #$00            ; Set head 0
             ldx     CURRDRV         ; Ensure that current drive is opened
             jsr     DRVVALIDO       ; Check that drive X is valid and open
             lda     #$0C            ; Track $0C holds directory info
-            jsr     SEEKTRK         ;
+            jsr     CKSEEKTRK       ;
             lda     #$94            ; Set transfer buffer to $E500 (Directory buffer)
             sta     CURFINFO+_DMABF ;
             lda     SECTNUM         ; If this is non-zero
@@ -1907,9 +1916,9 @@ OVERLAY:    cmp     #$00            ; Is it an overlay
             dex                     ; Two sides, then go back to track 12
             lda     #$01            ; And set head 1
             sta     CHEAD           ;
-@SEEK:      txa                     ; Move track to A (where SEEKTRK expects it)
+@SEEK:      txa                     ; Move track to A (where CKSEEKTRK expects it)
             ldx     #$00            ; Seek track A on drive 0
-            jsr     SEEKTRK         ;
+            jsr     CKSEEKTRK       ;
             lda     #$F8            ; DMA address for overlays ( $FE00 ) 
             sta     CURFINFO+_DMABF ;
             lda     CURROVL         ; Recover current overlay. Overlays start in 1.
@@ -2121,7 +2130,7 @@ GETFPSECT:  lda     #$00            ; Set head 0
             bcc     @SEEK           ; No, skip to seek track
             inc     CHEAD           ; Switch to head 1
 @SEEK:      lda     CTRACK          ; Seek track
-            jsr     SEEKTRK         ;
+            jsr     CKSEEKTRK       ;
             lda     CSECT           ; And return sector in A
             rts                     ;
 
@@ -2239,6 +2248,9 @@ FTRUNC:     jsr     ASSIGNED        ; Make sure the channel is assigned
 
 ; Get MEMCOUNT characters from channel X into (MEMBUFF)
 ;
+; Returns: Cy clear if at least one byte transferred, Cy set otherwise
+;          MEMCOUNT is updated to available data
+;
             .export GETMBUFF
             
 GETMBUFF:   jsr     ASSIGNED        ; Get assigned device/file
@@ -2284,7 +2296,7 @@ GETMBUFF:   jsr     ASSIGNED        ; Get assigned device/file
             sta     (MEMBUFF), y    ; Store into memory
             iny                     ; Advance one pos in MEMBUFF
 
-            bne     @CPPAGE         ; Repeat unto end of page
+            bne     @CPPAGE         ; Repeat until end of page
             beq     @INCMPGE        ; Always jump to increment MEMBUFF page
             ; Not reached
 

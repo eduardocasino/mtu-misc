@@ -24,6 +24,7 @@ RELEASE         = $20               ; Release level of CODOS
 SYSTEM          = 1                 ; MTU-130 with 8-inch floppy disk(s)
 .endif
 
+NCYLS           = 77                ; Number of cylinders
 NSECTS          = 26                ; Sectors per track/side
 
 MAXFILES        = 247               ; Maximum number of files per disk
@@ -111,12 +112,36 @@ SVDMAGIC    = $58
 
 .macro dma reg, addr
     .if ((addr >= SYSRAM) && (addr < SYSRAM + $2000) && (SYSRAM .MOD $2000 = 0) && (addr < SYSRAM + $1000)) || ((addr >= SYSRAM) && (addr < SYSRAM + $2000) && (SYSRAM .MOD $2000 <> 0) && (addr >= SYSRAM + $1000))
-        lda #((addr >> 6) & $BF) | $80
+        .if .match ({reg}, A)
+            lda #((addr >> 6) & $BF) | $80
+        .elseif .match ({reg}, X)
+            ldx #((addr >> 6) & $BF) | $80
+        .else
+            ldy #((addr >> 6) & $BF) | $80
+        .endif
     .elseif ((addr >= SYSRAM) && (addr < SYSRAM + $2000) && (SYSRAM .MOD $2000 = 0) && (addr >= SYSRAM + $1000)) || ((addr >= SYSRAM) && (addr < SYSRAM + $2000) && (SYSRAM .MOD $2000 <> 0) && (addr < SYSRAM + $1000))
-        lda #(addr >> 6) | $C0
+        .if .match ({reg}, A)
+            lda #((addr >> 6) | $C0) & $FF
+        .elseif .match ({reg}, X)
+            ldx #((addr >> 6) | $C0) & $FF
+        .else
+            ldy #((addr >> 6) | $C0) & $FF
+        .endif
     .elseif ((addr >= USRRAM) && (addr < USRRAM + $2000) && (USRRAM .MOD $2000 = 0) && (addr < USRRAM + $1000)) || ((addr >= USRRAM) && (addr < USRRAM + $2000) && (USRRAM .MOD $2000 <> 0) && (addr >= USRRAM + $1000))
-        lda #(addr >> 6) & $3F
+        .if .match ({reg}, A)
+            lda #(addr >> 6) & $3F
+        .elseif .match ({reg}, X)
+            ldx #(addr >> 6) & $3F
+        .else
+            ldy #(addr >> 6) & $3F
+        .endif
     .else
-        lda #((addr >> 6) & $7F) | $40
+        .if .match ({reg}, A)
+            lda #((addr >> 6) & $7F) | $40
+        .elseif .match ({reg}, X)
+            ldx #((addr >> 6) & $7F) | $40
+        .else
+            ldy #((addr >> 6) & $7F) | $40
+        .endif
     .endif
 .endmacro
