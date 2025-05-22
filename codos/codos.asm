@@ -218,7 +218,7 @@ SAVEY6:     .res 1                  ; $02A2
 
             .export JCPSEUDREGS, JINLINE
 
-            jmp     COLDST
+JCOLDST:    jmp     COLDST
 JWARMST:    jmp     WARMST
 JGETKEY:    jmp     GETKEY          ; Console character input
 JOUTCH:     jmp     OUTCH           ; Console character output
@@ -393,7 +393,13 @@ TDATE:      .byte   "*UNDATED*", $00 ; Today's date
             .byte   $00, $00, $00, $00, $00, $00, $00, $00
             .byte   $20, $20, $20, $20, $20, $20, $20, $20
             .byte   $20, $20, $20, $20, $20, $20, $20, $20
-            .byte   $20, $20, $20, $20, $19, $98, $FF, $E5
+            .byte   $20, $20, $20, $20
+
+            ; Boot sector data
+
+            .byte   $19             ; Last sector to load
+            .byte   $98             ; DMA encoded address for loading the system
+            .word   JCOLDST-1       ; Entry point - 1
 ;
 ; End of file header
 
