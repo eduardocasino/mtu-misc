@@ -22,18 +22,20 @@
 ; ARGUMENTS:    <file> = file name
 ;               <drive> = disk drive. Defaults to current default drive, usually 0
 ;
-LOCK:       jsr     ISNUM           ; Check if first char of args is numeric
-            bcc     @ISCHN          ; Yes, it is a channel
+.proc LOCK
+NEXT:       jsr     ISNUM           ; Check if first char of args is numeric
+            bcc     ISCHN           ; Yes, it is a channel
             jsr     GETFILNDRV      ; Get file and drive from command line
             jsr     FOPEN0          ; Assigns channel 0 to file
-@DOLOCK:    jsr     LOCKCH          ; Locks file assigned to channel
+DOLOCK:     jsr     LOCKCH          ; Locks file assigned to channel
             ldy     CMDLIDX         ; Get command line index
             jsr     GETNEXTNB       ; Get next non blank
-            bne     LOCK            ; Yes, go lock next
+            bne     NEXT            ; Yes, go lock next
             jmp     FREECH0         ; Free channel 0 and return
 
-@ISCHN:     jsr     GETCHANN        ; Get channel from command line
-            jmp     @DOLOCK         ; And go lock it
+ISCHN:      jsr     GETCHANN        ; Get channel from command line
+            jmp     DOLOCK          ; And go lock it
+.endproc
 
 ; UNLOCK Command
 ;
@@ -44,27 +46,29 @@ LOCK:       jsr     ISNUM           ; Check if first char of args is numeric
 ; ARGUMENTS:    <file> = file name
 ;               <drive> = disk drive. Defaults to current default drive, usually 0
 ;
-UNLOCK:     jsr     ISNUM           ; Check if first char of args is numeric
-            bcc     @ISCHN          ; Yes, it is a channel
+.proc UNLOCK
+NEXT:       jsr     ISNUM           ; Check if first char of args is numeric
+            bcc     ISCHN           ; Yes, it is a channel
             jsr     GETFILNDRV      ; Get file and drive from command line
             jsr     FOPEN0          ; Assigns channel 0 to file
-@DOUNLCK:   jsr     UNLCKCH         ; Unocks file assigned to channel
+DOUNLCK:    jsr     UNLCKCH         ; Unocks file assigned to channel
             ldy     CMDLIDX         ; Get command line index
             jsr     GETNEXTNB       ; Get next non blank
-            bne     UNLOCK          ; Yes, go unlock next
+            bne     NEXT            ; Yes, go unlock next
             jmp     FREECH0         ; Free channel 0 and return
 
-@ISCHN:     jsr     GETCHANN        ; Get channel from command line
-            jmp     @DOUNLCK        ; And go unlock it
-
+ISCHN:      jsr     GETCHANN        ; Get channel from command line
+            jmp     DOUNLCK         ; And go unlock it
+.endproc
 
 ; Locks file assigned to channel in X
 ;
-LOCKCH:     jsr     ASSIGNED        ; Get assigned device/file to channel X
-            bpl     @ISFILE         ; It is a file, go to
+.proc LOCKCH
+            jsr     ASSIGNED        ; Get assigned device/file to channel X
+            bpl     ISFILE          ; It is a file, go to
             rts                     ; It is a device, return
 
-@ISFILE:    jsr     GETFINFO        ; Gets FINFO for current file (DEVICE),
+ISFILE:     jsr     GETFINFO        ; Gets FINFO for current file (DEVICE),
                                     ; copies it into CURFINFO in page zero
                                     ; and sets CURRDRV
             jsr     ZEROFILEP       ; Zeroes file pointer
@@ -85,14 +89,16 @@ LOCKCH:     jsr     ASSIGNED        ; Get assigned device/file to channel X
             sta     CURFINFO+_FLAGS ;
             jsr     UPDCFINFO       ; Updates file's FINFO structure
             rts
+.endproc
 
 ; Locks file assigned to channel in X
 ;
-UNLCKCH:    jsr     ASSIGNED        ; Get assigned device/file to channel X
-            bpl     @ISFILE         ; It is a file, go to
+.proc UNLCKCH
+            jsr     ASSIGNED        ; Get assigned device/file to channel X
+            bpl     ISFILE          ; It is a file, go to
             rts
 
-@ISFILE:    jsr     GETFINFO        ; Gets FINFO for current file (DEVICE),
+ISFILE:     jsr     GETFINFO        ; Gets FINFO for current file (DEVICE),
                                     ; copies it into CURFINFO in page zero
                                     ; and sets CURRDRV
             jsr     ZEROFILEP       ; Zeroes file pointer
@@ -113,7 +119,7 @@ UNLCKCH:    jsr     ASSIGNED        ; Get assigned device/file to channel X
             sta     CURFINFO+_FLAGS ;
             jsr     UPDCFINFO       ; Updates file's FINFO structure
             rts
-
+.endproc
 
 ; SVC Command
 ;
@@ -123,13 +129,14 @@ UNLCKCH:    jsr     ASSIGNED        ; Get assigned device/file to channel X
 ;
 ; ARGUMENTS:    <off> = any non-blank argument. Defaults to no argument. 
 ;
-SVC:        beq     @ENAB           ; If no arguments, enable
+.proc SVC
+            beq     ENAB            ; If no arguments, enable
             lda     #$00            ; Disable SVC
-            beq     @UPDF           ; Go update flag (always jumps)
-@ENAB:      lda     #$80            ; Enable SVC
-@UPDF:      sta     DEFSVCFLAG      ; Update flag
+            beq     UPDF            ; Go update flag (always jumps)
+ENAB:       lda     #$80            ; Enable SVC
+UPDF:       sta     DEFSVCFLAG      ; Update flag
             rts
-
+.endproc
 
 ; MSG Command
 ;
@@ -144,38 +151,40 @@ SVC:        beq     @ENAB           ; If no arguments, enable
 ;               <text> = any printable ASCII text except the "^" (caret) character
 ;               CR = ASCII Carriage Return control character (not the letters "CR")
 ;
-MSG:        ldy     CMDLIDX         ; Get command line index
+.proc MSG
+            ldy     CMDLIDX         ; Get command line index
             lda     #$00            ; Unprotect SYSRAM
             sta     HSRCW           ;
             jsr     GETCHANN        ; Get channel from command line
             stx     MSGOUTC         ; Save it
             jsr     GETNEXTNB       ; Get next non-blank from command line
-            bne     @CONT           ; Yes, go get message
-@OUTCR:     jmp     OUTCR           ; No, just output CR and return
+            bne     CONT            ; Yes, go get message
+OUTC:       jmp     OUTCR           ; No, just output CR and return
 
-@CONT:      cmp     CARET           ; Character is caret?
-            beq     @MLINE          ; Yes, process multi-line
-@LOOP:      jsr     OUTCHAR         ; No, output to channel
+CONT:       cmp     CARET           ; Character is caret?
+            beq     MLINE           ; Yes, process multi-line
+LOOP:       jsr     OUTCHAR         ; No, output to channel
             jsr     GETNEXTCH1      ; Advance and get next char
-            beq     @OUTCR          ; If none, output CR and return
-            bne     @LOOP           ; Always jump to output char
+            beq     OUTC            ; If none, output CR and return
+            bne     LOOP            ; Always jump to output char
             ; Not reached
-@MLINE:     ldx     #$01            ; Get line from console
+MLINE:      ldx     #$01            ; Get line from console
             jsr     GETLINE         ;
             ldx     MSGOUTC         ; Get output channel
-            bcs     @OUTCR          ; If no input, output CR and return
+            bcs     OUTC            ; If no input, output CR and return
             ldy     #$00            ; Init index
-@GETCR:     lda     (INPBUFP),y     ; Get char from input buffer at pos Y
+GETCR:      lda     (INPBUFP),y     ; Get char from input buffer at pos Y
             cmp     #$0D            ; Is it carriage return?
-            beq     @NEXT           ; Yes, ouput CR and get next line
+            beq     NEXT            ; Yes, ouput CR and get next line
             cmp     CARET           ; Is it a caret (^)?
-            beq     @OUTCR          ; Yes, output CR and return
+            beq     OUTC            ; Yes, output CR and return
             jsr     OUTCHAR         ; No, output char
             iny                     ; Advance to next pos in input buffer
-            bne     @GETCR          ; Always jump to get next char
+            bne     GETCR           ; Always jump to get next char
             ; Not reached
-@NEXT:      jsr     OUTCHAR         ; Output char
-            jmp     @MLINE          ; And get next line
+NEXT:       jsr     OUTCHAR         ; Output char
+            jmp     MLINE           ; And get next line
+.endproc
 
 MSGOUTC:    .byte   $00             ; Channel for msg out command
 

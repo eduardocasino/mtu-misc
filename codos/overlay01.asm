@@ -22,64 +22,66 @@
 ;               <value> = numeric value to be deposited
 ;               <character> = an ASCII character to be deposited
 ;
-SETCMD:     jsr     GADDRBNKMB      ; Get Address and bank and store into MEMBUF
+.proc SETCMD
+            jsr     GADDRBNKMB      ; Get Address and bank and store into MEMBUF
             jsr     GETNEXTNB       ; Advance to next non-blank
-            bne     @CONT           ; Any? Ok, continue
+            bne     CONT            ; Any? Ok, continue
             jsr     ERROR24         ; <value> missing or illegal
             ; Not reached
-@CONT:      cmp     #'='            ; Is it the optional '='
-            bne     @CHRDEL         ; No, then go check the character delimiter
+CONT:       cmp     #'='            ; Is it the optional '='
+            bne     CHRDEL          ; No, then go check the character delimiter
             jsr     GETNEXTNB1      ; Yes, get the next non blank
-@CHRDEL:    sty     CMDLIDX         ; Save pos
+CHRDEL:     sty     CMDLIDX         ; Save pos
             cmp     #'''            ; Is it a single quote?
-            beq     @ISCHR          ; Yes, continue
+            beq     ISCHR           ; Yes, continue
             cmp     #'"'            ; Is it a double quote?
-            bne     @ISVAL          ; No, it is a value
-@ISCHR:     sta     QUOTE           ; Save delimiter
+            bne     ISVAL           ; No, it is a value
+ISCHR:      sta     QUOTE           ; Save delimiter
             sty     SAVEY8          ; Save current position
-@GNEXT:     jsr     GETNEXTCH1      ; Get char from (INPBUFP),y+1
+GNEXT:      jsr     GETNEXTCH1      ; Get char from (INPBUFP),y+1
             sty     CMDLIDX         ; Update command line index with pos after char
-            bne     @GOTCH          ; Got a char and is not a delimiter
+            bne     GOTCH           ; Got a char and is not a delimiter
             cmp     SCOLON          ; Is it a semicolon?
-            beq     @GNEXT          ; Get next char
+            beq     GNEXT           ; Get next char
             jsr     ERROR26         ; Missing or illegal character string delimiter (' , ")
-@GOTCH:     cmp     QUOTE           ; Is it the char delimiter?
-            bne     @GNEXT          ; No, get next
+GOTCH:      cmp     QUOTE           ; Is it the char delimiter?
+            bne     GNEXT           ; No, get next
             dey                     ; Go to previous pos
             cpy     SAVEY8          ; Is it the one of the first delimiter
-            bne     @CHVAL          ; No, so we got a character value
+            bne     CHVAL           ; No, so we got a character value
             jsr     ERROR26         ; Missing or illegal character string delimiter (' , ")
-@CHVAL:     ldy     SAVEY8          ; Return to position of first delimiter
-@STCHAR:    jsr     GETNEXTCH1      ; Get char from next pos
+CHVAL:      ldy     SAVEY8          ; Return to position of first delimiter
+STCHAR:     jsr     GETNEXTCH1      ; Get char from next pos
             cpy     CMDLIDX         ; Are we at the pos after the last char?
-            beq     @ADNEXT         ; Yes, go advance and get the next argument
+            beq     ADNEXT          ; Yes, go advance and get the next argument
             jsr     SETBYTE         ; No, store the character
-            jmp     @STCHAR         ; And go store next
+            jmp     STCHAR          ; And go store next
             ; Not reached
 
-@ADNEXT:    iny                     ; Advance pos
-@NXTARG:    jsr     GETNEXTNB       ; Get next non-blank
-            bne     @CHRDEL         ; Go check if delimiter
+ADNEXT:     iny                     ; Advance pos
+NXTARG:     jsr     GETNEXTNB       ; Get next non-blank
+            bne     CHRDEL          ; Go check if delimiter
             rts                     ; No more, return
 
-@ISVAL:     jsr     GETBYTE         ; Get byte from command line
-            bcs     @STOR           ; Good, go store it
+ISVAL:      jsr     GETBYTE         ; Get byte from command line
+            bcs     STOR            ; Good, go store it
             jsr     ERROR24         ; <value> missing or illegal
             ; Not reached
 
-@STOR:      jsr     SETBYTE         ; Store byte
-            jmp     @NXTARG         ; And go get next char
+STOR:       jsr     SETBYTE         ; Store byte
+            jmp     NXTARG          ; And go get next char
             ; Not reached
-
+.endproc
 
 ;   Store byte into destination
 ;
-SETBYTE:    sta     SAVEAX          ; Save byte
+.proc SETBYTE
+            sta     SAVEAX          ; Save byte
             lda     NEWBNK          ; Get <from> bank
-            bne     @CONT           ; It is not bank 0
+            bne     CONT            ; It is not bank 0
             jsr     CHKVALID        ; Check if <from> is valid. Does not return if not.
             lda     NEWBNK          ; Get <from> bank again (which is 0)
-@CONT:      eor     DEFBNKCFG       ; Switch to NEWBNK
+CONT:       eor     DEFBNKCFG       ; Switch to NEWBNK
             sta     BNKCTL          ;
             lda     SAVEAX          ; Recover byte
             stx     SAVEAX          ; Save X
@@ -90,46 +92,50 @@ SETBYTE:    sta     SAVEAX          ; Save byte
             lda     DEFBNKCFG       ; Restore bank settings
             sta     BNKCTL          ;
             plp                     ; Recover comparison status
-            beq     @CHKOK          ; Same value, check ok
+            beq     CHKOK           ; Same value, check ok
             jsr     ERROR23         ; Memory verify failure during SET or FILL
-@CHKOK:     inc     MEMBUFF         ; Advance to next memory position
-            bne     @RETURN         ;
+CHKOK:      inc     MEMBUFF         ; Advance to next memory position
+            bne     RETURN          ;
             inc     MEMBUFF+1       ;
-@RETURN:    ldx     SAVEAX          ; Recover X
+RETURN:     ldx     SAVEAX          ; Recover X
             rts
+.endproc
 
 ; Check if destination is a valid address.
 ; Does not return if not.
 ;
-CHKVALID:   lda     MEMBUFF+1       ; Is destination in SYSRAM?
+.proc CHKVALID
+            lda     MEMBUFF+1       ; Is destination in SYSRAM?
             cmp     #>SYSRAM        ;
-            bcc     @CONT           ; No, continue
+            bcc     CONT            ; No, continue
             jsr     CHKUNPROT         ; Yes, check if protected (does not return if not)
-@CONT:      cmp     #$02            ; Destination under $0200? FIXME: Address map dependent!
-            bcs     @RETURN         ; No, just return
+CONT:       cmp     #$02            ; Destination under $0200? FIXME: Address map dependent!
+            bcs     RETURN          ; No, just return
             cmp     #$01            ; Destination in stack?
-            bcc     @PAGE0          ; No, then in page 0
+            bcc     PAGE0           ; No, then in page 0
             txa                     ; Save X
             tsx                     ; Get stack pointer
             cpx     MEMBUFF         ; Is destination inside current stack?
-            bcs     @XRET           ; No, recover X and return
+            bcs     XRET            ; No, recover X and return
             jsr     CHKUNPROT       ; Yes, check if unprotected and fail if not
-@XRET:      tax                     ; Recover X
-            jmp     @RETURN         ; and return
+XRET:       tax                     ; Recover X
+            jmp     RETURN          ; and return
 
-@PAGE0:     lda     MEMBUFF         ; Check if destination is
+PAGE0:      lda     MEMBUFF         ; Check if destination is
             cmp     #P0SCRATCH      ; in the CODOS reserved page 0 area
-            bcc     @RETURN         ; No, return
+            bcc     RETURN          ; No, return
             jsr     CHKUNPROT       ; Yes, check if unprotected and fail if not
-@RETURN:    rts
+RETURN:     rts
+.endproc
 
 ; Check if IGNORWRP is set and fail if not
 ;
-CHKUNPROT:  bit     IGNORWRP        ; Check ignore write protection flag
-            bmi     @RETURN         ; If set, just return
+.proc CHKUNPROT
+            bit     IGNORWRP        ; Check ignore write protection flag
+            bmi     RETURN          ; If set, just return
             jsr     ERROR17         ; Reserved or protected memory violation
-@RETURN:    rts
-
+RETURN:     rts
+.endproc
 
 ; UNPROTECT Command
 ;
@@ -139,12 +145,13 @@ CHKUNPROT:  bit     IGNORWRP        ; Check ignore write protection flag
 ; SYNTAX:       UNPROTECT
 ; ARGUMENTS:    None.
 ; 
-UNPROTECT:  nop
+.proc UNPROTECT
+            nop
             lda     #$80            ;
             sta     UNPROTFLG       ; Set unprotect flag
             sta     IGNORWRP        ; Set ignore write protection flag
             rts
-
+.endproc
 
 ; PROTECT Command
 ;
@@ -154,9 +161,11 @@ UNPROTECT:  nop
 ; SYNTAX:       PROTECT
 ; ARGUMENTS:    None.
 ; 
-PROTECT:    lda     #$00            ; Clear unprotect flag
+.proc PROTECT
+            lda     #$00            ; Clear unprotect flag
             sta     UNPROTFLG       ;
             rts
+.endproc
 
             ; This block is just junk that was in the buffer when
             ; writing it to disk. I leave it to facilitate checksum

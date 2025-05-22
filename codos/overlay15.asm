@@ -23,7 +23,8 @@
 ;               <to> = ending address for first block
 ;               <dest> = starting address for second block
 ;
-COMPARE:    ldx     #_MEMBUFF       ; Redundant, GADDRBNKMB also sets it
+.proc COMPARE
+            ldx     #_MEMBUFF       ; Redundant, GADDRBNKMB also sets it
             jsr     GADDRBNKMB      ; Get address and bank and store into MEMBUFF and NEWBNK
             lda     NEWBNK          ; Get from bank
             sta     FROMBNK         ; Store it as from and dest bank
@@ -38,32 +39,32 @@ COMPARE:    ldx     #_MEMBUFF       ; Redundant, GADDRBNKMB also sets it
             jsr     GETTOP          ; Get <to> from command line and store into MEMCOUNT
             ldx     #_TMPBUFP       ; Evaluate <dest> expression from command line and
             jsr     EVALEXP         ; store into TMPBUFP
-            bcs     @CHKADDR        ; If OK, continue
-@ERR27:     jsr     ERROR27         ; <destination> address missing or illegal
+            bcs     CHKADDR         ; If OK, continue
+ERR27:      jsr     ERROR27         ; <destination> address missing or illegal
             ; Not reached
 
-@CHKADDR:   lda     MEMCOUNT        ; Check if <from> address is greater than <to>
+CHKADDR:    lda     MEMCOUNT        ; Check if <from> address is greater than <to>
             cmp     DESTBUFF        ;
             lda     MEMCOUNT+1      ;
             sbc     DESTBUFF+1      ;
-            bcs     @ADDROK         ; Not greater, that's OK
+            bcs     ADDROK          ; Not greater, that's OK
             jsr     ERROR16         ; <from> address greater than <to> address
             ; Not reached
 
-@ADDROK:    jsr     GETNEXTNB       ; Get next non-blank from command line
-            beq     @COMP           ; If not, no bank specified, use <from> bank
+ADDROK:     jsr     GETNEXTNB       ; Get next non-blank from command line
+            beq     COMP            ; If not, no bank specified, use <from> bank
             cmp     COLON           ; Is it the bank separator?
-            bne     @ERR27          ; No, error
+            bne     ERR27           ; No, error
             iny                     ; Advance one pos in command line
             jsr     GETBYTE         ; Get byte from command line
-            bcc     @ERR27          ; Not OK, error
+            bcc     ERR27           ; Not OK, error
             cmp     #$04            ; Is a valid bank number?
-            bcs     @ERR27          ; No, error
+            bcs     ERR27           ; No, error
             sta     DESTBNK         ; Yes, store <dest> bank
             eor     DEFBNKCFG       ; and <dest> bank config
             sta     DBNKCFG         ;
-@COMP:      ldy     #$00            ; Init Y for comparison
-@CMPBYT:    ldx     FBNKCFG         ; Set <from> bank
+COMP:       ldy     #$00            ; Init Y for comparison
+CMPBYT:     ldx     FBNKCFG         ; Set <from> bank
             stx     BNKCTL          ;
             lda     (DESTBUFF),y    ; Get byte from <from> block
             ldx     DBNKCFG         ; Set <dest> bank
@@ -73,25 +74,25 @@ COMPARE:    ldx     #_MEMBUFF       ; Redundant, GADDRBNKMB also sets it
             ldx     DEFBNKCFG       ; Switch to defaulk bank
             stx     BNKCTL          ;
             plp                     ; Recover flags
-            bne     @DIFFER         ; Not equal
+            bne     DIFFER          ; Not equal
             lda     DESTBUFF        ; Compare <from> address lower byte
             cmp     MEMCOUNT        ; with <to> address lower byte
-            beq     @CHKEND         ; Equal, check if we have reached the end
-@NXTADD:    inc     DESTBUFF        ; Different, increment <from> and <dest> addresses
-            bne     @INCDST         ;
+            beq     CHKEND          ; Equal, check if we have reached the end
+NXTADD:     inc     DESTBUFF        ; Different, increment <from> and <dest> addresses
+            bne     INCDST          ;
             inc     DESTBUFF+1      ;
-@INCDST:    inc     TMPBUFP         ;
-            bne     @CMPBYT         ;
+INCDST:     inc     TMPBUFP         ;
+            bne     CMPBYT          ;
             inc     TMPBUFP+1       ;
-            bne     @CMPBYT         ;
-@CHKEND:    lda     DESTBUFF+1      ; Compare <from> address higher byte 
+            bne     CMPBYT          ;
+CHKEND:     lda     DESTBUFF+1      ; Compare <from> address higher byte 
             cmp     MEMCOUNT+1      ; with <to> address higher byte
-            bne     @NXTADD         ; Not yet the end, increment <from> and <dest>
+            bne     NXTADD          ; Not yet the end, increment <from> and <dest>
             jsr     OUTSTR          ; If we are here, blocks are identical
             .byte   "SAME.", $00    ;
             rts
 
-@DIFFER:    ldx     #_DESTBUFF      ; Print <from> address
+DIFFER:     ldx     #_DESTBUFF      ; Print <from> address
             jsr     PRADDR          ;
             ldx     FBNKCFG         ; Switch to <from> bank
             stx     BNKCTL          ;
@@ -113,10 +114,12 @@ COMPARE:    ldx     #_MEMBUFF       ; Redundant, GADDRBNKMB also sets it
             stx     BNKCTL          ;
             jsr     HEXBYTE         ; Print byte as ascii hex into output buffer
             jmp     POUTBUFF02      ; Print buffer to console and return
+.endproc
 
 ; Print address pointed at P0SCRATCH,x
 ;
-PRADDR:     jsr     HEXENCOD        ; Outputs word at P0SCRATCH,x as 4-char ascii hex
+.proc PRADDR
+            jsr     HEXENCOD        ; Outputs word at P0SCRATCH,x as 4-char ascii hex
             lda     #':'            ; Output the bank separator
             sta     (OUTBUFP),y     ;
             iny                     ; Advance one pos in output buffer
@@ -129,6 +132,7 @@ PRADDR:     jsr     HEXENCOD        ; Outputs word at P0SCRATCH,x as 4-char asci
             jsr     OUTSTR          ; Print equal sign before byte
             .byte   " = ", $00
             rts
+.endproc
 
 FROMBNK:    .byte   $00             ; Bank of the <from> address
 DESTBNK:    .byte   $00             ; Bank of the <dest> address

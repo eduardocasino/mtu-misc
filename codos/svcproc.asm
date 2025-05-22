@@ -22,12 +22,14 @@ SVCPROC:    jmp     ENTRYP          ; SVC processor entry point
 ;
             .export CPSEUDREGS
 
-CPSEUDREGS: ldy     #$11
-@CPREG:     lda     U0-1,y
+.proc CPSEUDREGS
+            ldy     #$11
+CPREG:      lda     U0-1,y
             sta     P0SCRATCH-1,y
             dey
-            bne     @CPREG
+            bne     CPREG 
             rts
+.endproc
 
 ; SVC function pointer table
 ;
@@ -122,14 +124,15 @@ RETVALT:    .byte   UPDNONE
 
 ; SVC processor entry point
 ;
-ENTRYP:     ldy     #$01            ; Get SVC number
+.proc ENTRYP
+            ldy     #$01            ; Get SVC number
             lda     (PCSAVE),y      ;
             sta     SVCNUM          ;
             cmp     #NUMSVCS        ; Check it is a valid SVC
-            bcc     @ISVALID
+            bcc     ISVALID 
             jsr     ERROR22         ; Illegal or unimplemented SVC number
             ; Not reached
-@ISVALID:   asl     a               ; Calculate offset in SVC function pointer table
+ISVALID:    asl     a               ; Calculate offset in SVC function pointer table
             tax                     ;
             lda     FNPTRT,x        ; Get function pointer
             sta     FNPTR           ;
@@ -154,39 +157,40 @@ ENTRYP:     ldy     #$01            ; Get SVC number
             lda     RETVALT,x       ; Get return value flag 
             rol     a               ; Check bit 7
             sta     RETVALF         ; And save it
-            bcc     @CHKPREG        ; Bit 7 set? No, go check pseudo-regs
+            bcc     CHKPREG         ; Bit 7 set? No, go check pseudo-regs
             ldx     XREG            ; This one does not seem to be used
             lda     P0SCRATCH,x     ; Returns preudo register number X/2
             sta     U0,x            ;
             lda     P0SCRATCH+1,x   ;
             sta     U0+1,x          ;
-@CHKPREG:   ldx     #$05            ; Init offset to pseudo-registers to U2
-@CHKBIT:    rol     RETVALF         ; Check bit 6,5,4 (update U2, U1, U0)
-            bcc     @NEXT           ; No, skip
+CHKPREG:    ldx     #$05            ; Init offset to pseudo-registers to U2
+CHKBIT:     rol     RETVALF         ; Check bit 6,5,4 (update U2, U1, U0)
+            bcc     NEXT            ; No, skip
             lda     P0SCRATCH,x     ; Yes, update
             sta     U0,x            ;
             lda     P0SCRATCH-1,x   ;
             sta     U0-1,x          ;
-@NEXT:      dex                     ; Next register
+NEXT:       dex                     ; Next register
             dex                     ;
-            bpl     @CHKBIT         ; Jump if offset is not negative
+            bpl     CHKBIT          ; Jump if offset is not negative
             ldx     #$03            ; Init offset to processor registers to A
-@CHKBIT2:   rol     RETVALF         ; Check bit 3,2,1,0 (Update A, X, Y, PROCST)
-            bcc     @NEXT2          ; Not set, skip
+CHKBIT2:    rol     RETVALF         ; Check bit 3,2,1,0 (Update A, X, Y, PROCST)
+            bcc     NEXT2           ; Not set, skip
             lda     SAVEP,x         ; Yes, update
             sta     PROCST,x        ;
-@NEXT2:     dex                     ; Next register
-            bpl     @CHKBIT2        ; Jump if offset is not negative
+NEXT2:      dex                     ; Next register
+            bpl     CHKBIT2         ; Jump if offset is not negative
             lda     PCSAVE          ; Advance PC past the SVC args          
             clc                     ; (BRK + num), each SVC takes care of its
             adc     #$02            ;   specific args
             sta     PCSAVE          ;
-            bcc     @RETURN         ; If no page change, return
+            bcc     RETURN          ; If no page change, return
             inc     PCSAVE+1        ;
-@RETURN:    clc                     ; Clear flag
+RETURN:     clc                     ; Clear flag
             ror     PRBPREGS        ;
             jmp     CONTBP          ; Continue execution after BP
             ; Not reached
+.endproc
 
 JFNPTR:     jmp     (FNPTR)         ; Jump to command function
 
@@ -197,7 +201,8 @@ JFNPTR:     jmp     (FNPTR)         ; Jump to command function
 ;                       terminated by a zero byte ($00). 
 ; Arguments returned:   None
 ;
-OUTMSG:     lda     PCSAVE          ; Get program counter at BRK
+.proc OUTMSG
+            lda     PCSAVE          ; Get program counter at BRK
             clc                     ;
             adc     #$03            ; Advance to output message (pasr BRK, SVC num
                                     ; and channel)
@@ -209,9 +214,9 @@ OUTMSG:     lda     PCSAVE          ; Get program counter at BRK
             lda     (PCSAVE),y      ;
             tax                     ; POUTBUFF expect channel number in X
             ldy     #$FF            ; Calculate message length
-@NCHAR:     iny                     ;
+NCHAR:      iny                     ;
             lda     (OUTBUFP),y     ;
-            bne     @NCHAR          ;
+            bne     NCHAR           ;
             dey                     ; Decrement one to calculate the PC offset, as
                                     ; it is calculated with OUTBUFP (which is 3
                                     ; pos past the PC) and then the processor
@@ -227,23 +232,27 @@ OUTMSG:     lda     PCSAVE          ; Get program counter at BRK
             adc     #$00            ;
             sta     PCSAVE+1        ;
             rts
+.endproc
 
 ; SVC 00 - Show registers, enter CODOS Monitor
 ;
 ; Arguments:            None
 ; Arguments returned:   None
 ;
-PRCODOS:    jsr     OUTREGSLB
+.proc PRCODOS
+            jsr     OUTREGSLB
             ; Fall through
+.endproc
 
 ; SVC 01 - Enter CODOS monitor
 ;
 ; Arguments:            None
 ; Arguments returned:   None
 ;
-CODOS:      jmp     WARMST
+.proc CODOS
+            jmp     WARMST
             ; Not reached
-
+.endproc
 
 ; SVC 12 - Obtain location of system input line buffer, output line buffer,
 ;          and arguments passed to user-defined command
@@ -254,15 +263,18 @@ CODOS:      jmp     WARMST
 ;                       U5 = Pointer to System Input-line buffer
 ;                       U6 = Pointer to System Output-line buffer
 ;
-GETARGS:    ldx     #$03            ; Copy INPLBUF and OUTLBUF
-@COPY:      lda     INPLBUF,x       ;
+.proc GETARGS
+            ldx     #$03            ; Copy INPLBUF and OUTLBUF
+COPY:       lda     INPLBUF,x       ;
             sta     U5,x            ; to U5 and U6
             dex                     ;
-            bpl     @COPY           ;
+            bpl     COPY            ;
             ldy     CMDLIDX         ; Return index to first argument
             rts
+.endproc
 
 .ifndef KIM1
+
 ; SVC 15 - Read a record from a channel.
 ;
 ; Arguments:            X = Channel number desired, 0 to 9. Must already be
@@ -279,10 +291,12 @@ GETARGS:    ldx     #$03            ; Copy INPLBUF and OUTLBUF
 ;
 ; NOTE: At SVC entry, U1 and U2 are copied to MEMBUFF and MEMCOUNT
 ;
-RDRECORD:   lda     DATBANK         ; Set data bank as destination bank
+.proc RDRECORD
+            lda     DATBANK         ; Set data bank as destination bank
             sta     DSTBANK         ;
             jmp     GETMBUFF        ; Get MEMCOUNT characters from file/device A into (MEMBUFF)
             ; Not reached
+.endproc
 
 ; SVC 16 - Write a record to a channel.
 ;
@@ -299,10 +313,13 @@ RDRECORD:   lda     DATBANK         ; Set data bank as destination bank
 ;
 ; NOTE: At SVC entry, U1 and U2 are copied to MEMBUFF and MEMCOUNT
 ;
-WRRECORD:   lda     DATBANK         ; Set data bank as destination bank
+.proc WRRECORD
+            lda     DATBANK         ; Set data bank as destination bank
             sta     DSTBANK         ;
             jmp     OUTMBUFF        ; Print MEMCOUNT characters from (MEMBUFF) to channel X
             ; Not reached
+.endproc
+
 .endif
 
 
@@ -324,35 +341,36 @@ WRRECORD:   lda     DATBANK         ; Set data bank as destination bank
 ;                               and 6 respectively of status byte as described above 
 ; NOTE: At SVC entry, U3 is copied to TMPBUFP
 ;
-ASSIGNSVC:  sta     CURRDRV         ; Set drive as current
+.proc ASSIGNSVC
+            sta     CURRDRV         ; Set drive as current
             cmp     #$04            ; Check it is a valid one
-            bcs     @ISDEV          ; No, then it is a device name
+            bcs     ISDEV           ; No, then it is a device name
             txa                     ; Save X (channel)
             pha                     ;
             jsr     FNAMFROMBUF0    ; Copy file name from (TMPBUFP) to FNAMBUF
-            bcs     @ERROR          ; If failed, go to error
+            bcs     ERROR           ; If failed, go to error
             lda     (TMPBUFP),y     ; Get first char after file name
             cmp     COLON           ; Drive separator?
-            bne     @CONT           ; No continue with current drive
+            bne     CONT            ; No continue with current drive
             iny                     ; Advance and
             lda     (TMPBUFP),y     ;   get drive num
             sec                     ; Convert to number
             sbc     #'0'            ;
             sta     CURRDRV         ; And set as current drive
             iny                     ; Advance to next character
-@CONT:      pla                     ; Recover X (channel)
+CONT:       pla                     ; Recover X (channel)
             tax                     ;
             jsr     ASSIGN          ; Assign it
             lda     ASSIGNFLAG      ; Get assign flags
             bit     ASSIGNFLAG      ; And set processor flags on return 
             rts                     ;
-@ISDEV:     jsr     ASSIGN          ; Assign it
+ISDEV:      jsr     ASSIGN          ; Assign it
             lda     #$00            ; And return all flags cleared
             rts                     ;
 
-@ERROR:     jsr     ERROR12         ; Missing or illegal file name
+ERROR:      jsr     ERROR12         ; Missing or illegal file name
             ; Not reached
-
+.endproc
 
 ; SVC 14 - Determine the channel assignment for a selected channel
 ;
@@ -363,21 +381,22 @@ ASSIGNSVC:  sta     CURRDRV         ; Set drive as current
 ;                           returned as the single character device name.
 ;                           Not meaningfully returned if CY is clear. 
 ;
-ISASSIGNED: jsr     GETDEV          ; Get device or file for channel X
+.proc ISASSIGNED
+            jsr     GETDEV          ; Get device or file for channel X
             clc                     ; Start with unassigned
-            beq     @RETURN         ; If device is null, then unassigned
-            bpl     @ISFILE         ; It is a file
+            beq     RETURN          ; If device is null, then unassigned
+            bpl     ISFILE          ; It is a file
             and     #$7F            ; It is a device. Clear device bit mark,
             lsr     a               ; calculate index to the
             tax                     ; device name table
             lda     DNT,x           ; and get device name
             sec                     ; Set assigned (Carry set)
-@RETURN:    rts                     ;
-@ISFILE:    tax                     ; Get the drive number from the table of active files
+RETURN:     rts                     ;
+ISFILE:     tax                     ; Get the drive number from the table of active files
             lda     FINFOTBL+_DRIVE,x
             sec                     ; Set assigned (Carry set)
             rts                     ;
-
+.endproc
 
 ; SVC 20 - Determine the position of a file assigned to a channel
 ;
@@ -385,8 +404,9 @@ ISASSIGNED: jsr     GETDEV          ; Get device or file for channel X
 ;
 ; Arguments returned:   U7 = File position (3 bytes). 
 ;
-FTELL:      jsr     ASSIGNED        ; Get assigned device/file to channel
-            bmi     @ISDEV          ; Jump if it is a device
+.proc FTELL
+            jsr     ASSIGNED        ; Get assigned device/file to channel
+            bmi     ISDEV           ; Jump if it is a device
             jsr     GETFINFO        ; Gets FINFO for file, copies it into CURFINFO
                                     ; in page zero and sets CURRDRV
             lda     CURFINFO+_FPOS  ; Get file pos from FINFO
@@ -400,24 +420,25 @@ FTELL:      jsr     ASSIGNED        ; Get assigned device/file to channel
             sbc     #$00            ;
             sta     U7+2            ;
             rts                     ;
-@ISDEV:     lda     #$00            ; It is a device,
+ISDEV:      lda     #$00            ; It is a device,
             sta     U7              ;   return $000000
             sta     U7+1            ;
             sta     U7+2            ;
             rts                     ;
-
+.endproc
 
 ; UNUSED. Seems that it was the initial idea for the SVC 19, but then realized
 ;         that the registers were already copied at SVC entry
 ;
-_FSEEK:     lda     U7
+.proc _FSEEK
+            lda     U7
             sta     FILEPOS
             lda     U7+1
             sta     FILEPOS+1
             lda     U7+2
             sta     FILEPOS+2
             jmp     FSEEK
-
+.endproc
 
 ; SVC 13 - Execute any CODOS Monitor command
 ;
@@ -427,18 +448,19 @@ _FSEEK:     lda     U7
 ; Arguments returned:   All registers and Pseudo-registers are returned as set
 ;                       by the Monitor command executed  
 ;
-CMDEXEC:    jsr     SETINPB         ; Set input buffer
+.proc CMDEXEC
+            jsr     SETINPB         ; Set input buffer
             jsr     SETOUTB         ; Set output buffer
             ldy     #$00            ; Copy command to Input Buffer
-@CPYC:      lda     (U5),y          ;
+CPYC:       lda     (U5),y          ;
             sta     (INPBUFP),y     ;
-            beq     @CPEND          ; If NULL, terminate copy
+            beq     CPEND           ; If NULL, terminate copy
             cmp     #$0D            ; If CR, terminate copy
-            beq     @CPEND          ;
+            beq     CPEND           ;
             iny                     ; Next char
             cpy     YLNLIM          ; Check line size limit
-            bcc     @CPYC           ; Not reached, continue; else, terminate copy
-@CPEND:     lda     PCSAVE+1        ; Save PCSAVE and SCVNUM, that
+            bcc     CPYC            ; Not reached, continue; else, terminate copy
+CPEND:      lda     PCSAVE+1        ; Save PCSAVE and SCVNUM, that
             pha                     ; may be modified by the execution
             lda     PCSAVE          ; of the command
             pha                     ;
@@ -454,7 +476,7 @@ CMDEXEC:    jsr     SETINPB         ; Set input buffer
             pla                     ;
             sta     PCSAVE          ;
             pla                     ;
-.if CODOS2_VER = 14
+.if ::CODOS2_VER = 14
             sta     PCSAVE+1
             rts
 .else
@@ -462,7 +484,7 @@ CMDEXEC:    jsr     SETINPB         ; Set input buffer
             ; Not reached
 .endif                              ; modifications to this SVC and wanted to mantain
                                     ; the entry point addresses of next commands
-
+.endproc
 
 ; SVC 24 - Define the address of an interrupt service routine
 ;
@@ -470,12 +492,13 @@ CMDEXEC:    jsr     SETINPB         ; Set input buffer
 ;
 ; Arguments returned:   None
 ;
-USERISR:    lda     P0SCRATCH       ; Set new interrupt pointer (U0 copied to P0SCRATCH)
+.proc USERISR
+            lda     P0SCRATCH       ; Set new interrupt pointer (U0 copied to P0SCRATCH)
             sta     INTSRVP         ;
             lda     P0SCRATCH+1     ;
             sta     INTSRVP+1       ;
             rts
-
+.endproc
 
 ; SVC 25 - Define the address of a user-defined error recovery routine
 ;
@@ -483,12 +506,13 @@ USERISR:    lda     P0SCRATCH       ; Set new interrupt pointer (U0 copied to P0
 ;
 ; Arguments returned:   None
 ;
-SETERREC:   lda     P0SCRATCH       ; Set new error recovery pointer
+.proc SETERREC
+            lda     P0SCRATCH       ; Set new error recovery pointer
             sta     ERRRCVRYP       ;
             lda     P0SCRATCH+1     ;
             sta     ERRRCVRYP+1     ;
             rts
-
+.endproc
 
 ; SVC 27 - Enter the CODOS 16-bit Pseudo-processor
 ;
@@ -498,12 +522,13 @@ SETERREC:   lda     P0SCRATCH       ; Set new error recovery pointer
 ;
 ; Arguments returned:   Flags
 ;
-CODOS16:    lda     #$0D            ; This SVC is in overlay $0D
+.proc CODOS16
+            lda     #$0D            ; This SVC is in overlay $0D
             jsr     OVERLAY         ; so load it
 
             jmp     OVLORG+1        ; And execute it
             ; Not reached
-
+.endproc
 
 ; SVC 28 - Return information about the version of CODOS which is running
 ;
@@ -521,11 +546,12 @@ CODOS16:    lda     #$0D            ; This SVC is in overlay $0D
 ;                               4 = PET or CBM with 8-inch floppy disk
 ;                               5 = SYM-1 with 8-inch floppy disk(s) 
 ;
-VERSION:    ldx     #RELEASE
+.proc VERSION
+            ldx     #RELEASE
             ldy     #SYSTEM
             lda     #>SYSRAM
             rts
-
+.endproc
 
 ; SVC 29 - Scan a device or file name/drive in preparation for ASSIGNment to a
 ;          channel, or to ascertain a file's status. 
@@ -552,7 +578,8 @@ VERSION:    ldx     #RELEASE
 ;                       U3 = Points to first character of file/device name in the buffer
 ;
 ;
-SCANDEV:    lda     INPBUFP         ; Set TMPBUFP
+.proc SCANDEV
+            lda     INPBUFP         ; Set TMPBUFP
             sta     TMPBUFP         ;
             lda     INPBUFP+1       ;
             sta     TMPBUFP+1       ;
@@ -570,7 +597,7 @@ SCANDEV:    lda     INPBUFP         ; Set TMPBUFP
             pla                     ; Recover return flags
             plp                     ; and processor flags
             rts
-
+.endproc
 
 ; SVC 30 - Obtain current date
 ;
@@ -579,15 +606,16 @@ SCANDEV:    lda     INPBUFP         ; Set TMPBUFP
 ;
 ; Arguments returned:   Y = Index to next available character after the date
 ;
-DATE:       ldx     #$00            ; Copy current system date
-@LOOP:      lda     TDATE,x         ; to index at output buffer
+.proc DATE
+            ldx     #$00            ; Copy current system date
+LOOP:       lda     TDATE,x         ; to index at output buffer
             sta     (OUTBUFP),y     ; (U6 is copied to OUTBUFP at entry)
             iny                     ; Next char
             inx                     ;
             cpx     #$09            ; Are we past last character?
-            bne     @LOOP           ; No, get it
+            bne     LOOP            ; No, get it
             rts
-
+.endproc
 
 SAVEP:      .byte $00               ; Saved registers on entry
 SAVEY:      .byte $00               ;
@@ -603,13 +631,15 @@ CINDEX:     .byte $00               ; Index in command line
 .if CODOS2_VER <> 14
 ; Continuation of the SVC 13
 ;
-ENDSVC23:   sta     PCSAVE+1        ; Finish to recover PCSAVE
-.ifndef KIM1
+.proc ENDSVC23
+            sta     PCSAVE+1        ; Finish to recover PCSAVE
+.ifndef ::KIM1
             lda     #$00            ; Set default program bank
             sta     PRGBANK         ;
-.if CODOS2_VER = 17
+.if ::CODOS2_VER = 17
             sta     DATBANK
 .endif
 .endif
             rts
+.endproc
 .endif

@@ -26,29 +26,30 @@ GLOCLINELEN = $2C                   ; Length of GETLOC info lines
 ;               <drive> = disk drive number, 0 to 3. Defaults to current default
 ;               drive, usually 0
 ;
-GETLOC:     jsr     GETFILNDRV      ; Get file and drive from the command line
+.proc GETLOC
+            jsr     GETFILNDRV      ; Get file and drive from the command line
             jsr     FOPEN0          ; Assigns channel 0 to file
             ldx     #$00            ; Load "saved file" header from channel 0
             jsr     LD58HDR         ; at current file position
-            bcc     @CONT           ; If OK, continue
-@ERROR:     jsr     ERROR13         ; Not a loadable ("SAVEd") file
+            bcc     CONT            ; If OK, continue
+ERROR:      jsr     ERROR13         ; Not a loadable ("SAVEd") file
             ; Not reached
 
-@CONT:      lda     SAVEDHDR+_OVLAY ; Get file overlay
-            bne     @ERROR          ; Must be 0
+CONT:       lda     SAVEDHDR+_OVLAY ; Get file overlay
+            bne     ERROR           ; Must be 0
             ldy     #GLOCLINELEN    ; Clear output buffer with spaces
             lda     #' '            ;
-@CLRB:      sta     (OUTBUFP),y     ;
+CLRB:       sta     (OUTBUFP),y     ;
             dey                     ;
-            bpl     @CLRB           ;
+            bpl     CLRB            ;
             ldx     #$00            ; Copy file name to output buffer
             ldy     #$00            ;
-@CPCH:      lda     FNAMBUF,x       ; Copy one char
+CPCH:       lda     FNAMBUF,x       ; Copy one char
             sta     (OUTBUFP),y     ;
             inx                     ; Advance in both file name and buffer
             iny                     ;
             cmp     #'.'            ; Last was extension delimiter?
-            bne     @CPCH           ; No, copy next char
+            bne     CPCH            ; No, copy next char
             lda     FNAMBUF,x       ; Copy extension
             sta     (OUTBUFP),y     ;
             iny                     ; Leave an space
@@ -57,21 +58,21 @@ GETLOC:     jsr     GETFILNDRV      ; Get file and drive from the command line
             sta     (OUTBUFP),y     ;
             iny                     ; Advance to next pos
             ldx     #$05            ; Copy pointers to page 0 (entry will be at
-@CPPT:      lda     SAVEDHDR+_PNTRS,x ; P0SCRATCH, load address at MEMBUFF and size
+CPPT:       lda     SAVEDHDR+_PNTRS,x ; P0SCRATCH, load address at MEMBUFF and size
             sta     P0SCRATCH,x     ; at MEMCOUNT)
             dex                     ;
-            bpl     @CPPT           ;
+            bpl     CPPT            ;
             jsr     HEXENCOD0       ; Convert entry to ASCII HEX into (OUTBUFP),y
             iny                     ; Leave three spaces
             iny                     ;
             iny                     ;
             sty     LOADPOS         ; Save pos of load address for next lines
-@PRBLK:     ldx     #_MEMBUFF       ; Convert load address to ASCII HEX
+PRBLK:      ldx     #_MEMBUFF       ; Convert load address to ASCII HEX
             jsr     HEXENCOD        ;
             iny                     ; Leave two spaces
             iny                     ;
             lda     SAVEDHDR+_MEMBK ; Get memory bank
-            beq     @PRSZ           ; If bank 0, skip to print size
+            beq     PRSZ            ; If bank 0, skip to print size
             dey                     ; Go back just after the address
             dey                     ;
             lda     #':'            ; Print bank delimiter
@@ -82,11 +83,11 @@ GETLOC:     jsr     GETFILNDRV      ; Get file and drive from the command line
             adc     #'0'            ;
             sta     (OUTBUFP),y     ; Print it
             iny                     ; And advance one pos
-@PRSZ:      iny                     ; Leave one space
+PRSZ:       iny                     ; Leave one space
             ldx     MEMBUFF         ; Calculate final load address
-            bne     @SKIP           ; decrementing start load address
+            bne     SKIP            ; decrementing start load address
             dec     MEMBUFF+1       ;
-@SKIP:      dex                     ;
+SKIP:       dex                     ;
             txa                     ;
             clc                     ; And adding block size
             adc     MEMCOUNT        ;
@@ -123,29 +124,30 @@ GETLOC:     jsr     GETFILNDRV      ; Get file and drive from the command line
             jsr     POUTBUFFCR02    ; Output Y chars from (OUTBUFP) to console + CR
             ldx     #$00            ; Load next saved file header from channel 0
             jsr     LD58HDR         ;
-            bcc     @NXBLK          ; OK, go process next block
-@NOMORE:    jsr     FREECH0         ; No more blocks. Free channel
+            bcc     NXBLK           ; OK, go process next block
+NOMORE:     jsr     FREECH0         ; No more blocks. Free channel
             ldy     CMDLIDX         ; Recover command line index
             jsr     GETNEXTNB       ; Get next non-blank from command line
-            beq     @RETURN         ; No more, we're finished
+            beq     RETURN          ; No more, we're finished
             jmp     GETLOC          ; Go process next file
 
-@NXBLK:     lda     SAVEDHDR+_OVLAY ; If overlay is not 0
-            bne     @NOMORE         ; Then no more blocks
+NXBLK:      lda     SAVEDHDR+_OVLAY ; If overlay is not 0
+            bne     NOMORE          ; Then no more blocks
             ldy     #GLOCLINELEN-5  ; Clear output buffer. Last 5 bytes will
             lda     #' '            ; be overwritten anyways, so save a few
-@CLRB2:     sta     (OUTBUFP),y     ; cycles here
+CLRB2:      sta     (OUTBUFP),y     ; cycles here
             dey                     ;
-            bpl     @CLRB2          ;
+            bpl     CLRB2           ;
             ldx     #$03            ; Copies load address and size
-@CPPT2:     lda     SAVEDHDR+_LOAD,x ; for next block
+CPPT2:      lda     SAVEDHDR+_LOAD,x ; for next block
             sta     MEMBUFF,x       ;
             dex                     ;
-            bpl     @CPPT2          ;
+            bpl     CPPT2           ;
             ldy     LOADPOS         ; Get pos of load address for next lines
-            jmp     @PRBLK          ; And go print block info
+            jmp     PRBLK           ; And go print block info
 
-@RETURN:    rts
+RETURN:     rts
+.endproc
 
 LOADPOS:    .byte   $01             ; Pos of load address for 2nd and following lines
 OUTBUFLEN:  .byte   $01             ; Length of output buffer to print

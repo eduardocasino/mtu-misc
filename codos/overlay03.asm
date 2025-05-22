@@ -23,63 +23,66 @@
 ;               <value>     = numeric value or numeric expression
 ;               <character> = an ASCII character to be deposited
 ;
-REG:        bne     @PRINT          ; Any argument, go alter regs
+.proc REG
+            bne     PRINT           ; Any argument, go alter regs
             jmp     OUTREGSLB       ; Print'em and return
             ; Not reached
 
-@PRINT:     cmp     #'P'            ; Status register?
-            bne     @CHKVLD         ; No, go check if it is another valid reg
+PRINT:      cmp     #'P'            ; Status register?
+            bne     CHKVLD          ; No, go check if it is another valid reg
             jsr     SKIPEQ          ; Skip optional '='
             ldx     #_PCSAVE        ; Store result of expression in PCSAVE
             sty     CMDLIDX         ; Update command line index
             jsr     EVALEXP         ; Eval expression
-            bcs     @NEXT           ; if ok, go check if there are more resg to alter
-@ERROR:     jsr     ERROR24         ; <value> missing or illegal
+            bcs     NEXT            ; if ok, go check if there are more resg to alter
+ERROR:      jsr     ERROR24         ; <value> missing or illegal
             ; Not reached
 
-@NEXT:      jsr     GETNEXTNB       ; Get next non-blank from command line
+NEXT:       jsr     GETNEXTNB       ; Get next non-blank from command line
             sty     CMDLIDX         ; Update command line index
-            bne     @PRINT          ; If any, process it
+            bne     PRINT           ; If any, process it
             rts                     ; else, return
 
-@CHKVLD:    ldx     #$04            ; Check if valid register name
-@CMPVLD:    cmp     REGDESC,x       ; Compare against string of valid register names
-            beq     @VALID          ; Found, it is a valid register name (x contains offset)
+CHKVLD:     ldx     #$04            ; Check if valid register name
+CMPVLD:     cmp     REGDESC,x       ; Compare against string of valid register names
+            beq     VALID           ; Found, it is a valid register name (x contains offset)
             dex                     ; Check next
-            bpl     @CMPVLD         ;
+            bpl     CMPVLD          ;
             jsr     ERROR28         ; Missing or illegal register name
             ; Not reached
 
-@VALID:     jsr     SKIPEQ          ; Skip '='
+VALID:      jsr     SKIPEQ          ; Skip '='
             cmp     #'''            ; Is it a single quote?
-            beq     @ISCHR          ; Yes, continue
+            beq     ISCHR           ; Yes, continue
             cmp     #'"'            ; Is it a double quote?
-            bne     @ISVAL          ; No, it is a value
-@ISCHR:     sta     QUOTE           ; Save delimiter
+            bne     ISVAL           ; No, it is a value
+ISCHR:      sta     QUOTE           ; Save delimiter
             jsr     GETNEXTCH1      ; Advance one pos and get next character
             cmp     #$0D            ; End of line?
-            beq     @ERROR          ; Missing value
+            beq     ERROR           ; Missing value
             sta     STACKP,x        ; Save value in register
             jsr     GETNEXTCH1      ; Advance and get next char
             cmp     QUOTE           ; Is it the delimiter?
-            bne     @ERROR          ; No, invalid value
+            bne     ERROR           ; No, invalid value
             iny                     ; Advance one pos
-            jmp     @NEXT           ; And go check if there are more regs to alter
+            jmp     NEXT            ; And go check if there are more regs to alter
 
-@ISVAL:     jsr     GETBYTE         ; Get byte from command line
-            bcc     @ERROR          ; Error, not a valid number
+ISVAL:      jsr     GETBYTE         ; Get byte from command line
+            bcc     ERROR           ; Error, not a valid number
             sta     STACKP,x        ; Store register
-            jmp     @NEXT           ; Go check if there are more registers to alter
+            jmp     NEXT            ; Go check if there are more registers to alter
+.endproc
 
 ; Skip optional '=' in command line
 ;
-SKIPEQ:     jsr     GETNEXTNB1      ; Advance one and get next non-blank
+.proc SKIPEQ
+            jsr     GETNEXTNB1      ; Advance one and get next non-blank
             cmp     #'='            ; Is it the optional '='?
-            bne     @CONT           ; No, go on
+            bne     CONT            ; No, go on
             jsr     GETNEXTNB1      ; Yes, skip it
-@CONT:      sty     CMDLIDX         ; Update command line index
+CONT:       sty     CMDLIDX         ; Update command line index
             rts
-
+.endproc
 
 ; DATE Command
 ;
@@ -91,7 +94,8 @@ SKIPEQ:     jsr     GETNEXTNB1      ; Advance one and get next non-blank
 ;
 ; NOTE: If no date is passed, prompt the user
 ;
-DATE:       bne     @SET            ; There are arguments, go set date
+.proc DATE
+            bne     SET             ; There are arguments, go set date
             jsr     SETINPB         ; No arguments. Set input buffer to input line buffer
             lda     INPBUFP         ; And set line-buffer used for INLINE and EDLINE
             sta     QLN             ;
@@ -103,27 +107,28 @@ DATE:       bne     @SET            ; There are arguments, go set date
             .byte   $0D, "PLEASE ENTER DATE (EXAMPLE:04-JUL-76)?= ", $00
             jsr     JINLINE         ; Input an entire line from the keyboard
             jsr     GETNEXTNB       ; Get next non blank from input buffer
-            bne     @SET            ; There are arguments, go set the date
+            bne     SET             ; There are arguments, go set the date
             ldx     #$08            ; No arguments, set "*UNDATED*"
-@PRNC:      lda     UNDATED,x       ;
+PRNC:       lda     UNDATED,x       ;
             sta     TDATE,x         ;
             dex                     ;
-            bpl     @PRNC           ;
+            bpl     PRNC            ;
             rts                     ; And return
 
-@SET:       ldx     #$00            ; Just blindly copy what's in the buffer
-@CPYC:      sta     TDATE,x         ;
+SET:        ldx     #$00            ; Just blindly copy what's in the buffer
+CPYC:       sta     TDATE,x         ;
             inx                     ;
             cpx     #$09            ; Max length reached?
-            beq     @RETURN         ; Yes, return
+            beq     RETURN          ; Yes, return
             jsr     GETNEXTCH1      ; No, advance and get next char from input buffer
-            bne     @CPYC           ; If any, copy it
-@CPSP:      lda     #' '            ; If not, fill with spaces
+            bne     CPYC            ; If any, copy it
+CPSP:       lda     #' '            ; If not, fill with spaces
             sta     TDATE,x         ;
             inx                     ;
             cpx     #$09            ;
-            bcc     @CPSP           ; Until length is reached
-@RETURN:    rts
+            bcc     CPSP            ; Until length is reached
+RETURN:     rts
+.endproc
 
 UNDATED:    .byte   "*UNDATED*"
         

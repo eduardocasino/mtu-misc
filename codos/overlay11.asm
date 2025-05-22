@@ -24,26 +24,27 @@
 ;                         default drive, usually 0
 ;               <newfile> = new file name. 
 ;
-RENAME:     jsr     GETFILNDRV      ; Get file and drive from the command line
+.proc RENAME
+            jsr     GETFILNDRV      ; Get file and drive from the command line
             ldx     CURRDRV         ; Get and store the current drive
             stx     RENAMEDRV       ;
             jsr     FOPEN0          ; Assign channel 0 to file
             lda     CURFINFO+_FLAGS ; Get file flags
             and     #FLLOCKED       ; Check if locked
-            beq     @CONT           ; No, continue
+            beq     CONT            ; No, continue
             jsr     ERROR07         ; Locked file violation
             ; Not reached
 
-@CONT:      ldy     CMDLIDX         ; Get command line index
+CONT:       ldy     CMDLIDX         ; Get command line index
             jsr     GETFILNDRV      ; Get destination file and drive
             ldx     RENAMEDRV       ; Set current drive to the source file's
             stx     CURRDRV         ;
             jsr     FEXIST          ; Check if destination file exists
-            bne     @NEXIST         ; No, continue
+            bne     NEXIST          ; No, continue
             jsr     ERROR25         ; New file name is already on selected diskette
             ; Not reached
 
-@NEXIST:    ldx     #$00            ; Rewind source file
+NEXIST:     ldx     #$00            ; Rewind source file
             jsr     FREWIND         ;
             ldy     #_NSEC          ; Get the sector on track 12 of the directory entry
             lda     (CURFINFO+_BUFF),y ;
@@ -53,44 +54,45 @@ RENAME:     jsr     GETFILNDRV      ; Get file and drive from the command line
             tax                     ;
             sta     DIRPOINT        ; Store it into DIRPOINT
             ldy     #_FNAM          ; Compare names
-@CMPLOOP:   lda     DIRBUF,x        ; 
+CMPLOOP:    lda     DIRBUF,x        ; 
             cmp     #'.'            ; Have we reached the extension?
-            beq     @RENAM           ; Yes, jump
+            beq     RENAM            ; Yes, jump
             cmp     (CURFINFO+_BUFF),y ; No, char is thr same?
-            beq     @SAME           ; Yes, continue
+            beq     SAME            ; Yes, continue
             jsr     ERROR50         ; System crash: Directory redundancy check failed
             ; Not reached
 
-@SAME:      iny                     ; Advance to next char
+SAME:       iny                     ; Advance to next char
             inx                     ;
-            jmp     @CMPLOOP        ; And continue loop
+            jmp     CMPLOOP         ; And continue loop
 
             ; Rename dir entry
 
-@RENAM:     ldx     DIRPOINT        ; Get pointer to entry in sector
+RENAM:      ldx     DIRPOINT        ; Get pointer to entry in sector
             ldy     #$00            ; Init FNAMBUF index
-@RNLOOP:    lda     FNAMBUF,y       ; Copy new name
+RNLOOP:     lda     FNAMBUF,y       ; Copy new name
             sta     DIRBUF,x        ;
             inx                     ;
             iny                     ;
             cpy     #FNAMLEN        ; Have we reached the file name length?
-            bne     @RNLOOP         ; No, continue copying
+            bne     RNLOOP          ; No, continue copying
 
             ; Rename dir entry copy in file header
 
             ldx     #$00            ;
             ldy     #_FNAM          ;
-@RNLOOP2:   lda     FNAMBUF,x       ;
+RNLOOP2:    lda     FNAMBUF,x       ;
             sta     (CURFINFO+_BUFF),y ;
             iny                     ;
             inx                     ;
             cpx     #FNAMLEN        ; Have we reached the file name length?
-            bne     @RNLOOP2        ; No, continue copying
+            bne     RNLOOP2         ; No, continue copying
             jsr     CPYCFINFO       ; Copies file info structure to CURFINFO struct
                                     ; in page zero
             jsr     WRFPSECT        ; Update file header info on disk
             jsr     WRTRCK12        ; Update dir entry on disk
             jmp     FREECH0         ; Free channel and return
+.endproc
 
 RENAMEDRV:  .byte   $00
 

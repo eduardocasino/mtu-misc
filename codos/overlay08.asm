@@ -19,25 +19,26 @@
 ; SYNTAX:       FILES [<drive> ...]
 ; ARGUMENTS:    <drive> = selected disk drive number, 0 to 3. Defaults to 0.
 ; 
-FILES:
-@GETDRV:    ldx     #$00            ; Get first non-blank character in the command line
+.proc FILES
+GETDRV:     ldx     #$00            ; Get first non-blank character in the command line
             jsr     GETNEXTNB       ;
-            beq     @DEFDRV         ; null or semicolon, use default drive
+            beq     DEFDRV          ; null or semicolon, use default drive
             jsr     GETDRIVEOPND    ; Get drive from command line and check that it is opened
-@DEFDRV:    jsr     FILESDRV        ; Display files for drive X
+DEFDRV:     jsr     FILESDRV        ; Display files for drive X
             ldy     CMDLIDX         ; Get command line index
             jsr     GETNEXTNB       ; More arguments?
-            beq     @RETURN         ; No, we're done
+            beq     RETURN          ; No, we're done
             ldx     #$02            ; Yes, prints CR to console
             jsr     OUTCR           ;
-            jmp     @GETDRV         ; And get next drive
+            jmp     GETDRV          ; And get next drive
 
-@RETURN:    rts
+RETURN:     rts
+.endproc
 
 ; Display files for drive X
 ;
-FILESDRV:
-.if CODOS2_VER <> 14
+.proc FILESDRV
+.if ::CODOS2_VER <> 14
             jmp     FIX15_1         ; V 1.5 mod, sets CURRDRV and saves X
             ; FIX15_1 jumps back to CONT
 .else
@@ -50,18 +51,18 @@ CONT:       jsr     INILINE         ; Inits line. Clears line and sets FPERLIN
             ldy     #_BNENT         ; Offset in BAT to number of files
             lda     (BATP),y        ; Get it
             sta     NFILES          ; And store
-            bne     @SEARCH         ; If not empty, init search
+            bne     SEARCH          ; If not empty, init search
             jsr     OUTSTR          ; Empty, just say so
             .byte   "(NONE)", $00
             ldx     CURRDRV         ; 
             rts
 
-@SEARCH:    lda     #$00            ; Init sector for search
+SEARCH:     lda     #$00            ; Init sector for search
             sta     SECTNUM         ;
             ldy     #$00            ; and diretory index
 
 GETENTRY:
-.if CODOS2_VER <> 14
+.if ::CODOS2_VER <> 14
             jmp     FIX15_2         ; V 1.5 mod, restores X, sets CURRDRV and incs SECTNUM
             ; FIX15_2 jumps back to CONT2
 .else
@@ -70,34 +71,38 @@ GETENTRY:
 
 CONT2:      jsr     RDSECTNTR12     ; Read sector
             lda     #$01            ; Init pointer to current directory entry name
-            bne     @UPDP           ; Always jump
-@NEXT:      lda     DIRPOINT        ; Gets pointer to current directory entry
+            bne     UPDP            ; Always jump
+NEXT:       lda     DIRPOINT        ; Gets pointer to current directory entry
             clc                     ; Advance to next entry (dir entries are
             adc     #$10            ; 16 bytes long)
             bcs     GETENTRY        ; If not in sector, get next one
-@UPDP:      sta     DIRPOINT        ; Updates directory pointer
+UPDP:       sta     DIRPOINT        ; Updates directory pointer
             tax                     ; 
-@CPCHAR:    lda     DIRBUF,x        ; Get first char of file name
-            beq     @NEXT           ; If null, deleted, go get next
+CPCHAR:     lda     DIRBUF,x        ; Get first char of file name
+            beq     NEXT            ; If null, deleted, go get next
             sta     (OUTBUFP),y     ; No, store in output buffer
             inx                     ; Advance one pos
             iny                     ;
             cmp     #'.'            ; Was last char the extension separator
-            bne     @CPCHAR         ; No, go copy into buffer
+            bne     CPCHAR          ; No, go copy into buffer
 
             lda     DIRBUF,x        ; Get extension char
             sta     (OUTBUFP),y     ; And store it in buffer
             iny                     ; Advance to next pos in output buffer
             dec     NFILES          ; More files left?
-            beq     @RETURN         ; No, print buffer and return
+            beq     RETURN          ; No, print buffer and return
             jsr     ADD2LINE        ; Yes, adds it to line
-            jmp     @NEXT           ; And go for next extry
+            jmp     NEXT            ; And go for next extry
             ; Not reached
 
-@RETURN:    jsr     OUTCLEAR        ; Prints output buffer and clears it
+RETURN:     jsr     OUTCLEAR        ; Prints output buffer and clears it
             rts
+.endproc
 
-ADD2LINE:   tya                     ; Tabulate entry to 16 positions
+; Add file entry to the output buffer
+;
+.proc ADD2LINE
+            tya                     ; Tabulate entry to 16 positions
             and     #$F0            ;
             clc                     ;
             adc     #$10            ;
@@ -106,42 +111,50 @@ ADD2LINE:   tya                     ; Tabulate entry to 16 positions
             ; Not reached
             tay                     ; Yes, update index
             rts                     ; and return
+.endproc
 
 ; Prints output buffer and clears it
 ;
-OUTCLEAR:   jsr     POUTBUFFCR02    ; Print output buffer to console (length in Y)
+.proc OUTCLEAR
+            jsr     POUTBUFFCR02    ; Print output buffer to console (length in Y)
             ; Fall through
+.endproc
 
 ; Init line.
 ;
 ; Clears line and init FPERLIN
 ;
-INILINE:    ldy     #$47            ; Prints 72 spaces
+.proc INILINE
+            ldy     #$47            ; Prints 72 spaces
             lda     #' '            ;
-@PRSP:      sta     (OUTBUFP),y     ;
+PRSP:       sta     (OUTBUFP),y     ;
             dey                     ;
-            bpl     @PRSP           ;
+            bpl     PRSP            ;
             iny                     ; Y back to 0
             lda     NUMFNAMES       ; Number of file names per line for FILES command
             sta     FPERLIN         ;
             rts
+.endproc
 
 FPERLIN:    .byte   $00             ; Files per line
 
 .if CODOS2_VER <> 14
 SAVEX:      .byte   $00
 
-FIX15_1:    stx     CURRDRV         ; Sets current drive    
+.proc FIX15_1
+            stx     CURRDRV         ; Sets current drive    
             stx     SAVEX           ; And saves X
-            jmp     CONT            ; Continue where we left
+            jmp     FILESDRV::CONT  ; Continue where we left
             ; Not reached
+.endproc
 
-
-FIX15_2:    inc     SECTNUM         ; Increments directory sector
+.proc FIX15_2
+            inc     SECTNUM         ; Increments directory sector
             ldx     SAVEX           ; Recovers X
             stx     CURRDRV         ; Sets current drive
-            jmp     CONT2           ; And continue where we left
+            jmp     FILESDRV::CONT2 ; And continue where we left
             ; Not reached
+.endproc
 
             ; This block is just junk that was in the buffer when
             ; writing it to disk. I leave it to facilitate checksum

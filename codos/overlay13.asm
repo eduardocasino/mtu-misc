@@ -21,10 +21,18 @@
 ;
 ; Arguments returned:   Flags
 ;
-CODOS16:    clc                     ; Clears bit 0 of BYTRES
+.proc CODOS16
+            clc                     ; Clears bit 0 of BYTRES
+            ; Fall through
+.endproc
 
-SETCYST:    rol     BYTRES          ; Set carry status in bit 1 of BYTRES
-DEFRET:     cld                     ; Clear decimal mode
+.proc SETCYST
+            rol     BYTRES          ; Set carry status in bit 1 of BYTRES
+            ; Fall through
+.endproc
+
+.proc DEFRET
+            cld                     ; Clear decimal mode
             jsr     GETARG          ; Get arg, which should be a pseudo-op
             tay                     ; Save it in Y
             and     #$07            ; Get pseudo-reg
@@ -41,14 +49,15 @@ DEFRET:     cld                     ; Clear decimal mode
             pha                     ;
             lda     #<(SETCYST-1)   ; Return point for ops 1 and 2
             cpy     #3*2            ; Is op < 3 ?
-            bcc     @CONT           ; Yes, continue
+            bcc     CONT            ; Yes, continue
             lda     #<(DEFRET-1)    ; No, set default return point
-@CONT:      pha                     ;
+CONT:       pha                     ;
             lda     OPTABLE-1,y     ; Set op entry point
             pha                     ;
             lda     OPTABLE-2,y     ;
             pha                     ;
             rts                     ; And "jump"
+.endproc
 
 ; UEXT n
 ;
@@ -56,7 +65,8 @@ DEFRET:     cld                     ; Clear decimal mode
 ; and return to normal 6502 execution mode.
 ; The Carry flag reflects the last UADD or USUB result.
 ;
-UEXT:       lda     P0SCRATCH,x     ; Check if Un = 0
+.proc UEXT
+            lda     P0SCRATCH,x     ; Check if Un = 0
             ora     P0SCRATCH+1,x   ;
             php                     ; Transfer flags to A
             pla                     ;
@@ -64,45 +74,52 @@ UEXT:       lda     P0SCRATCH,x     ; Check if Un = 0
 
             clc                     ; clears carry for next check
             ldy     P0SCRATCH+1,x   ; Check if Un is negative
-            bpl     @SETN           ; It is positive
+            bpl     SETN            ; It is positive
             sec                     ; It is negative, set carry
-@SETN:      ror     a               ; Injects N flag into A
+SETN:       ror     a               ; Injects N flag into A
             lsr     a               ; SHift right to expunge C flag
             ror     BYTRES          ; Moves op carry result to Cy
             rol     a               ; Injects C flag into A
             sta     PROCST          ; And store flags
             ; Fall through
+.endproc
 
 ; Update SVC pseudo registers from working copy
 ;
 ; At exit, Y = 0
 ;
-UPDATEREGS: ldy     #$11            ; Update pseudo registers
-@LOOP:      lda     P0SCRATCH-1,y   ;
+.proc UPDATEREGS
+            ldy     #$11            ; Update pseudo registers
+LOOP:       lda     P0SCRATCH-1,y   ;
             sta     U0-1,y          ;
             dey                     ;
-            bne     @LOOP           ;
+            bne     LOOP            ;
             rts
+.endproc
 
 ; Get first argument in (PCSAVE) and advance one position
 ;
-GETARG:     ldy     #$02            ; Get SVC arg (byte)
+.proc GETARG
+            ldy     #$02            ; Get SVC arg (byte)
             lda     (PCSAVE),y      ;
             inc     PCSAVE          ; And advance one pos
-            bne     @RETURN         ;
+            bne     RETURN          ;
             inc     PCSAVE+1        ;
-@RETURN:    rts
+RETURN:     rts
+.endproc
 
 ; ULDI n,val
 ;
 ; Un = val. 16-bit load immediate. First byte of val is low-order byte,
 ; second is high-order byte
 ;
-ULDI:       jsr     GETARG          ; Get low byte
+.proc ULDI
+            jsr     GETARG          ; Get low byte
             sta     P0SCRATCH,x     ; Store into low byte of Un
             jsr     GETARG          ; Get high byte
             sta     P0SCRATCH+1,x   ; And store it
             rts
+.endproc
 
 ; ULDA n,addr
 ;
@@ -110,7 +127,8 @@ ULDI:       jsr     GETARG          ; Get low byte
 ; low-order byte of Un and the data at addr+1 is placed in the
 ; high-order byte
 ;
-ULDA:       jsr     GETWORD         ; Get addr from SVC byte args into L00D2
+.proc ULDA
+            jsr     GETWORD         ; Get addr from SVC byte args into L00D2
                                     ; (clears Y)
             lda     (L00D2),y       ; Get (addr)
             sta     P0SCRATCH,x     ; And store it into Un
@@ -118,6 +136,7 @@ ULDA:       jsr     GETWORD         ; Get addr from SVC byte args into L00D2
             lda     (L00D2),y       ;
             sta     P0SCRATCH+1,x   ;
             rts
+.endproc
 
 ; U0LD n
 ;
@@ -125,21 +144,23 @@ ULDA:       jsr     GETWORD         ; Get addr from SVC byte args into L00D2
 ; register Un is loaded into the low byte of U0, and the next byte is
 ; loaded into the high byte of U0
 ;
-U0LD:       jsr     UNL00D2         ; Copies UN to L00D2 and clears Y
+.proc U0LD
+            jsr     UNL00D2         ; Copies UN to L00D2 and clears Y
             lda     (L00D2),y       ; Get (Un)
             sta     P0SCRATCH       ; And copy into U0
             iny                     ;
             lda     (L00D2),y       ;
             sta     P0SCRATCH+1     ;
             rts
-
+.endproc
 
 ; USTA n,addr
 ;
 ; (addr) = Un. 16-bit store. The low byte of Un is stored in memory at
 ; address addr, and the high byte is stored at addr+1.
 ;
-USTA:       jsr     GETWORD         ; Get addr from SVC byte args into L00D2
+.proc USTA
+            jsr     GETWORD         ; Get addr from SVC byte args into L00D2
                                     ; (clears Y)
             lda     P0SCRATCH,x     ; Get Un and store it into (L00D2) 
             sta     (L00D2),y       ;
@@ -147,6 +168,7 @@ USTA:       jsr     GETWORD         ; Get addr from SVC byte args into L00D2
             lda     P0SCRATCH+1,x   ;
             sta     (L00D2),y       ;
             rts
+.endproc
 
 ; U0ST n
 ;
@@ -154,13 +176,15 @@ USTA:       jsr     GETWORD         ; Get addr from SVC byte args into L00D2
 ; stored at the address in Un, and the high byte is stored at the next
 ; higher address
 ; 
-U0ST:       jsr     UNL00D2         ; Copies UN to L00D2 and clears Y
+.proc U0ST
+            jsr     UNL00D2         ; Copies UN to L00D2 and clears Y
             lda     P0SCRATCH       ; Get U0       
             sta     (L00D2),y       ; And store into (L00D2)
             iny                     ;
             lda     P0SCRATCH+1     ;
             sta     (L00D2),y       ;
             rts
+.endproc
 
 ; UNU7 n
 ;
@@ -168,34 +192,42 @@ U0ST:       jsr     UNL00D2         ; Copies UN to L00D2 and clears Y
 ; and the low-order 8 bits of register Un is moved to the most
 ; significant (3rd byte)
 ;
-UNU7:       lda     P0SCRATCH,x     ; Copy Lower 8 bits of Un to 
+.proc UNU7
+            lda     P0SCRATCH,x     ; Copy Lower 8 bits of Un to 
             sta     FILEPOS+2       ; MSB of U7
             ldx     #7*2            ; Copy U0 to U7 (lower 16 bits)
             jmp     U0UN            ; and return
+.endproc
 
 ; Get word from SVC arguments and clears Y
 ;
 ; Returns word L00D2
 ;
-GETWORD:    jsr     GETARG          ; Get next byte arg (low)
+.proc GETWORD
+            jsr     GETARG          ; Get next byte arg (low)
             sta     L00D2           ; store it in L00D2
             jsr     GETARG          ; Get next byte arg (high)
             jmp     STHCLY          ; Go store high and clear Y
+.endproc
 
 ; UNL00D2
 ;
 ; Copies UN to L00D2 and clears Y
 ;
-UNL00D2:    lda     P0SCRATCH,x
+.proc UNL00D2
+            lda     P0SCRATCH,x
             sta     L00D2
             lda     P0SCRATCH+1,x
             ; Fall through
+.endproc
 
 ; Stores A in high byte of L00D2 and clears Y
 ;
-STHCLY:     sta     L00D2+1
+.proc STHCLY
+            sta     L00D2+1
             ldy     #$00
             rts
+.endproc
 
 ; UJSR n
 ;
@@ -209,7 +241,8 @@ STHCLY:     sta     L00D2+1
 ; the N and Z flags will reflect the value of the low order byte of U0.
 ; The decimal mode flag will be clear. 
 ;
-UJSR:       jsr     UPDATEREGS      ; Update pseudo registers from working copy
+.proc UJSR
+            jsr     UPDATEREGS      ; Update pseudo registers from working copy
                                     ; also, set Y = 0
             lda     #>(JCPSEUDREGS-1) ; Set the return entry point
             pha                     ;
@@ -233,6 +266,7 @@ UJSR:       jsr     UPDATEREGS      ; Update pseudo registers from working copy
             plp                     ; Recover flags
             lda     P0SCRATCH       ; Load low-order byte of U0 into A
             rts                     ; And jump
+.endproc
 
 ; UMUL n
 ;
@@ -244,12 +278,20 @@ UJSR:       jsr     UPDATEREGS      ; Update pseudo registers from working copy
 ;
 ; Result: Low 16-bits of product in UO, high-order 16 bits in Un 
 ;
-UMUL:       jsr     MULT16_32       ; U0 * Un -> L00D2:U0
+.proc UMUL
+            jsr     MULT16_32       ; U0 * Un -> L00D2:U0
             lda     L00D2           ; Copy L00D2 to Un
             sta     P0SCRATCH,x     ;
             lda     L00D2+1         ;
             sta     P0SCRATCH+1,x   ;
-UNOP:       rts
+            ; Fall through
+.endproc
+
+; UNOP n
+;
+.proc UNOP
+            rts
+.endproc
 
             ; Operations entry point table
             ;

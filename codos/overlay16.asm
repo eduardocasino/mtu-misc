@@ -22,18 +22,19 @@
 ;
 ; ARGUMENTS:    None.
 ;
-DISK:       ldx     #$00            ; Init drives loop
-@CHKOPN:    lda     ODRIVES,x       ; Check if drive is open
-            bpl     @NXTDRV         ; No, go check next
+.proc DISK
+            ldx     #$00            ; Init drives loop
+CHKOPN:     lda     ODRIVES,x       ; Check if drive is open
+            bpl     NXTDRV          ; No, go check next
             stx     DRIVE           ; Yes, store drive
-            jsr     @PRINFO         ; Go print info
+            jsr     PRINFO          ; Go print info
             ldx     DRIVE           ; Recover drive
-@NXTDRV:    inx                     ; Next drive
+NXTDRV:     inx                     ; Next drive
             cpx     NDRIVES         ; Have we reached the maximum drive?
-            bcc     @CHKOPN         ; No, loop
+            bcc     CHKOPN          ; No, loop
             rts                     ; Yes, return
 
-@PRINFO:    stx     CURRDRV         ; Sets drive as current
+PRINFO:     stx     CURRDRV         ; Sets drive as current
             jsr     DRVVALIDO       ; Ensure it is open
             jsr     SETOUTBCH       ; Set output buffer to output line buffer
             jsr     SETBATP         ; Set BATP to the current drive's BAT
@@ -72,28 +73,31 @@ DISK:       ldx     #$00            ; Init drives loop
             sta     P0SCRATCH       ; store low byte
             ldx     CURRDRV         ; Recover current drive
             lda     DRVNFO,x        ; Check if two sides
-            bpl     @PRFREE         ; No, skip
+            bpl     PRFREE          ; No, skip
             asl     P0SCRATCH       ; Yes, block size is twice the size
             rol     P0SCRATCH+1     ;
-@PRFREE:    ldy     #$00            ; Set index to output buffer
+PRFREE:     ldy     #$00            ; Set index to output buffer
             jsr     DECENCOD        ; Convert bytes free to decimal ascii into output buf
             jsr     POUTBUFF02      ; Print output buffer to console
             jsr     OUTSTR          ; Print string
             .byte   "K FREE", $0D, $00
             rts                     ; And return
+.endproc
 
 ; Get free blocks
 ;
 ; Returns number in X
 ;
-GETFREE:    ldx     #$00            ; Inits number of free blocks
+.proc GETFREE
+            ldx     #$00            ; Inits number of free blocks
             ldy     #_BTOPB         ; Y points to last block slot
-@LOOP:      lda     (BATP),y        ; Get block info
-            bne     @NEXT           ; If not free, go check the next
+LOOP:       lda     (BATP),y        ; Get block info
+            bne     NEXT            ; If not free, go check the next
             inx                     ; Increment free block count
-@NEXT:      dey                     ; Decrement block slot
-            bne     @LOOP           ; If there are more, loop
+NEXT:       dey                     ; Decrement block slot
+            bne     LOOP            ; If there are more, loop
             rts
+.endproc
 
 DRIVE:      .byte   $00             ; Drive we are processing
 

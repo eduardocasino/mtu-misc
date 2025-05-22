@@ -23,45 +23,46 @@
 ;               <to> = ending address of block to be copied
 ;               <dest> = starting address of destination of copy
 ;
-COPY:       jsr     GADDRBNKMB      ; Get address and bank and store into MEMBUFF and NEWBNK
+.proc COPY
+            jsr     GADDRBNKMB      ; Get address and bank and store into MEMBUFF and NEWBNK
             jsr     GETTOP          ; Get TO address and store into MEMCOUNT
             ldx     #_TMPBUFP       ; Get <dest> address and store into TMPBUFP
             jsr     EVALEXP         ;
-            bcs     @CONT           ; Expression OK, continue
-@BADDST:    jsr     ERROR27         ; <destination> address missing or illegal
+            bcs     CONT            ; Expression OK, continue
+BADDST:     jsr     ERROR27         ; <destination> address missing or illegal
             ; Not reached
 
-@CONT:      lda     NEWBNK          ; Get bank of starting address
+CONT:       lda     NEWBNK          ; Get bank of starting address
             eor     DEFBNKCFG       ;
             sta     FROMBANK        ; Save it
             sta     DESTBANK        ; And set also as default for destination
             jsr     GETNEXTNB       ; Get next non-blank from command line
-            beq     @ARGSDONE       ; If no more, continue
+            beq     ARGSDONE        ; If no more, continue
             cmp     COLON           ; Is it the bank delimiter? 
-            bne     @BADDST         ; No, bad destination address
+            bne     BADDST          ; No, bad destination address
             iny                     ; Yes, get it
             jsr     GETBYTE         ;
-            bcc     @BADDST         ; Not a number, bad destination
+            bcc     BADDST          ; Not a number, bad destination
             cmp     #$04            ; Check if a valid bank number
-            bcs     @BADDST         ; No, bad destination
+            bcs     BADDST          ; No, bad destination
             eor     DEFBNKCFG       ; Set as destination bank
             sta     DESTBANK        ;
 
-@ARGSDONE:  jsr     GETCOUNT        ; Get number of bytes to copy
-            bcs     @CDIST          ; If not negative, continue
+ARGSDONE:   jsr     GETCOUNT        ; Get number of bytes to copy
+            bcs     CDIST           ; If not negative, continue
             jsr     ERROR16         ; <from> address greater than <to> address
             ; Not reached
 
             ; Calculate <from> to <dest> distance
 
-@CDIST:     lda     TMPBUFP         ; Substract <from> address from <dest> address
+CDIST:      lda     TMPBUFP         ; Substract <from> address from <dest> address
             sec                     ;
             sbc     MEMBUFF         ;
             sta     DESTBUFF        ; and store into DESTBUFF
             lda     TMPBUFP+1       ;
             sbc     MEMBUFF+1       ;
             sta     DESTBUFF+1      ;
-            bcc     @CPFWD          ; Jump if result is negative, (dest is lower than from)
+            bcc     CPFWD           ; Jump if result is negative, (dest is lower than from)
 
             ; Calculate <dest> + count and store into MEMBUFF
 
@@ -77,56 +78,57 @@ COPY:       jsr     GADDRBNKMB      ; Get address and bank and store into MEMBUF
 
             ldy     #$00            ; init index for indirect addressing in COPYBCK
             ldx     BYTCOUNT+1      ; Get byte count MSB
-            beq     @CHKLSB         ; If zero, go check LSB
-@CPPAGE:    jsr     COPYBCK         ; Not zero, copy one byte
+            beq     CHKLSB          ; If zero, go check LSB
+CPPAGE:     jsr     COPYBCK         ; Not zero, copy one byte
             dey                     ; Decrement index (now $FF)
             dec     MEMCOUNT+1      ; Decrement source and dest pages
             dec     MEMBUFF+1       ;
-@BYTBK:     jsr     COPYBCK         ; Copy one page
+BYTBK:      jsr     COPYBCK         ; Copy one page
             dey                     ;
-            bne     @BYTBK          ;
+            bne     BYTBK           ;
             dec     BYTCOUNT+1      ; Decrement 256 bytes of bytecount
-            bne     @CPPAGE         ; While more pages, repeat
-@CHKLSB:    ldx     BYTCOUNT        ; Any more bytes to copy?
-            beq     @CBRET          ; No, copy last and return
+            bne     CPPAGE          ; While more pages, repeat
+CHKLSB:     ldx     BYTCOUNT        ; Any more bytes to copy?
+            beq     CBRET           ; No, copy last and return
             jsr     COPYBCK         ; Yes, copy
             dey                     ; Decrement index (now $FF)
             dec     MEMCOUNT+1      ; Decrement source and dest pages
             dec     MEMBUFF+1       ;
             dec     BYTCOUNT        ; Any more bytes?
-            beq     @CBRET          ; No, copy last and return
-@BYTBK2:    jsr     COPYBCK         ; Yes, copy backwards until no more bytes
+            beq     CBRET           ; No, copy last and return
+BYTBK2:     jsr     COPYBCK         ; Yes, copy backwards until no more bytes
             dey                     ;
             dec     BYTCOUNT        ;
-            bne     @BYTBK2         ;
-@CBRET:     jsr     COPYBCK         ; Copy last byte
+            bne     BYTBK2          ;
+CBRET:      jsr     COPYBCK         ; Copy last byte
             rts
 
             ; Copy forwards from <from> to <dest>
 
-@CPFWD:     ldy     #$00
+CPFWD:      ldy     #$00
             ldx     BYTCOUNT+1      ; Get byte count MSB
-            beq     @CHKLSB2        ; If 0, go check LSB
-@CPPAGE2:   jsr     COPYFWD         ; Not zero, copy one page
+            beq     CHKLSB2         ; If 0, go check LSB
+CPPAGE2:    jsr     COPYFWD         ; Not zero, copy one page
             iny                     ;
-            bne     @CPPAGE2        ;
+            bne     CPPAGE2         ;
             inc     MEMBUFF+1       ; Advance to next page
             inc     TMPBUFP+1       ;
             dec     BYTCOUNT+1      ; Decrement 256 bytes of bytecount
-            bne     @CPPAGE2        ; While more pages, repeat
-@CHKLSB2:   ldx     BYTCOUNT        ; Any more bytes to copy;
-            beq     @CFRET          ; No, copy last and return
-@BYTFW:     jsr     COPYFWD         ; Yes, copy forwards until no more bytes
+            bne     CPPAGE2         ; While more pages, repeat
+CHKLSB2:    ldx     BYTCOUNT        ; Any more bytes to copy;
+            beq     CFRET           ; No, copy last and return
+BYTFW:      jsr     COPYFWD         ; Yes, copy forwards until no more bytes
             iny                     ;
             dec     BYTCOUNT        ;
-            bne     @BYTFW          ;
-@CFRET:     jsr     COPYFWD         ; Copy last byte
+            bne     BYTFW           ;
+CFRET:      jsr     COPYFWD         ; Copy last byte
             rts
-
+.endproc
 
 ; Get number of bytes to copy
 ;
-GETCOUNT:   lda     MEMCOUNT        ; Get ending address
+.proc GETCOUNT
+            lda     MEMCOUNT        ; Get ending address
             sec                     ; Substract memory origin
             sbc     MEMBUFF         ;
             sta     BYTCOUNT        ; And store byte count
@@ -134,10 +136,12 @@ GETCOUNT:   lda     MEMCOUNT        ; Get ending address
             sbc     MEMBUFF+1       ;
             sta     BYTCOUNT+1      ;
             rts
+.endproc
 
 ; Copy byte backwards from <to> bank:address,y to <dest>+count bank:address,y
 ;
-COPYBCK:    ldx     FROMBANK        ; Switch to source bank
+.proc COPYBCK
+            ldx     FROMBANK        ; Switch to source bank
             stx     BNKCTL          ;
             lda     (MEMCOUNT),y    ; Read byte from address,y
             ldx     DESTBANK        ; Switch to dest bank
@@ -146,10 +150,12 @@ COPYBCK:    ldx     FROMBANK        ; Switch to source bank
             ldx     DEFBNKCFG       ; Switch to default bank
             stx     BNKCTL          ;
             rts
+.endproc
 
 ; Copy byte forwards from <from> bank:address to dest bank:address
 ;
-COPYFWD:    ldx     FROMBANK        ; Switch to source bank
+.proc COPYFWD
+            ldx     FROMBANK        ; Switch to source bank
             stx     BNKCTL          ;
             lda     (MEMBUFF),y     ; Read byte from source address,y
             ldx     DESTBANK        ; Switch to dest bank
@@ -158,6 +164,7 @@ COPYFWD:    ldx     FROMBANK        ; Switch to source bank
             ldx     DEFBNKCFG       ; Switch to default bank
             stx     BNKCTL          ;
             rts
+.endproc
 
 FROMBANK:      .byte   $7F
 DESTBANK:      .byte   $7F

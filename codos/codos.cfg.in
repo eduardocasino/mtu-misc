@@ -1,7 +1,9 @@
 MEMORY {
     ZEROPAGE:   start = $0000, size = $100;
+    SYSDATA:    start = $0200, size = $280, file="build/%%VERSION%%/iodriver.dat";
     SCRATCH:    start = $0280, size = $30, file="";
     USRRAM:     start = $C000, size = $2000, define = yes;
+    LARGEBUF:   start = $A000, size = $1400, define = yes;
     CMDPROC:    start = $D800, size = $800, file="build/%%VERSION%%/comdproc.bin";
     SVCPROC:    start = $DD20, size = $2E0, file="build/%%VERSION%%/svcproc.bin";
     SYSRAM:     start = $E000, size = $2000, define = yes;
@@ -11,6 +13,7 @@ MEMORY {
 }
 SEGMENTS {
     zp:         load = ZEROPAGE, type = zp, start = $B0;
+    sysdata:    load = SYSDATA,  type = rw;
     scratch0:   load = SCRATCH,  type = rw;
     scratch1:   load = SCRATCH,  type = rw, start = $0283;
     cmdproc:    load = CMDPROC,  type = ro;

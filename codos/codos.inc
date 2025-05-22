@@ -2,7 +2,6 @@
 ; If none is specified, 15 is assumed
 ; Codos 11 is the same as Codos 15
 ;
-
 .ifndef CODOS2_VER
     CODOS2_VER  = 15
 .endif
@@ -111,37 +110,45 @@ SAVEDHDRLEN = 10
 SVDMAGIC    = $58
 
 .macro dma reg, addr
-    .if ((addr >= SYSRAM) && (addr < SYSRAM + $2000) && (SYSRAM .MOD $2000 = 0) && (addr < SYSRAM + $1000)) || ((addr >= SYSRAM) && (addr < SYSRAM + $2000) && (SYSRAM .MOD $2000 <> 0) && (addr >= SYSRAM + $1000))
+    .if ((::addr >= ::SYSRAM) && (::addr < ::SYSRAM + $2000) && (::SYSRAM .MOD $2000 = 0) && (::addr < ::SYSRAM + $1000)) || ((::addr >= ::SYSRAM) && (::addr < ::SYSRAM + $2000) && (::SYSRAM .MOD $2000 <> 0) && (::addr >= ::SYSRAM + $1000))
         .if .match ({reg}, A)
-            lda #((addr >> 6) & $BF) | $80
+            lda #((::addr >> 6) & $BF) | $80
         .elseif .match ({reg}, X)
-            ldx #((addr >> 6) & $BF) | $80
+            ldx #((::addr >> 6) & $BF) | $80
+        .elseif .match ({reg}, Y)
+            ldy #((::addr >> 6) & $BF) | $80
         .else
-            ldy #((addr >> 6) & $BF) | $80
+            .byte ((::addr >> 6) & $BF) | $80
         .endif
-    .elseif ((addr >= SYSRAM) && (addr < SYSRAM + $2000) && (SYSRAM .MOD $2000 = 0) && (addr >= SYSRAM + $1000)) || ((addr >= SYSRAM) && (addr < SYSRAM + $2000) && (SYSRAM .MOD $2000 <> 0) && (addr < SYSRAM + $1000))
+    .elseif ((::addr >= ::SYSRAM  ) && (::addr < ::SYSRAM   + $2000) && (::SYSRAM .MOD $2000 = 0) && (::addr >= ::SYSRAM   + $1000)) || ((::addr >= ::SYSRAM  ) && (::addr < ::SYSRAM   + $2000) && (::SYSRAM .MOD $2000 <> 0) && (::addr < ::SYSRAM   + $1000))
         .if .match ({reg}, A)
-            lda #((addr >> 6) | $C0) & $FF
+            lda #((::addr >> 6) | $C0) & $FF
         .elseif .match ({reg}, X)
-            ldx #((addr >> 6) | $C0) & $FF
+            ldx #((::addr >> 6) | $C0) & $FF
+        .elseif .match ({reg}, Y)
+            ldy #((::addr >> 6) | $C0) & $FF
         .else
-            ldy #((addr >> 6) | $C0) & $FF
+            .byte ((::addr >> 6) | $C0) & $FF
         .endif
-    .elseif ((addr >= USRRAM) && (addr < USRRAM + $2000) && (USRRAM .MOD $2000 = 0) && (addr < USRRAM + $1000)) || ((addr >= USRRAM) && (addr < USRRAM + $2000) && (USRRAM .MOD $2000 <> 0) && (addr >= USRRAM + $1000))
+    .elseif ((::addr >= ::USRRAM) && (::addr < ::USRRAM + $2000) && (::USRRAM .MOD $2000 = 0) && (::addr < ::USRRAM + $1000)) || ((::addr >= ::USRRAM) && (::addr < ::USRRAM + $2000) && (::USRRAM .MOD $2000 <> 0) && (::addr >= ::USRRAM + $1000))
         .if .match ({reg}, A)
-            lda #(addr >> 6) & $3F
+            lda #(::addr >> 6) & $3F
         .elseif .match ({reg}, X)
-            ldx #(addr >> 6) & $3F
+            ldx #(::addr >> 6) & $3F
+        .elseif .match ({reg}, Y)
+            ldy #(::addr >> 6) & $3F
         .else
-            ldy #(addr >> 6) & $3F
+            .byte (::addr >> 6) & $3F
         .endif
     .else
         .if .match ({reg}, A)
-            lda #((addr >> 6) & $7F) | $40
+            lda #((::addr >> 6) & $7F) | $40
         .elseif .match ({reg}, X)
-            ldx #((addr >> 6) & $7F) | $40
+            ldx #((::addr >> 6) & $7F) | $40
+        .elseif .match ({reg}, Y)
+            ldy #((::addr >> 6) & $7F) | $40
         .else
-            ldy #((addr >> 6) & $7F) | $40
+            .byte ((::addr >> 6) & $7F) | $40
         .endif
     .endif
 .endmacro
