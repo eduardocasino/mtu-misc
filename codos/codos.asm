@@ -12,6 +12,16 @@ EXINBNK     := $0100        ; Location of the exec in bank routine
 
             .segment "sysdata"
 
+            ; Loadable file data
+            ;
+            .byte   $58             ; CODOS loadable file header byte
+            .byte   $00             ; Memory overlay
+            .byte   $00             ; Memory bank
+            .byte   $00             ; Reserved
+            .addr   INITIO          ; Entry point
+            .addr   COL             ; Load address
+            .word   SYSDATA_SIZE    ; Memory image size
+
             .export COL, LINE, KBECHO, NOLFCR, NOSCRL, UNDRLN, NOCLIK, NOBELL, RVIDEO
             .export SHODEL, SHOUL, EXCCP, EXTHI, EXFONT, NLINET, YTDOWN, DBCDLA, DBCDLA
             .export RPTRAT, CURDLA, CLKPER, CLKVOL, CLKCY, BELPER, BELVOL, BELCY, QEXCC
@@ -75,27 +85,24 @@ UKINLN:     .byte   $00             ; $023A IF BIT 7=1 THEN IRRECOGNIZED KEYS AR
 SPKTBL:     .word   $C5BC           ; $023B KEYBOARD SPECIAL KEYS TABLE
 UNK23:      .byte   $00             ; $023D
             
+            .export SEEIO
+
 SEEIO       := $02F9                ; I-O space enable semaphore
 NMIPRC      := $02FA                ; Jump to NMI processor
 IRQBRK      := $02FD                ; Jump to IQR and BRK processor
 WARMRS      := $0300                ; Jump to operating system warm reset entry
 CNTRLC      := $0303                ; Jump executed when CNTRL-C is entered from console.
 
+SYSDATA_SIZE = * - COL
 
 ; RELEVANT KEYBOARD AND TEXT DISPLAY DRIVER ENTRY POINTS
 ;
-            .export DRWLEG, KEYSTR, LEGTBL
+            .export KEYSTR, LEGTBL
 
-GETKEY      := $0306                ; Wait until a keyboard key is struck and return character in A
-OUTCH       := $0309                ; Display printable character or interpret control character.
-TSTKEY      := $030C                ; Test if a key is pressed
-INITIO      := $030F                ; Clear screen and set default values of display parameters.
-DRWLEG      := $0315                ; Draw legends
-INLINE      := $031E                ; Input an entire line from the keyboard
 KEYSTR      := $0400                ; (256 bytes) Function key substitute string table
 LEGTBL      := $05C0                ; (64 bytes) Function key legend table
 
-            .export SVIA1PORT, SVIA1DIR, BNKCTL
+            .export SVIA1PORT, SVIA1DIR, BNKCTL, IOENABLE, IODISABLE
 
 SVIA1PORT   := $BFE0                ; System 1 6522 System control port data register
 SVIA1DIR    := $BFE2                ; System 1 6522 System control port direction register
@@ -106,7 +113,6 @@ IODISABLE   := $FFFF                ; Disable I/O space (enable RAM) from $BE00 
 
             ;   Disk Controller Registers
             ;
-
             .export HSRCW, ADMA
 
 HSRCW       := SYSRAM+$1FE8         ; Read  - Hardware Status Read
@@ -117,18 +123,6 @@ ADMA        := SYSRAM+$1FEA         ; Write - Set DMA Address Register
             ;
 MSTR        := SYSRAM+$1FEE         ; Read  - uPD765 Main Status Register
 DATR        := SYSRAM+$1FEF         ; R/W   - uPD765 Data Register
-
-            ; uPD765 command index
-            ;
-
-            .segment "header"
-
-            .byte "MTU-130 CODOS 2.0", $0D
-            .byte "COPYRIGHT (C) 1981, MICRO TECHNOLOGY UNLIMIMITED", $0D
-            .byte "PO BOX 12106, 2806 HILLSBOROUGH ST.", $0D
-            .byte "RALEIGH, NC 27605 USA", $0D
-            .byte "Written by Bruce D. Carbrey", $0D
-            .byte "ASM 1/18/82 patch 6/14/82", $0D, $0D, $0D, $20
 
             .segment "zp" : zeropage
 
@@ -182,8 +176,6 @@ PCSAVE:     .res 2                  ; $DA-$DB (word) Program counter
             .export CURFINFO, BATP
 
 CURFINFO:   .tag FINFO
-
-;CURFINFO:   .res FINFOLEN           ; $DC-$E8
 
 BATP:       .res 2                  ; $E9-$EA (word) Pointer to Block Allocation Table for current drive
 
@@ -273,17 +265,37 @@ SAVEY6:     .res 1                  ; $02A2
             .res 1                  ; $02AF
 
 
-    YOUT            := USRRAM+$127D ; "Y" output (console and printer) entry point
-                                    ; Must be set by hand at STARTUP.J with
-                                    ; SET D27D=20 21 E6 (jsr JCOUT)
-    PRTOUT          := USRRAM+$1280 ; Printer output entry point
+YOUT        := USRRAM+$127D ; "Y" output (console and printer) entry point
+                            ; Must be set by hand at STARTUP.J with
+                            ; SET D27D=20 21 E6 (jsr JCOUT)
+PRTOUT      := USRRAM+$1280 ; Printer output entry point
 
             .segment "codos"
-            
+
+            ; Loadable file data
+            ;
+            .byte   $58             ; CODOS loadable file header byte
+            .byte   $00             ; Memory overlay
+            .byte   $00             ; Memory bank
+            .byte   $00             ; Reserved
+            .addr   JCOLDST         ; Entry point
+            .addr   CODOS           ; Load address
+            .word   CODOS_SIZE      ; Memory image size
+
+CODOS:
+            ; Copyright header
+            ;
+            .byte "MTU-130 CODOS 2.0", $0D
+            .byte "COPYRIGHT (C) 1981, MICRO TECHNOLOGY UNLIMIMITED", $0D
+            .byte "PO BOX 12106, 2806 HILLSBOROUGH ST.", $0D
+            .byte "RALEIGH, NC 27605 USA", $0D
+            .byte "Written by Bruce D. Carbrey", $0D
+            .byte "ASM 1/18/82 patch 6/14/82", $0D, $0D, $0D, $20
+
             ; Jump table (page 179)
             ;
 
-            .export JCPSEUDREGS, JINLINE
+            .export JOUTCH, JCPSEUDREGS, JERROR37, JINLINE
 
 JCOLDST:    jmp     COLDST
 JWARMST:    jmp     WARMST
@@ -5110,5 +5122,7 @@ LOOP:       jsr     NVALID          ; Set invalid file name
             rts
 .endproc
 .endif
+
+CODOS_SIZE = * - CODOS
 
             .end

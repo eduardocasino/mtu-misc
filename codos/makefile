@@ -26,8 +26,6 @@ images/ := $(shell mkdir -p images)
 			$(VERSIONS:%=build/%/overlay16.o) \
 
 all: 	$(VERSIONS:%=build/%/codos.z) \
-		$(VERSIONS:%=build/%/comdproc.z) \
-		$(VERSIONS:%=build/%/svcproc.z) \
 		$(VERSIONS:%=build/%/syserrmsg.z) \
 		$(VERSIONS:%=build/%/overlays.bin) \
 		$(VERSIONS:%=build/%/dir.c) \
@@ -40,22 +38,13 @@ all: 	$(VERSIONS:%=build/%/codos.z) \
 $(foreach ver,$(VERSIONS),$(eval build/$(ver)/syserrmsg.z: syserrmsg.src \
 	; bbe -e 's/\x0a/\x0d/' < $$< > $$@))
 
-$(foreach ver,$(VERSIONS),$(eval build/$(ver)/codos.z: build/$(ver)/codos.bin \
-	; ./makez.sh $$< $$@ 0xe600 0xe54a))
+$(foreach ver,$(VERSIONS),$(eval build/$(ver)/codos.z:: build/$(ver)/codos.cfg))
 
-$(foreach ver,$(VERSIONS),$(eval build/$(ver)/comdproc.z: build/$(ver)/comdproc.bin \
-	; ./makez.sh $$< $$@ 0xd800 0xd800))
-
-$(foreach ver,$(VERSIONS),$(eval build/$(ver)/svcproc.z: build/$(ver)/svcproc.bin \
-	; ./makez.sh $$< $$@ 0xdd20 0xdd20))
-
-$(foreach ver,$(VERSIONS),$(eval build/$(ver)/codos.bin:: build/$(ver)/codos.cfg))
-
-$(foreach ver,$(VERSIONS),$(eval build/$(ver)/codos.bin:: build/$(ver)/codos.o build/$(ver)/comdproc.o build/$(ver)/svcproc.o \
+$(foreach ver,$(VERSIONS),$(eval build/$(ver)/codos.z:: build/$(ver)/codos.o build/$(ver)/comdproc.o build/$(ver)/svcproc.o build/$(ver)/iodriver.o\
 	; ld65 -C build/$(ver)/codos.cfg -vm -m $(basename $$@).map -o $$@ $$^))
 
-$(foreach ver,$(VERSIONS),$(eval build/$(ver)/symbols.inc: build/$(ver)/codos.bin \
-	; ./symbols.py --mapfile build/$(ver)/codos.bin.map > build/$(ver)/symbols.inc))
+$(foreach ver,$(VERSIONS),$(eval build/$(ver)/symbols.inc: build/$(ver)/codos.z \
+	; ./symbols.py --mapfile build/$(ver)/codos.z.map > build/$(ver)/symbols.inc))
 
 $(foreach ver,$(VERSIONS),$(eval build/$(ver)/codos.cfg: codos.cfg.in \
 	; @sed -e 's/%%VERSION%%/$(ver)/' < $$< > $$@))
@@ -70,6 +59,9 @@ $(foreach ver,$(VERSIONS),$(eval build/$(ver)/comdproc.o: comdproc.asm build/$(v
 	; ca65 -U -D CODOS2_VER=$(ver) -I build/$(ver) -l $(basename $$@).lst -o $$@ $$<))
 
 $(foreach ver,$(VERSIONS),$(eval build/$(ver)/svcproc.o: svcproc.asm build/$(ver)/k1013.inc \
+	; ca65 -U -D CODOS2_VER=$(ver) -I build/$(ver) -l $(basename $$@).lst -o $$@ $$<))
+
+$(foreach ver,$(VERSIONS),$(eval build/$(ver)/iodriver.o: iodriver.asm \
 	; ca65 -U -D CODOS2_VER=$(ver) -I build/$(ver) -l $(basename $$@).lst -o $$@ $$<))
 
 $(foreach ver,$(VERSIONS),$(eval build/$(ver)/%.o: %.asm build/$(ver)/symbols.inc build/$(ver)/k1013.inc \
@@ -103,26 +95,14 @@ $(foreach ver,$(VERSIONS),$(eval build/$(ver)/overlay%.bin: build/$(ver)/overlay
 $(foreach ver,$(VERSIONS),$(eval build/$(ver)/overlay%.o: overlay%.asm build/$(ver)/k1013.inc build/$(ver)/symbols.inc  \
 	; ca65 -U -D CODOS2_VER=$(ver) -I build/$(ver) -l $(basename $$@).lst -o $$@ $$<))
 
-$(foreach ver,$(VERSIONS),$(eval build/$(ver)/dir.c: build/$(ver)/dir.bin \
-	; ./makez.sh $$< $$@ 0xb400 0xb400))
-
-$(foreach ver,$(VERSIONS),$(eval build/$(ver)/format.c: build/$(ver)/format.bin build/$(ver)/format.dat \
-	; ./makez.sh $$(@:.c=.bin) $$@.1 0xb400 0xb400 \
-	; ./makez.sh $$(@:.c=.dat) $$@.2 0xbcba 0xbcba \
-	; cat $$@.1 $$@.2 > $$@ \
-	; rm -f $$@.1 $$@.2))
-
-$(foreach ver,$(VERSIONS),$(eval build/$(ver)/dir.bin: build/$(ver)/dir.o dir.cfg \
+$(foreach ver,$(VERSIONS),$(eval build/$(ver)/dir.c: build/$(ver)/dir.o dir.cfg \
 	; ld65 -C dir.cfg -vm -m $(basename $$@).map -o $$@ $$<))
 
 $(foreach ver,$(VERSIONS),$(eval build/$(ver)/dir.o: dir.asm build/$(ver)/k1013.inc build/$(ver)/symbols.inc  \
 	; ca65 -U -D CODOS2_VER=$(ver) -I build/$(ver) -l $(basename $$@).lst -o $$@ $$<))
 
-$(foreach ver,$(VERSIONS),$(eval build/$(ver)/format.cfg: format.cfg.in \
-	; @sed -e 's/%%VERSION%%/$(ver)/' < $$< > $$@))
-
-$(foreach ver,$(VERSIONS),$(eval build/$(ver)/format.bin: build/$(ver)/format.o build/$(ver)/format.cfg \
-	; ld65 -C build/$(ver)/format.cfg -vm -m $(basename $$@).map -o $$@ $$<))
+$(foreach ver,$(VERSIONS),$(eval build/$(ver)/format.c: build/$(ver)/format.o format.cfg \
+	; ld65 -C format.cfg -vm -m $(basename $$@).map -o $$@ $$<))
 
 $(foreach ver,$(VERSIONS),$(eval build/$(ver)/format.o: format.asm build/$(ver)/k1013.inc build/$(ver)/symbols.inc  \
 	; ca65 -U -D CODOS2_VER=$(ver) -I build/$(ver) -l $(basename $$@).lst -o $$@ $$<))

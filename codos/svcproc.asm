@@ -14,6 +14,16 @@
 
             .segment "svcproc"
 
+            ; Loadable file data
+            ;
+            .byte   $58             ; CODOS loadable file header byte
+            .byte   $00             ; Memory overlay
+            .byte   $00             ; Memory bank
+            .byte   $00             ; Reserved
+            .addr   SVCPROC         ; Entry point
+            .addr   SVCPROC         ; Load address
+            .word   SVCPROC_SIZE    ; Memory image size
+
             .export SVCPROC
 
 SVCPROC:    jmp     ENTRYP          ; SVC processor entry point
@@ -644,3 +654,5 @@ CINDEX:     .byte $00               ; Index in command line
             rts
 .endproc
 .endif
+
+SVCPROC_SIZE = * - SVCPROC

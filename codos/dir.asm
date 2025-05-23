@@ -18,6 +18,16 @@ FSIZEPOS    = $20
 
             .code
 
+            ; Loadable file data
+            ;
+            .byte   $58             ; CODOS loadable file header byte
+            .byte   $00             ; Memory overlay
+            .byte   $00             ; Memory bank
+            .byte   $00             ; Reserved
+            .addr   START           ; Entry point
+            .addr   START           ; Load address
+            .word   PROG_SIZE       ; Memory image size
+
 .proc START
             lda     #$00            ; Unprotects SYSRAM
             sta     HSRCW           ;
@@ -327,9 +337,13 @@ DRIVE:      .byte   $00             ; Drive number on entry
 .endif
 UNUSED:     .byte   $00             ; Unused variable
 
+PROG_SIZE = * - START
+
+
             ; Uninitialized data
 
             .bss
 
 FNAME:      .res   14               ; FNAMLEN
 
+            .end

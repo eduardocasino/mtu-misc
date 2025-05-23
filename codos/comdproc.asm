@@ -18,6 +18,16 @@ CMDNUM:     .res 1                  ; $0282 Command number
 
             .segment "cmdproc"
 
+            ; Loadable file data
+            ;
+            .byte   $58             ; CODOS loadable file header byte
+            .byte   $00             ; Memory overlay
+            .byte   $00             ; Memory bank
+            .byte   $00             ; Reserved
+            .addr   CMDPROC         ; Entry point
+            .addr   CMDPROC         ; Load address
+            .word   CMDPROC_SIZE    ; Memory image size
+
             .export CMDPROC
 
 .proc CMDPROC
@@ -800,3 +810,5 @@ CMDFUNTBL:  .word   $0000
             .word   $0000           ; Reserved
             .word   $0000           ; Reserved
             .word   $0000           ; Reserved
+
+CMDPROC_SIZE = * - CMDPROC

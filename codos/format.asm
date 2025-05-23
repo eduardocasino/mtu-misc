@@ -20,6 +20,16 @@ DEFINTR     = $02                   ; Default interleave if no S argument provid
 _INTL       = 0
 _SKEW       = 1
 
+            ; Loadable file data
+            ;
+            .byte   $58             ; CODOS loadable file header byte
+            .byte   $00             ; Memory overlay
+            .byte   $00             ; Memory bank
+            .byte   $00             ; Reserved
+            .addr   START           ; Entry point
+            .addr   START           ; Load address
+            .word   PROG_SIZE       ; Memory image size
+
 .proc START
             ldx     #$00            ; Unprotects SYSRAM
             stx     HSRCW           ;
@@ -1051,6 +1061,8 @@ GETDRV:     ldx     CURRDRV         ; Get current drive
             rts
 .endproc
 
+PROG_SIZE = * - START
+
             .bss
 
 TRACK:      .res    1               ; Track number
@@ -1075,6 +1087,16 @@ SAVEYRG:    .res    1               ; Save Y register on error recovery
 
             .data
 
+            ; Loadable file data
+            ;
+            .byte   $58             ; CODOS loadable file header byte
+            .byte   $00             ; Memory overlay
+            .byte   $00             ; Memory bank
+            .byte   $00             ; Reserved
+            .addr   ARGTABLE        ; Entry point
+            .addr   ARGTABLE        ; Load address
+            .word   DATA_SIZE       ; Memory image size
+
 ARGTABLE:   .byte   DEFINTR<<2      ; Interleave * 4 
             .byte   DEFSKEW<<2      ; Skew * 4
 
@@ -1092,3 +1114,5 @@ FILETBL:    .byte   "CODOS.Z"
             .byte   "PRINTDRIVER.Z"
 .endif
             .byte   $00
+
+DATA_SIZE = * - ARGTABLE
