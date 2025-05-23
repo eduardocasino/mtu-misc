@@ -52,8 +52,10 @@ $(foreach ver,$(VERSIONS),$(eval build/$(ver)/svcproc.z: build/$(ver)/svcproc.bi
 $(foreach ver,$(VERSIONS),$(eval build/$(ver)/codos.bin:: build/$(ver)/codos.cfg))
 
 $(foreach ver,$(VERSIONS),$(eval build/$(ver)/codos.bin:: build/$(ver)/codos.o build/$(ver)/comdproc.o build/$(ver)/svcproc.o \
-	; ld65 -C build/$(ver)/codos.cfg -vm -m $(basename $$@).map -o $$@ $$^ \
-	; ./symbols.py --mapfile $(basename $$@).map > build/$(ver)/symbols.inc))
+	; ld65 -C build/$(ver)/codos.cfg -vm -m $(basename $$@).map -o $$@ $$^))
+
+$(foreach ver,$(VERSIONS),$(eval build/$(ver)/symbols.inc: build/$(ver)/codos.bin \
+	; ./symbols.py --mapfile build/$(ver)/codos.bin.map > build/$(ver)/symbols.inc))
 
 $(foreach ver,$(VERSIONS),$(eval build/$(ver)/codos.cfg: codos.cfg.in \
 	; @sed -e 's/%%VERSION%%/$(ver)/' < $$< > $$@))
@@ -61,8 +63,17 @@ $(foreach ver,$(VERSIONS),$(eval build/$(ver)/codos.cfg: codos.cfg.in \
 $(foreach ver,$(VERSIONS),$(eval build/$(ver)/overlay.cfg: overlay.cfg.in \
 	; @sed -e 's/%%VERSION%%/$(ver)/' < $$< > $$@))
 
-$(foreach ver,$(VERSIONS),$(eval build/$(ver)/%.o: %.asm \
-	; ca65 -U -D CODOS2_VER=$(ver) -l $(basename $$@).lst -o $$@ $$<))
+$(foreach ver,$(VERSIONS),$(eval build/$(ver)/codos.o: codos.asm build/$(ver)/k1013.inc \
+	; ca65 -U -D CODOS2_VER=$(ver) -I build/$(ver) -l $(basename $$@).lst -o $$@ $$<))
+
+$(foreach ver,$(VERSIONS),$(eval build/$(ver)/comdproc.o: comdproc.asm build/$(ver)/k1013.inc \
+	; ca65 -U -D CODOS2_VER=$(ver) -I build/$(ver) -l $(basename $$@).lst -o $$@ $$<))
+
+$(foreach ver,$(VERSIONS),$(eval build/$(ver)/svcproc.o: svcproc.asm build/$(ver)/k1013.inc \
+	; ca65 -U -D CODOS2_VER=$(ver) -I build/$(ver) -l $(basename $$@).lst -o $$@ $$<))
+
+$(foreach ver,$(VERSIONS),$(eval build/$(ver)/%.o: %.asm build/$(ver)/symbols.inc build/$(ver)/k1013.inc \
+	; ca65 -U -D CODOS2_VER=$(ver) -I build/$(ver) -l $(basename $$@).lst -o $$@ $$<))
 
 $(foreach ver,$(VERSIONS),$(eval \
 OVERLAYS =	build/$(ver)/overlay01.bin \
@@ -89,7 +100,7 @@ build/$(ver)/overlays.bin: $${OVERLAYS} \
 $(foreach ver,$(VERSIONS),$(eval build/$(ver)/overlay%.bin: build/$(ver)/overlay%.o build/$(ver)/overlay.cfg \
 	; ld65 -C build/$(ver)/overlay.cfg -vm -m $(basename $$@).map -o $$@ $$<))
 
-$(foreach ver,$(VERSIONS),$(eval build/$(ver)/overlay%.o: overlay%.asm build/$(ver)/codos.bin \
+$(foreach ver,$(VERSIONS),$(eval build/$(ver)/overlay%.o: overlay%.asm build/$(ver)/k1013.inc build/$(ver)/symbols.inc  \
 	; ca65 -U -D CODOS2_VER=$(ver) -I build/$(ver) -l $(basename $$@).lst -o $$@ $$<))
 
 $(foreach ver,$(VERSIONS),$(eval build/$(ver)/dir.c: build/$(ver)/dir.bin \
@@ -104,7 +115,7 @@ $(foreach ver,$(VERSIONS),$(eval build/$(ver)/format.c: build/$(ver)/format.bin 
 $(foreach ver,$(VERSIONS),$(eval build/$(ver)/dir.bin: build/$(ver)/dir.o dir.cfg \
 	; ld65 -C dir.cfg -vm -m $(basename $$@).map -o $$@ $$<))
 
-$(foreach ver,$(VERSIONS),$(eval build/$(ver)/dir.o: dir.asm build/$(ver)/codos.bin \
+$(foreach ver,$(VERSIONS),$(eval build/$(ver)/dir.o: dir.asm build/$(ver)/k1013.inc build/$(ver)/symbols.inc  \
 	; ca65 -U -D CODOS2_VER=$(ver) -I build/$(ver) -l $(basename $$@).lst -o $$@ $$<))
 
 $(foreach ver,$(VERSIONS),$(eval build/$(ver)/format.cfg: format.cfg.in \
@@ -113,8 +124,13 @@ $(foreach ver,$(VERSIONS),$(eval build/$(ver)/format.cfg: format.cfg.in \
 $(foreach ver,$(VERSIONS),$(eval build/$(ver)/format.bin: build/$(ver)/format.o build/$(ver)/format.cfg \
 	; ld65 -C build/$(ver)/format.cfg -vm -m $(basename $$@).map -o $$@ $$<))
 
-$(foreach ver,$(VERSIONS),$(eval build/$(ver)/format.o: format.asm build/$(ver)/codos.bin \
+$(foreach ver,$(VERSIONS),$(eval build/$(ver)/format.o: format.asm build/$(ver)/k1013.inc build/$(ver)/symbols.inc  \
 	; ca65 -U -D CODOS2_VER=$(ver) -I build/$(ver) -l $(basename $$@).lst -o $$@ $$<))
+
+$(foreach ver,$(VERSIONS),$(eval build/$(ver)/k1013.inc: k1013.asm build/$(ver)/codos.cfg \
+	; ca65 -U -D CODOS2_VER=$(ver) -l $(basename $$@).lst -o build/$(ver)/k1013.o $$< \
+	; ld65 -C build/$(ver)/codos.cfg -vm -m $(basename $$@).map -o build/$(ver)/k1013.dat build/$(ver)/k1013.o \
+	; ./symbols.py --mapfile $(basename $$@).map > $$@ ))
 
 clean:
 	rm -rf $(VERSIONS:%=build/%)

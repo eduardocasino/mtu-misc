@@ -7,6 +7,7 @@
             .setcpu "6502"
 
             .include "symbols.inc"
+            .include "codos.inc"
 
             .segment "overlays"
 

@@ -2,6 +2,9 @@
 ; If none is specified, 15 is assumed
 ; Codos 11 is the same as Codos 15
 ;
+
+            .include "k1013.inc"
+
 .ifndef CODOS2_VER
 CODOS2_VER  = 15
 .endif
@@ -126,6 +129,10 @@ SAVEDHDRLEN = .sizeof(SHDR)
 ; Saved file magic number
 ;
 SVDMAGIC    = $58
+
+DIRBUF      := SYSRAM+$500          ; Directory buffer
+OVLORG      := SYSRAM+$1E00         ; Origin of CODOS overlays
+BOOTP       := SYSRAM+$1F0E         ; Boot from PROM
 
 .macro dma reg, addr
     .if ((::addr >= ::SYSRAM) && (::addr < ::SYSRAM + $2000) && (::SYSRAM .MOD $2000 = 0) && (::addr < ::SYSRAM + $1000)) || ((::addr >= ::SYSRAM) && (::addr < ::SYSRAM + $2000) && (::SYSRAM .MOD $2000 <> 0) && (::addr >= ::SYSRAM + $1000))

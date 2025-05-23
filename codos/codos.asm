@@ -359,51 +359,51 @@ CHANN2:     .byte   $82             ; Channel 2: Output from system monitor
 FINFOTBL:   .byte   $06
 
             .byte   $00, $00, $00, $00, $00, $00, $00, $00, $00
-            .word   SYSRAM+$200     ; File buffer
-            .byte   $88             ; SYSRAM+$200 K-1013 DMA encoded
+            .word   SYSRAM+$200         ; File buffer
+            dma     byte, SYSRAM+$200   ; $88 SYSRAM+$200 K-1013 DMA encoded
             .byte   $00
 
             .byte   $00, $00, $00, $00, $00, $00, $00, $00, $00
-            .word   SYSRAM+$100     ; File buffer
-            .byte   $84             ; SYSRAM+$100 K-1013 DMA encoded
+            .word   SYSRAM+$100         ; File buffer
+            dma     byte, SYSRAM+$100   ; $84 SYSRAM+$100 K-1013 DMA encoded
             .byte   $00
 
             .byte   $00, $00, $00, $00, $00, $00, $00, $00, $00
-            .word   SYSRAM          ; File buffer           
-            .byte   $80             ; SYSRAM K-1013 DMA encoded
+            .word   SYSRAM              ; File buffer           
+            dma     byte, SYSRAM        ; $80 SYSRAM K-1013 DMA encoded
             .byte   $00
 
             .byte   $00, $00, $00, $00, $00, $00, $00, $00, $00
             .word   USRRAM+$1700    ; File buffer
-            .byte   $5C             ; USRRAM+$1700 K-1013 DMA encoded
+            dma     byte, USRRAM+$1700  ; $5C USRRAM+$1700 K-1013 DMA encoded
             .byte   $00
 
             .byte   $00, $00, $00, $00, $00, $00, $00, $00, $00
-            .word   USRRAM+$1600    ; File buffer
-            .byte   $58             ; USRRAM+$1600 K-1013 DMA encoded
+            .word   USRRAM+$1600        ; File buffer
+            dma     byte, USRRAM+$1600  ; $58 USRRAM+$1600 K-1013 DMA encoded
             .byte   $00
 
             .byte   $00, $00, $00, $00, $00, $00, $00, $00, $00
-            .word   USRRAM+$1500    ; File buffer
-            .byte   $54             ; USRRAM+$1500 K-1013 DMA encoded
+            .word   USRRAM+$1500        ; File buffer
+            dma     byte, USRRAM+$1500  ; $54 USRRAM+$1500 K-1013 DMA encoded
             .byte   $00
 
             .byte   $00, $00, $00, $00, $00, $00, $00, $00, $00
             .word   USRRAM+$1400    ; File buffer
-            .byte   $50             ; USRRAM+$1400 K-1013 DMA encoded
+            dma     byte, USRRAM+$1400  ; $50 USRRAM+$1400 K-1013 DMA encoded
             .byte   $00
 
             .byte   $00, $00, $00, $00, $00, $00, $00, $00, $00
-            .word   USRRAM+$1300    ; File buffer
-            .byte   $4C             ; USRRAM+$1300 K-1013 DMA encoded
+            .word   USRRAM+$1300        ; File buffer
+            dma     byte, USRRAM+$1300  ; $4C USRRAM+$1300 K-1013 DMA encoded
             .byte   $00
 
 ; K-1013 DMA encoded addresses for drive BATs
 ;
-BATDMAT:    .byte   $90             ; SYSRAM+$400
-            .byte   $8C             ; SYSRAM+$300
-            .byte   $88             ; SYSRAM+$200
-            .byte   $84             ; SYSRAM+$100
+BATDMAT:    dma     byte, SYSRAM+$400   ; $90
+            dma     byte, SYSRAM+$300   ; $8C
+            dma     byte, SYSRAM+$200   ; $88
+            dma     byte, SYSRAM+$100   ; $84
 
             .export STACKP, PROCST, YREG, XREG, ACCUM
 
@@ -473,9 +473,9 @@ DIRENT:     .byte   $01             ; Always $01
 
             ; Boot sector data
 
-            .byte   $19             ; Last sector to load
-            .byte   $98             ; DMA encoded address for loading the system
-            .word   JCOLDST-1       ; Entry point - 1
+            .byte   $19                 ; Last sector to load
+            dma     byte, SYSRAM+$600   ; $98 DMA encoded address for loading the system
+            .word   JCOLDST-1           ; Entry point - 1
 ;
 ; End of file header
 
@@ -2126,7 +2126,7 @@ OVLOK:      sta     CURROVL         ; Set current overlay
 SEEK:       txa                     ; Move track to A (where CKSEEKTRK expects it)
             ldx     #$00            ; Seek track A on drive 0
             jsr     CKSEEKTRK       ;
-            lda     #$F8            ; DMA address for overlays ( $FE00 ) 
+            dma     A, OVLORG       ; $F8 DMA address for overlays
             sta     CURFINFO+FINFO::DMABF
             lda     CURROVL         ; Recover current overlay. Overlays start in 1.
             clc                     ; As overlay 1 start at sector 18, add 17 
@@ -5110,16 +5110,5 @@ LOOP:       jsr     NVALID          ; Set invalid file name
             rts
 .endproc
 .endif
-
-            .export OVLORG, SYSRAM, DIRBUF, BOOTP
-
-OVLORG      := __OVERLAYS_START__   ; Origin of CODOS overlays
-
-USRRAM      := __USRRAM_START__     ; K-1013 onboard user RAM
-SYSRAM      := __SYSRAM_START__     ; K-1013 onboard system RAM
-
-DIRBUF      := SYSRAM+$500          ; Directory buffer
-
-BOOTP       := __BOOTPROM_START__+$0E ; Boot from PROM
 
             .end
