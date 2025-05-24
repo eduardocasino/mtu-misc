@@ -26,10 +26,16 @@ DSKOBJ = imd.o codosfs.o codosdsk.o hexdump.o
 all: $(ALL)
 
 codosdsk: $(DSKOBJ)
+	echo "LD $@"
 	$(CC) -o $@ $^
 
 clean:
+	echo "CLEAN"
 	rm -f $(TARGET) $(DSKOBJ)
+
+%.o: %.c
+	echo "CC $@"
+	gcc -c -o $@ $<
 
 imd.o: imd.h
 
@@ -37,4 +43,4 @@ codosfs.o: codosfs.h imd.h hexdump.h
 
 codosdsk.o: codosfs.h imd.h
 
-
+.SILENT:
