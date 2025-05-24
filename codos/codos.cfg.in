@@ -1,26 +1,34 @@
 MEMORY {
+
+# BANK 0
     ZEROPAGE:   start = $0000, size = $100;
-    SYSDATA:    start = $01F6, size = $28A,  file="build/%%VERSION%%/iodriver.z";
+    IODATA:     start = $01F6, size = $28A,  file="build/%%VERSION%%/iodriver.z";
     IODRVJMP:   start = $02FC, size = $9A,   file="build/%%VERSION%%/iodriver.z";
     TABTBL:     start = $06D6, size = $2A,   file="build/%%VERSION%%/iodriver.z";
-    IODRIVER:   start = $C5A6, size = $CDA,  file="build/%%VERSION%%/iodriver.z";
-    CHARTBL:    start = $FD46, size = $2AA,  file="build/%%VERSION%%/iodriver.z";
     SCRATCH:    start = $0280, size = $30,   file="";
-    USRRAM:     start = $C000, size = $2000, define = yes;
+    IOSCRATCH:  start = $02B0, size = $30,   file="";
     LARGEBUF:   start = $A000, size = $1400, define = yes;
+    USRRAM:     start = $C000, size = $2000, define = yes;
+    IODRIVER:   start = $C5A6, size = $CDA,  file="build/%%VERSION%%/iodriver.z";
     CMDPROC:    start = $D7F6, size = $80A,  file="build/%%VERSION%%/comdproc.z";
     SVCPROC:    start = $DD16, size = $2EA,  file="build/%%VERSION%%/svcproc.z";
     SYSRAM:     start = $E000, size = $2000, define = yes;
     CODOS:      start = $E540, size = $19C0, file=%O;
+
+# BANK 1
+    CHARTBL:    start = $FD46, size = $2AA,  file="build/%%VERSION%%/iodriver.z";
 }
+
 SEGMENTS {
     zp:         load = ZEROPAGE, type = zp, start = $B0;
-    sysdata:    load = SYSDATA,  type = rw;
+    iodata :    load = IODATA,   type = rw;
     iodrvjmp:   load = IODRVJMP, type = rw;
     tabtbl:     load = TABTBL,   type = rw;
     chartbl:    load = CHARTBL,  type = rw;
     scratch0:   load = SCRATCH,  type = rw;
     scratch1:   load = SCRATCH,  type = rw, start = $0283;
+    ioscratch0: load = ZEROPAGE, type = zp, start = $F0;
+    ioscratch:  load = IOSCRATCH,type = rw;
     cmdproc:    load = CMDPROC,  type = ro;
     svcproc:    load = SVCPROC,  type = ro;
     iodriver:   load = IODRIVER, type = ro;

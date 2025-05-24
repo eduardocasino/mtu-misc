@@ -3,10 +3,11 @@
 ; Input file: command.bin
 ; Page:       1
 
+            .include "monomeg.inc"
+            .include "codos.inc"
+
             .importzp MEMBUFF, MEMCOUNT, TMPBUFP, INPBUFP, P0SCRATCH, DESTBUFF
             .importzp ERRNUM, SVCENB, PCSAVE, CMDLIDX, BYTRES, TMPPTR
-
-            .include "codos.inc"
 
             .segment "scratch0"
 

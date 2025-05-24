@@ -1,10 +1,140 @@
 
 
+            .include "monomeg.inc"
 
-            .include "codos.inc"
+            .importzp DESTBUFF, MEMBUFF, MEMCOUNT, P0SCRATCH, PCSAVE
+            .importzp TMPBUFP, TMPPTR, BYTRES
 
-            .importzp QLN, BYTRES, DESTBUFF, MEMBUFF, MEMCOUNT, P0SCRATCH, PCSAVE
-            .importzp TMPBUFP, TMPPTR 
+
+            .segment "ioscratch0" : zeropage
+
+; $F0 - $FF : Zero-page Scratch RAM for console I-0
+;
+            .exportzp QLN
+
+QLN:        .res 2                  ; $F0 Ptr to line-buffer used for INLINE and EDLINE 
+UNKNWN4:    .res 2                  ; $F2 - $F3
+UNKNWN6:    .res 2                  ; $F4 - $F5
+UNKNWN8:    .res 2                  ; $F6 - $F7
+UNKNWN10:   .res 2                  ; $F8 - $F9
+TEMP1:      .res 1                  ; $FA Temporary storeage for keyboard routine
+UNKNWN13:   .res 1                  ; $FB
+UNKNWN14:   .res 1                  ; $FC
+UNKNWN15:   .res 1                  ; $FD
+UNKNWN16:   .res 1                  ; $FE
+UNKNWN17:   .res 1                  ; $FF
+
+            .segment "ioscratch"
+
+; Scratch ram used by Console I-O and graphics drivers 
+;
+L02B0:      .res 1                  ; $02B0
+L02B1:		.res 1					; $02B1
+L02B2:		.res 1					; $02B2
+L02B3:		.res 1					; $02B3
+L02B4:		.res 2					; $02B4
+L02B6:		.res 7					; $02B6
+L02BD:		.res 1					; $02BD
+L02BE:		.res 2					; $02BE
+L02C0:		.res 7					; $02C0
+L02C7:		.res 1					; $02C7
+L02C8:		.res 1					; $02C8
+L02C9:		.res 1					; $02C9
+TCURS:		.res 2					; $02CA 
+L02CC:      .res 1                  ; $02CC
+XSVKB:		.res 1					; $02CD
+YSVKB:		.res 1					; $02CE
+L02CF:      .res 1                  ; $02CF
+L02D0:		.res 1					; $02D0
+L02D1:		.res 1					; $02D1
+L02D2:		.res 1					; $02D2
+L02D3:		.res 1					; $02D3
+L02D4:		.res 1					; $02D4
+L02D5:		.res 1					; $02D5
+L02D6:		.res 1					; $02D6
+L02D7:		.res 1					; $02D7
+L02D8:		.res 1					; $02D8
+L02D9:		.res 1					; $02D9
+L02DA:		.res 1					; $02DA
+L02DB:		.res 1					; $02DB
+L02DC:		.res 1					; $02DC
+L02DD:		.res 1					; $02DD
+L02DE:		.res 1					; $02DE
+L02DF:		.res 1					; $02DF
+
+            .segment "iodata"
+
+; Loadable file data
+;
+            .byte   $58             ; CODOS loadable file header byte
+            .byte   $00             ; Memory overlay
+            .byte   $00             ; Memory bank
+            .byte   $00             ; Reserved
+            .addr   INITIO          ; Entry point
+            .addr   COL             ; Load address
+            .word   IODATA_SIZE     ; Memory image size
+
+            .export YLNLIM
+
+COL:        .byte   $01			    ; $0200 CURRENT COLUMN LOCATION OF TEXT CURSOR 1-80.
+LINE:       .byte   $01             ; $0201 CURRENT LINE NUMBER OF TEXT CURSOR. 1-NLINET.
+UNK0:       .byte   $00
+UNK1:       .byte   $00
+UNK2:       .byte   $00
+UNK3:       .byte   $00
+UNK4:       .byte   $00
+UNK5:       .byte   $00
+UNK6:       .byte   $00
+UNK7:       .byte   $00
+UNK8:       .byte   $80             ; $020A
+UNK9:       .byte   $F0             ; $020B
+UNK10:      .byte   $F0             ; $020C
+LSTKEY:     .byte   $00             ; $020D KEYBOARD KEY LAST DOWN
+RPTFLG:     .byte   $00             ; $020E FLAG USED BY AUTO REPEAT ALGORITHM
+KBECHO:     .byte   $00             ; $020F IF BIT 7=1 THEN "ECHO" EACH KEY TO THE DISPLAY.
+NOLFCR:		.byte   $00             ; $0210	IF BIT 7=1 THEN NO AUTOMATIC LINE FEED AFTER CR.
+NOSCRL:     .byte   $00             ; $0211 IF BIT 7=1 THEN INSTEAD OF SCROLLING, THE TEXT WINDOW IS CLEARED AND THE CURSOR IS HOMED WHEN TEXT GOES BEYOND THE BOOTOM LINE.
+UNDRLN:		.byte   $00             ; $0212	IF BIT 7=1 THEN ALL CHARACTERS UNDERLINED WHEN DRAWN.
+NOCLIK:		.byte   $00             ; $0213	IF BIT 7=1 THEN NO CLICK WHEN A KEY IS PRESSED.
+NOBELL:     .byte   $00             ; $0214 IF BIT 7=1 THEN BEL CHARACTER IS IGNORED.
+RVIDEO:     .byte   $00             ; $0215 IF BIT 7=1 THEN CHARACTERS ARE DRAWN IN REVERSE VIDEO.
+SHODEL:     .byte   $00             ; $0216	IF BIT 7=1 THEN DISPLAY DEL (ROBOUT) AS A CHARACTER SHAPE
+SHOUL:      .byte   $00             ; $0217	IF BIT 7=1 THEN CHARACTER CELL IS ERASED BEFORE THE UNDERLINE CHARACTER IS DRAWN.
+EXCCP:      .byte   $00             ; $0218 IF BIT 7=1 THEN CALL USER CONTROL CHARACTER PROCESSOR.
+EXTHI:      .byte   $00             ; $0219 IF BIT 7=1 THEN CALL USER RUTINE TO PROCESS ALL CHARACTERS WHEN BIT 7 SET.
+EXFONT:     .byte   $00             ; $021A	IF BIT 7=1 THEN USE EXTERNAL FONT TABLE.
+CURVIS:     .byte   $00             ; $021B FLAG INDICATING PRESENT STATE OF CURSOR
+UNK15:      .byte   $00             ; $021C
+UNK16:      .byte   $00             ; $021D
+NLINET:     .byte   $18             ; $021E NUMBER OF TEXT LINES IN THE TEXT WINDOW.
+YTDOWN:     .byte   $00             ; $021F 255-(Y COORDINATE OF TOP OF THE TEXT WINDOW).
+DBCDLA:     .byte   $05             ; $0220 WAIT TIME IN MILLISECONDS ALLOWED FOR CONTACT BOUNCE.
+RPTRAT:     .byte   $C3             ; $0221 INTERCHARACTER REPEAT DELAY IN 256uS UNITS.
+CURDLA:     .byte   $06             ; $0222 DETERMINES CURSOR BLINK SPEED, 0=NO BLINK.
+UNK17:      .byte   $05             ; $0223
+CLKPER:     .byte   $05             ; $0224 CLICK WAVEFORM PERIOD IN UNITS OF 200 MICROSECONDS.
+CLKVOL:     .byte   $20             ; $0225 CLICK VOLUME, $00 = MINIMUM, $7F = MAXIMUM.
+CLKCY:      .byte   $02             ; $0226 CLICK DURATION IN UNITS OF COMPLETE WAVEFORM CYCLES
+BELPER:     .byte   $05             ; $0227 BELL SOUND WAVEFORM PERIOD IN UNITS OF 200 MICROSECONDS.
+BELVOL:     .byte   $40             ; $0228	BELL SOUND VOLUME, $00 = MINIMUM, $7F MAXIMUM.
+BELCY:      .byte   $0C             ; $0229	BELL SOUND DURATION IN UNITS OF COMPLETE WAVEFORM CYCLES.
+UNK18:      .byte   $07             ; $022A
+UNK19:      .byte   $08             ; $022B
+UNK20:      .byte   $09             ; $022C
+UNK21:      .byte   $0C             ; $022D
+UNK22:      .byte   $18             ; $022E
+QEXCC:      .word   ERR37           ; $022F ADDRESS OF EXTERNAL CONTROL CHARACTER PROCESSOR IF USED.
+QEXFNT:     .word   ERR37           ; $0231 ADDRESS OF EXTERNAL FONT TABLE IF USED.
+QEXHI7:     .word   ERR37           ; $0233	ADDRESS OF EXTERNAL PROCESSOR FOR CHARACTERS WITH BIT 7=1
+FNTTBL:     .word   CHTB            ; $0235 CHARACTER FONT TABLE
+EXFTBK:     .byte   $00             ; $0237	MEMORY BANK NUMBER CONTAINING EXTERNAL FONT TABLE.
+YLNLIM:     .byte   $C0             ; $0238 LINE SIZE LIMIT FOR INLINE AND ENDLINE ENTRY POINTS
+NOLEKO:     .byte   $00             ; $0239	ECHO FLAG NORMALLY 0 BUT IF SET TO 80 WILL DISABLE KEYBOARD ECHO
+UKINLN:     .byte   $00             ; $023A IF BIT 7=1 THEN IRRECOGNIZED KEYS ARE ACCEPTED FOR ENTRY POINTS INLINE AND ENDLINE.
+SPKTBL:     .word   LC5BC           ; $023B KEYBOARD SPECIAL KEYS TABLE
+UNK23:      .byte   $00             ; $023D
+
+IODATA_SIZE = * - COL
 
             .segment "iodrvjmp"
 
@@ -19,32 +149,6 @@
             .word   JMPTBL_SIZE     ; Memory image size
 
             .export GETKEY, OUTCH, TSTKEY, INITIO, DRWLEG, INLINE
-
-; TODO: Make this address independent
-;
-KSCCLR      = $BFC5             ; PORT TO CLEAR KEYBOARD SCAN COUNTER
-KBDATA      = $BFE1             ; DATA REGISTER FOR KEYBOARD PORT
-KBT1CH      = $BFE5             ; TIMER 1 COUNT HIGH REGISTER FOR KEYBOARD 6522
-KBPCR       = $BFEC             ; PERIPHERAL CONTROL REGISTER FOR KEYBOARD 6522
-SYS1IER     = $BFEE             ; SYS1 I/O CHIP INTERRUPT ENABLE REGISTER
-KBIFR       = $BFED             ; INTERRUPT FLAG REGISTER FOR KEYBOARD 6522
-KBIER       = $BFEE             ; INTERRUPT ENABLE REGISTER FOR KEYBOARD 6522
-KBACR       = $BFEB             ; AUXILIARY CONTROL REGISTER FOR KEYBOARD 6522
-
-
-TEMP1       := $00FA            ; TEMPORARY STORAGE FOR KEYBOARD ROUTINE
-
-LSTKEY      := $020D            ; KEYBOARD KEY LAST DOWN
-RPTFLG      := $020E            ; FLAG USED BY AUTO REPEAT ALGORITHM
-
-CURVIS      := $021B            ; FLAG INDICATING PRESENT STATE OF CURSOR
-DBCDLA      := $0220            ; DEBOUNCE DELAY SYSTEM PARAMETER
-
-TCURS       := $02CA 
-XSVKB       := $02CD
-YSVKB       := $02CE
-
-L02DC       := $02DC
 
 GETKEY:     jmp     _GETKEY     ; Wait until a keyboard key is struck and return character in A
 OUTCH:      jmp     _OUTCH      ; Display printable character or interpret control character
@@ -134,97 +238,97 @@ TABTBL_SIZE = * - TABTBL
             .word   IODRIVER_SIZE   ; Memory image size
 
 ;KEYBOARD ENTRY
-LC5B0:      .byte  $8A ;'*' MULTIPLY
-            .byte  $2A ;'*' MULTIPLY
-            .byte  $8B ;'/' DIVIDE
-            .byte  $2F ;'/' DIVIDE
-            .byte  $8C ;'-' MINUS
-            .byte  $2D ;'-' MINUS
-            .byte  $8D ;'+' PLUS
-            .byte  $2B ;'+' PLUS
-            .byte  $FF 
-            .byte  $FF 
-            .byte  $FF 
-            .byte  $FF 
+LC5B0:      .byte   $8A ;'*' MULTIPLY
+            .byte   $2A ;'*' MULTIPLY
+            .byte   $8B ;'/' DIVIDE
+            .byte   $2F ;'/' DIVIDE
+            .byte   $8C ;'-' MINUS
+            .byte   $2D ;'-' MINUS
+            .byte   $8D ;'+' PLUS
+            .byte   $2B ;'+' PLUS
+            .byte   $FF 
+            .byte   $FF 
+            .byte   $FF 
+            .byte   $FF 
 
 ;KEYBOARD SPECIAL KEYS
-LC5BC:      .byte  $02 ;'stx'
-            .byte  $03 ;'ETX'
-            .byte  $05 ;'ENG'
-            .byte  $07 ;'BEL'
-            .byte  $08 ;'BS'      
-            .byte  $09 ;'HT'
-            .byte  $0A ;'LF'      
-            .byte  $0B ;'VT'      
-            .byte  $0C ;'FF'     
-            .byte  $0D ;'RETURN'
-            .byte  $12 ;'DC2'
-            .byte  $17 ;'ETB'      
-            .byte  $18 ;'CAN'      
-            .byte  $1A ;'SUB'      
-            .byte  $1B ;'ESC'      
-            .byte  $7F ;'DEL'      
-            .byte  $8E ;'ENTER'
-            .byte  $A0 ;'CURSOR UP'
-            .byte  $A1 ;'CURSOR LEFT'     
-            .byte  $A2 ;'CURSOR RIGHT'
-            .byte  $A3 ;'CURSOR DOWN'     
-            .byte  $A4 ;'HOME'
-            .byte  $A5 ;'DELETE'      
-            .byte  $A6 ;'INSERT'
-            .byte  $B0 ;'SHIFT/CURSOR UP'   
-            .byte  $B1 ;'SHIFT/CURSOR LEFT' 
-            .byte  $B2 ;'SHIFT/CURSOR RIGHT' 
-            .byte  $B3 ;'SHIFT/CURSOR DOWN' 
-            .byte  $B4 ;'SHIFT/ HOME 
-            .byte  $FF      
-            .byte  $FF      
+LC5BC:      .byte   $02 ;'stx'
+            .byte   $03 ;'ETX'
+            .byte   $05 ;'ENG'
+            .byte   $07 ;'BEL'
+            .byte   $08 ;'BS'      
+            .byte   $09 ;'HT'
+            .byte   $0A ;'LF'      
+            .byte   $0B ;'VT'      
+            .byte   $0C ;'FF'     
+            .byte   $0D ;'RETURN'
+            .byte   $12 ;'DC2'
+            .byte   $17 ;'ETB'      
+            .byte   $18 ;'CAN'      
+            .byte   $1A ;'SUB'      
+            .byte   $1B ;'ESC'      
+            .byte   $7F ;'DEL'      
+            .byte   $8E ;'ENTER'
+            .byte   $A0 ;'CURSOR UP'
+            .byte   $A1 ;'CURSOR LEFT'     
+            .byte   $A2 ;'CURSOR RIGHT'
+            .byte   $A3 ;'CURSOR DOWN'     
+            .byte   $A4 ;'HOME'
+            .byte   $A5 ;'DELETE'      
+            .byte   $A6 ;'INSERT'
+            .byte   $B0 ;'SHIFT/CURSOR UP'   
+            .byte   $B1 ;'SHIFT/CURSOR LEFT' 
+            .byte   $B2 ;'SHIFT/CURSOR RIGHT' 
+            .byte   $B3 ;'SHIFT/CURSOR DOWN' 
+            .byte   $B4 ;'SHIFT/ HOME 
+            .byte   $FF      
+            .byte   $FF      
 
 ;JUMP TABLE
-LC5DB:      .addr  LC682       
-            .addr  $0303 ; $0303 JUMP EXECUTED WHEN CTRL-C IS ENTERED FROM CONSOLE   
-            .addr  $C68B            
-            .addr  $C696             
-            .addr  $C69C             
-            .addr  $C6AE             
-            .addr  $C6B4             
-            .addr  $C6CF             
-            .addr  $C6EB             
-            .addr  $C6F4             
-            .addr  $C70A             
-            .addr  $C710 
-            .addr  $C716 
-            .addr  $C71C             
-            .addr  $C722             
-            .addr  $C728             
-            .addr  $C6F4             
-            .addr  $C6CF             
-            .addr  $C69C             
-            .addr  $C734             
-            .addr  $C6B4 
-            .addr  $C746 
-            .addr  $C74C 
-            .addr  $C752             
-            .addr  $C6CF             
-            .addr  $C759             
-            .addr  $C765 
-            .addr  $C6B4 
-            .addr  $C6EB             
-            .addr  $0000             
-            .addr  $0000             
+LC5DB:      .addr   LC682       
+            .addr   CNTRLC ; $0303 JUMP EXECUTED WHEN CTRL-C IS ENTERED FROM CONSOLE   
+            .addr   LC68B            
+            .addr   LC696             
+            .addr   LC69C             
+            .addr   LC6AE             
+            .addr   LC6B4             
+            .addr   LC6CF             
+            .addr   LC6EB             
+            .addr   LC6F4             
+            .addr   LC70A             
+            .addr   LC710 
+            .addr   LC716 
+            .addr   LC71C             
+            .addr   LC722             
+            .addr   LC728             
+            .addr   LC6F4             
+            .addr   LC6CF             
+            .addr   LC69C             
+            .addr   LC734             
+            .addr   LC6B4 
+            .addr   LC746 
+            .addr   LC74C 
+            .addr   LC752             
+            .addr   LC6CF             
+            .addr   LC759             
+            .addr   LC765 
+            .addr   LC6B4 
+            .addr   LC6EB             
+            .addr   $0000             
+            .addr   $0000             
 
 
 _INLINE:    ldy     #$00
             ; Fall through
 
-_EDLINE:    sty     $FD
+_EDLINE:    sty     UNKNWN15
             cld
-            lda     $023D
-            sta     $02DA
-            stx     $02D6
+            lda     UNK23
+            sta     L02DA
+            stx     L02D6
 LC627:      jsr     LC837
 LC62A:      lda     #$00
-            sta     $02D7
+            sta     L02D7
 LC62F:      jsr     _GETKEY
             cmp     #$7F
             bcs     LC640
@@ -259,7 +363,7 @@ LC669:      txa
             lda     LC5DB,x
             sta     L02DC
             lda     LC5DB+1,x
-            sta     $02DD
+            sta     L02DD
             jmp     (L02DC)
 
 LC67B:      inx
@@ -271,62 +375,63 @@ LC682:      jsr     LC817
             jsr     LC926
             jmp     LC627
 
-            lda     NOLEKO
+LC68B:      lda     NOLEKO
             eor     #$FF
             sta     NOLEKO
             jmp     LC62F
 
-            jsr     LD155
+LC696:      jsr     LD155
             jmp     LC62F
 
-            cpy     $02D5
+LC69C:      cpy     L02D5
             beq     LC6A8
             dey
 LC6A2:      jsr     LCEF0
             jmp     LC62A
 
-LC6A8:      cpy     $FD
+LC6A8:      cpy     UNKNWN15
             beq     LC6A2
             bne     LC6B1
-            jsr     LC7CE
+
+LC6AE:      jsr     LC7CE
 LC6B1:      jmp     LC62A
 
-            tya
+LC6B4:      tya
             clc
             adc     #$50
             bcs     LC6C5
-            cmp     $FD
+            cmp     UNKNWN15
             bcs     LC6C5
             tay
 LC6BF:      jsr     _LINEFD
             jmp     LC62A
 
-LC6C5:      cpy     $FD
+LC6C5:      cpy     UNKNWN15
             bne     LC70D
-            sty     $02D5
+            sty     L02D5
             jmp     LC6BF
 
-            tya
+LC6CF:      tya
             sec
             sbc     #$50
             bcc     LC6E1
-            cmp     $02D5
+            cmp     L02D5
             bcc     LC6E1
             tay
 LC6DB:      jsr     LCF08
             jmp     LC62A
 
-LC6E1:      cpy     $FD
+LC6E1:      cpy     UNKNWN15
             bne     LC70D
-            sty     $02D5
+            sty     L02D5
             jmp     LC6DB
 
-            jsr     _CLRHTW
-LC6EE:      sty     $02D5
+LC6EB:      jsr     _CLRHTW
+LC6EE:      sty     L02D5
             jmp     LC62A
 
-            clc
-            ldy     $FD
+LC6F4:      clc
+            ldy     UNKNWN15
 LC6F7:      lda     #$0D
             sta     (QLN),y
             php
@@ -335,55 +440,55 @@ LC6F7:      lda     #$0D
             plp
             tya
             ldy     #$00
-            ldx     $02D6
+            ldx     L02D6
             rts
 
-            jsr     LC837
+LC70A:      jsr     LC837
 LC70D:      jmp     LC62A
 
-            jsr     LC7B9
+LC710:      jsr     LC7B9
             jmp     LC62A
 
-            jsr     LC817
+LC716:      jsr     LC817
             jmp     LC62A
 
-            cpy     #$00
+LC71C:      cpy     #$00
             bne     LC70D
             beq     LC6F7
-            jsr     _GETKEY
+LC722:      jsr     _GETKEY
             jmp     LC63A
 
-            jsr     LC793
+LC728:      jsr     LC793
             jmp     LC62F
 
             jsr     LC849
             jmp     LC62F
 
-            cpy     $FD
+LC734:      cpy     UNKNWN15
             bcs     LC73F
             iny
 LC739:      jsr     LCEDA
             jmp     LC62A
 
-LC73F:      cpy     $02D5
+LC73F:      cpy     L02D5
             beq     LC739
             bne     LC70D
-            jsr     _HOMETW
+LC746:      jsr     _HOMETW
             jmp     LC6EE
 
-            jsr     LC849
+LC74C:      jsr     LC849
             jmp     LC62F
 
-            sec
-            ror     $02D7
+LC752:      sec
+            ror     L02D7
             jmp     LC62F
 
-            lda     $02D5
-            sta     $02D4
+LC759:      lda     L02D5
+            sta     L02D4
             jsr     LC8A1
             jmp     LC62A
 
-LC765:      cpy     $FD
+LC765:      cpy     UNKNWN15
             beq     LC70D
             jsr     LCEDA
             iny
@@ -392,14 +497,14 @@ LC76F:      cpy     YLNLIM
             bcc     LC777
             jmp     LD155
 
-LC777:      bit     $02D7
+LC777:      bit     L02D7
             bpl     LC77F
             jmp     LC86C
 
 LC77F:      sta     (QLN),y
-            cpy     $FD
+            cpy     UNKNWN15
             bcc     LC787
-            inc     $FD
+            inc     UNKNWN15
 LC787:      iny
 LC788:      bit     NOLEKO
             bmi     LC790
@@ -407,17 +512,17 @@ LC788:      bit     NOLEKO
 
 LC790:      jmp     LCEDA
 
-LC793:      cpy     $02D5
+LC793:      cpy     L02D5
             beq     LC7B8
-            bit     $02D7
+            bit     L02D7
             bpl     LC7A4
             jsr     LCEF0
             dey
             jmp     LC849
 
-LC7A4:      cpy     $FD
+LC7A4:      cpy     UNKNWN15
             bcc     LC7AA
-            dec     $FD
+            dec     UNKNWN15
 LC7AA:      dey
             jsr     LCEF0
             lda     #$20
@@ -426,72 +531,72 @@ LC7AA:      dey
             jsr     LCEF0
 LC7B8:      rts
 
-LC7B9:      sty     $02D4
-LC7BC:      cpy     $FD
+LC7B9:      sty     L02D4
+LC7BC:      cpy     UNKNWN15
             bcs     LC7C8
             lda     #$20
             jsr     LC788
             iny
             bne     LC7BC
 LC7C8:      jsr     LC8A1
-            sty     $FD
+            sty     UNKNWN15
             rts
 
-LC7CE:      sty     $02D4
+LC7CE:      sty     L02D4
             ldx     #$00
-LC7D3:      lda     $06E0,x
+LC7D3:      lda     TABTBL,x
             beq     LC813
             tay
             dey
-            cpy     $02D4
+            cpy     L02D4
             beq     LC80E
             bcc     LC80E
             cpy     YLNLIM
             bcs     LC813
             tya
-            ldy     $02D4
-            sta     $02D4
-LC7ED:      cpy     $FD
+            ldy     L02D4
+            sta     L02D4
+LC7ED:      cpy     UNKNWN15
             bcs     LC7FC
-            cpy     $02D4
+            cpy     L02D4
             bcs     LC80D
             jsr     LCEDA
             iny
             bne     LC7ED
 LC7FC:      lda     #$20
-            cpy     $02D4
+            cpy     L02D4
             bcs     LC80B
             jsr     LC788
             sta     (QLN),y
             iny
             bne     LC7FC
-LC80B:      sty     $FD
+LC80B:      sty     UNKNWN15
 LC80D:      rts
 
 LC80E:      inx
             cpx     #$20
             bcc     LC7D3
-LC813:      ldy     $02D4
+LC813:      ldy     L02D4
             rts
 
-LC817:      lda     $02D5
-            sta     $02D4
+LC817:      lda     L02D5
+            sta     L02D4
             jsr     LC8A1
             lda     #$20
-LC822:      cpy     $FD
+LC822:      cpy     UNKNWN15
             bcs     LC82C
             jsr     LC788
             iny
             bne     LC822
 LC82C:      jsr     LC8A1
             ldy     #$00
-            sty     $02D5
-            sty     $FD
+            sty     L02D5
+            sty     UNKNWN15
             rts
 
 LC837:      ldy     #$00
-            sty     $02D5
-LC83C:      cpy     $FD
+            sty     L02D5
+LC83C:      cpy     UNKNWN15
             beq     LC848
             lda     (QLN),y
             jsr     LC788
@@ -499,11 +604,11 @@ LC83C:      cpy     $FD
             bne     LC83C
 LC848:      rts
 
-LC849:      cpy     $FD
+LC849:      cpy     UNKNWN15
             bcs     LC86B
-            sty     $02D4
+            sty     L02D4
 LC850:      iny
-            cpy     $FD
+            cpy     UNKNWN15
             bcs     LC861
             lda     (QLN),y
             dey
@@ -514,19 +619,19 @@ LC850:      iny
 
 LC861:      lda     #$20
             jsr     LC788
-            dec     $FD
+            dec     UNKNWN15
             jsr     LC8A1
 LC86B:      rts
 
-LC86C:      sta     $02D3
-            sty     $02D4
-            ldy     $FD
+LC86C:      sta     L02D3
+            sty     L02D4
+            ldy     UNKNWN15
             cpy     YLNLIM
             bcc     LC87F
             jsr     LD155
             jmp     LC8AF
 
-LC87F:      cpy     $02D4
+LC87F:      cpy     L02D4
             beq     LC88D
             dey
             lda     (QLN),y
@@ -534,24 +639,24 @@ LC87F:      cpy     $02D4
             sta     (QLN),y
             dey
             bne     LC87F
-LC88D:      inc     $FD
-            lda     $02D3
+LC88D:      inc     UNKNWN15
+            lda     L02D3
             sta     (QLN),y
 LC894:      lda     (QLN),y
             jsr     LC788
             iny
-            cpy     $FD
+            cpy     UNKNWN15
             bcc     LC894
-            inc     $02D4
+            inc     L02D4
 LC8A1:      tya
             sec
-            sbc     $02D4
+            sbc     L02D4
             tax
             beq     LC8AF
 LC8A9:      jsr     LCEF0
             dex
             bne     LC8A9
-LC8AF:      ldy     $02D4
+LC8AF:      ldy     L02D4
             rts
 
 LC8B3:      and     #$7F
@@ -561,22 +666,22 @@ LC8B3:      and     #$7F
             asl     a
             asl     a
             tax
-            stx     $02D8
+            stx     L02D8
             clc
             adc     #$20
-            sta     $02D9
+            sta     L02D9
 LC8C4:      lda     KEYSTR,x
             cmp     #$20
             bcc     LC8D5
             cmp     #$80
             bcs     LC8D5
             inx
-            cpx     $02D9
+            cpx     L02D9
             bne     LC8C4
 LC8D5:      ror     NOLEKO
-            stx     $02D9
-            ldx     $02D8
-LC8DE:      cpx     $02D9
+            stx     L02D9
+            ldx     L02D8
+LC8DE:      cpx     L02D9
             bcs     LC8EC
             lda     KEYSTR,x
             jsr     LC76F
@@ -593,61 +698,61 @@ LC8F7:      jsr     LC91B
 LC8FC:      iny
             lda     (QLN),y
             tax
-            sty     $02D4
-            ldy     $023D
+            sty     L02D4
+            ldy     UNK23
             iny
             jsr     LD106
             txa
-            sta     ($F2),y
+            sta     (UNKNWN4),y
             jsr     LD127
-            sty     $023D
-            ldy     $02D4
-            cpy     $FD
+            sty     UNK23
+            ldy     L02D4
+            cpy     UNKNWN15
             bne     LC8FC
             rts
 
 LC91B:      lda     #$50
-            sta     $F2
+            sta     UNKNWN4
             lda     #$FC
-            sta     $F3
+            sta     UNKNWN4+1
             ldy     #$FF
             rts
 
-LC926:      sty     $02D4
+LC926:      sty     L02D4
             jsr     LC91B
-            ldy     $02DA
+            ldy     L02DA
 LC92F:      dey
-            cpy     $023D
+            cpy     UNK23
             beq     LC92F
             jsr     LD106
-            lda     ($F2),y
+            lda     (UNKNWN4),y
             cmp     #$FF
             bne     LC947
-            lda     $023D
-            sta     $02DA
+            lda     UNK23
+            sta     L02DA
             jmp     LC94E
 
 LC947:      cmp     #$0D
             bne     LC92F
-            sty     $02DA
-LC94E:      sty     $02DB
+            sty     L02DA
+LC94E:      sty     L02DB
 LC951:      iny
             jsr     LD106
-            lda     ($F2),y
+            lda     (UNKNWN4),y
             tax
             jsr     LD127
-            sty     $02DB
-            ldy     $02D4
+            sty     L02DB
+            ldy     L02D4
             txa
             sta     (QLN),y
             cmp     #$0D
             beq     LC972
             iny
-            sty     $02D4
-            ldy     $02DB
+            sty     L02D4
+            ldy     L02DB
             jmp     LC951
 
-LC972:      sty     $FD
+LC972:      sty     UNKNWN15
             rts
 
 ; SUBROUTINE _GETKEY: WAIT FOR KEYBOARD KEY DEPRESSION, RETURN
@@ -841,7 +946,7 @@ WA1TST:     jsr     WA1MS           ; First wait for 1 millisecond
 ;
 KEYTST:     jsr     _TIOON
             sta     $BFC5
-            stx     $FA
+            stx     TEMP1
 LCA93:      bit     COLMKS
             beq     LCAA0
             sta     $BFE1
@@ -854,7 +959,7 @@ LCAA0:      lsr     a
             lsr     a
             tax
             lda     ROWMSK,x
-            ldx     $FA
+            ldx     TEMP1
             and     $BFE1
             jmp     _IORES
 
@@ -1155,9 +1260,9 @@ AUTORL:     .byte   $0F             ; BACKSPACE
 ; DISPLAY CHARACTER THEN MOVE CURSOR
 ;
 _OUTCH:     cld
-            sta     $02C7
-            stx     $02C8
-            sty     $02C9
+            sta     L02C7
+            stx     L02C8
+            sty     L02C9
             cmp     #$00
             bpl     LCBFC
             bit     EXTHI
@@ -1170,7 +1275,7 @@ LCBFC:      sec
             jmp     LCC80
 
 LCC04:      pha
-            asl     $021D
+            asl     UNK16
             jsr     LD13B
             pla
             cmp     #$5F
@@ -1198,9 +1303,9 @@ LCC3D:      bit     RVIDEO
             bpl     LCC45
             jsr     LD0A7
 LCC45:      jsr     LCEDA
-LCC48:      ldy     $02C9
-            ldx     $02C8
-            lda     $02C7
+LCC48:      ldy     L02C9
+            ldx     L02C8
+            lda     L02C7
             rts
 
 LCC52:      ldx     #$08
@@ -1234,7 +1339,7 @@ LCC80:      clc
 
 LCC8B:      cmp     #$0D
             bne     LCC9A
-            asl     $021D
+            asl     UNK16
             bcs     LCC48
             jsr     _CRLF
             jmp     LCC48
@@ -1244,12 +1349,12 @@ LCC9A:      cmp     #$0A
             jsr     _LINEFD
             jmp     LCC48
 
-LCCA4:      cmp     $022B
+LCCA4:      cmp     UNK19
             bne     LCCAF
             jsr     LCEF0
             jmp     LCC48
 
-LCCAF:      cmp     $022E
+LCCAF:      cmp     UNK22
             bne     LCCC2
             lda     LINE
             jsr     _CLRTLN
@@ -1257,22 +1362,22 @@ LCCAF:      cmp     $022E
             sta     COL
             jmp     LCC48
 
-LCCC2:      cmp     $022D
+LCCC2:      cmp     UNK21
             bne     LCCCD
             jsr     _CLRHTW
             jmp     LCC48
 
-LCCCD:      cmp     $022A
+LCCCD:      cmp     UNK18
             bne     LCCD8
             jsr     LD155
             jmp     LCC48
 
-LCCD8:      cmp     $022C
+LCCD8:      cmp     UNK20
             beq     LCCE0
 LCCDD:      jmp     LCC48
 
 LCCE0:      ldx     #$00
-LCCE2:      lda     $06E0,x
+LCCE2:      lda     TABTBL,x
             beq     LCCFC
             cmp     COL
             beq     LCCF7
@@ -1340,11 +1445,11 @@ LCD41:      sta     KBECHO,x
             ldy     #$00
             jsr     LD106
             lda     #$FF
-            sta     ($F2),y
+            sta     (UNKNWN4),y
             iny
             lda     #$0D
-            sta     ($F2),y
-            sty     $023D
+            sta     (UNKNWN4),y
+            sty     UNK23
             jsr     LD127
             lda     #$18
             ldy     #$00
@@ -1385,13 +1490,13 @@ _CLRDSP:    pha
             txa
             pha
             lda     #$00
-            sta     $F4
+            sta     UNKNWN6
             lda     #$C0
-            sta     $F5
+            sta     UNKNWN6+1
             lda     #$00
-            sta     $F8
+            sta     UNKNWN10
             lda     #$3C
-            sta     $F9
+            sta     UNKNWN10+1
             jsr     LCE15
             pla
             tax
@@ -1407,16 +1512,16 @@ _CLRTW:     pha
             lda     NLINET
             ldx     #$50
             jsr     LCF36
-            lda     $F2
+            lda     UNKNWN4
             sec
-            sbc     $F4
-            sta     $F8
-            lda     $F3
-            sbc     $F5
-            sta     $F9
-            inc     $F8
+            sbc     UNKNWN6
+            sta     UNKNWN10
+            lda     UNKNWN4+1
+            sbc     UNKNWN6+1
+            sta     UNKNWN10+1
+            inc     UNKNWN10
             bne     LCDD6
-            inc     $F9
+            inc     UNKNWN10+1
 LCDD6:      jsr     LCE15
             pla
             tax
@@ -1424,13 +1529,13 @@ LCDD6:      jsr     LCE15
             rts
 
 _CLRLEG:    lda     #$40
-            sta     $F4
+            sta     UNKNWN6
             lda     #$F8
-            sta     $F5
+            sta     UNKNWN6+1
             lda     #$C0
-            sta     $F8
+            sta     UNKNWN10
             lda     #$03
-            sta     $F9
+            sta     UNKNWN10+1
             jmp     LCE15
 
 LCDF0:      lda     NLINET
@@ -1441,17 +1546,17 @@ _CLRTLN:    ldx     #$50
             bcc     LCDFD
             lda     NLINET
 LCDFD:      jsr     LCF36
-            lda     $F2
+            lda     UNKNWN4
             sec
             sbc     #$57
-            sta     $F4
-            lda     $F3
+            sta     UNKNWN6
+            lda     UNKNWN4+1
             sbc     #$02
-            sta     $F5
+            sta     UNKNWN6+1
             lda     #$58
-            sta     $F8
+            sta     UNKNWN10
             lda     #$02
-            sta     $F9
+            sta     UNKNWN10+1
             ; Fall through
 
 LCE15:      jsr     LD106
@@ -1461,21 +1566,21 @@ LCE15:      jsr     LD106
 LCE1E:      tya
             pha
             lda     #$00
-            ldy     $F9
+            ldy     UNKNWN10+1
             beq     LCE35
             tay
-LCE27:      sta     ($F4),y
+LCE27:      sta     (UNKNWN6),y
             iny
-            sta     ($F4),y
+            sta     (UNKNWN6),y
             iny
             bne     LCE27
-            inc     $F5
-            dec     $F9
+            inc     UNKNWN6+1
+            dec     UNKNWN10+1
             bne     LCE27
-LCE35:      ldy     $F8
+LCE35:      ldy     UNKNWN10
             beq     LCE3E
 LCE39:      dey
-            sta     ($F4),y
+            sta     (UNKNWN6),y
             bne     LCE39
 LCE3E:      pla
             tay
@@ -1497,30 +1602,30 @@ LCE5A:      lda     NLINET
             bcc     LCE9A
             ldx     #$50
             jsr     LCF36
-            lda     $F2
-            sta     $F8
-            lda     $F3
-            sta     $F9
+            lda     UNKNWN4
+            sta     UNKNWN10
+            lda     UNKNWN4+1
+            sta     UNKNWN10+1
             lda     YTDOWN
             jsr     LCF63
             jsr     LD13E
-            lda     $F4
+            lda     UNKNWN6
             clc
             adc     #$58
-            sta     $F2
-            lda     $F5
+            sta     UNKNWN4
+            lda     UNKNWN6+1
             adc     #$02
-            sta     $F3
-            lda     $F8
+            sta     UNKNWN4+1
+            lda     UNKNWN10
             sec
-            sbc     $F2
-            sta     $F8
-            lda     $F9
-            sbc     $F3
-            sta     $F9
-            inc     $F8
+            sbc     UNKNWN4
+            sta     UNKNWN10
+            lda     UNKNWN10+1
+            sbc     UNKNWN4+1
+            sta     UNKNWN10+1
+            inc     UNKNWN10
             bne     LCE97
-            inc     $F9
+            inc     UNKNWN10+1
 LCE97:      jsr     LCE9D
 LCE9A:      jmp     LCDF0
 
@@ -1531,29 +1636,29 @@ LCE9D:      jsr     LD106
 LCEA6:      tya
             pha
             ldy     #$00
-            ldx     $F9
+            ldx     UNKNWN10+1
             beq     LCECB
-LCEAE:      lda     ($F2),y
-            sta     ($F4),y
+LCEAE:      lda     (UNKNWN4),y
+            sta     (UNKNWN6),y
             iny
-            lda     ($F2),y
-            sta     ($F4),y
+            lda     (UNKNWN4),y
+            sta     (UNKNWN6),y
             iny
-            lda     ($F2),y
-            sta     ($F4),y
+            lda     (UNKNWN4),y
+            sta     (UNKNWN6),y
             iny
-            lda     ($F2),y
-            sta     ($F4),y
+            lda     (UNKNWN4),y
+            sta     (UNKNWN6),y
             iny
             bne     LCEAE
-            inc     $F3
-            inc     $F5
+            inc     UNKNWN4+1
+            inc     UNKNWN6+1
             dex
             bne     LCEAE
-LCECB:      ldx     $F8
+LCECB:      ldx     UNKNWN10
             beq     LCED7
-LCECF:      lda     ($F2),y
-            sta     ($F4),y
+LCECF:      lda     (UNKNWN4),y
+            sta     (UNKNWN6),y
             iny
             dex
             bne     LCECF
@@ -1571,7 +1676,7 @@ LCEDA:      pha
 
 LCEE7:      jsr     _CRLF
             sec
-            ror     $021D
+            ror     UNK16
             pla
             rts
 
@@ -1610,10 +1715,10 @@ LCF25:      lda     LINE
             beq     LCF36
 LCF31:      lda     #$01
             sta     LINE
-LCF36:      sta     $FA
+LCF36:      sta     TEMP1
             asl     a
             asl     a
-            adc     $FA
+            adc     TEMP1
             asl     a
             adc     YTDOWN
             sec
@@ -1622,100 +1727,100 @@ LCF36:      sta     $FA
             dex
             txa
             inx
-            sta     $FA
+            sta     TEMP1
             asl     a
-            adc     $FA
+            adc     TEMP1
             pha
             asl     a
             and     #$07
-            sta     $FC
+            sta     UNKNWN14
             pla
             lsr     a
             lsr     a
             clc
-            adc     $F2
-            sta     $F2
+            adc     UNKNWN4
+            sta     UNKNWN4
             bcc     LCF60
-            inc     $F3
+            inc     UNKNWN4+1
 LCF60:      rts
 
             eor     #$FF
 LCF63:      pha
             lda     #$00
-            sta     $FB
+            sta     UNKNWN13
             pla
             asl     a
-            rol     $FB
+            rol     UNKNWN13
             asl     a
-            rol     $FB
-            sta     $FA
-            lda     $FB
-            sta     $F3
-            lda     $FA
+            rol     UNKNWN13
+            sta     TEMP1
+            lda     UNKNWN13
+            sta     UNKNWN4+1
+            lda     TEMP1
             asl     a
-            rol     $F3
+            rol     UNKNWN4+1
             asl     a
-            rol     $F3
+            rol     UNKNWN4+1
             asl     a
-            rol     $F3
+            rol     UNKNWN4+1
             asl     a
-            rol     $F3
+            rol     UNKNWN4+1
             sec
-            sbc     $FA
-            sta     $F2
-            lda     $F3
-            sbc     $FB
+            sbc     TEMP1
+            sta     UNKNWN4
+            lda     UNKNWN4+1
+            sbc     UNKNWN13
             clc
             adc     #$C0
-            sta     $F3
+            sta     UNKNWN4+1
             rts
 
 LCF92:      jsr     LCFFD
             jsr     _TIOON
             lda     BNKCTL
-            eor     $02D0
+            eor     L02D0
             sta     BNKCTL
             ldy     #$06
             ldx     #$00
-LCFA5:      stx     $FA
-            lda     ($F6),y
+LCFA5:      stx     TEMP1
+            lda     (UNKNWN8),y
             and     #$F8
-            ldx     $FC
+            ldx     UNKNWN14
             beq     LCFB5
 LCFAF:      lsr     a
-            ror     $FA
+            ror     TEMP1
             dex
             bne     LCFAF
-LCFB5:      sta     $02B4,y
-            lda     $FA
-            sta     $02BE,y
+LCFB5:      sta     L02B4,y
+            lda     TEMP1
+            sta     L02BE,y
             dey
             bpl     LCFA5
             iny
-            lda     ($F6),y
+            lda     (UNKNWN8),y
             ror     a
             bcc     LCFF2
             ldx     #$06
-LCFC8:      lda     $02B4,x
-            sta     $02B6,x
-            lda     $02BE,x
-            sta     $02C0,x
+LCFC8:      lda     L02B4,x
+            sta     L02B6,x
+            lda     L02BE,x
+            sta     L02C0,x
             dex
             bpl     LCFC8
             lda     #$00
             ldx     #$02
             jsr     LD001
-            lda     ($F6),y
+            lda     (UNKNWN8),y
             ror     a
             ror     a
             bcc     LCFF2
             lda     #$20
-            ldx     $FC
+            ldx     UNKNWN14
 LCFE8:      lsr     a
-            ror     $02BE
+            ror     L02BE
             dex
             bpl     LCFE8
-            sta     $02B4
+            sta     L02B4
 LCFF2:      lda     BNKCTL
             ora     #$03
             sta     BNKCTL
@@ -1723,60 +1828,60 @@ LCFF2:      lda     BNKCTL
 
 LCFFD:      lda     #$00
             ldx     #$09
-LD001:      sta     $02B3,x
-            sta     $02BD,x
+LD001:      sta     L02B3,x
+            sta     L02BD,x
             dex
             bpl     LD001
             rts
 
-LD00B:      sta     $FA
+LD00B:      sta     TEMP1
             ldx     #$00
-            stx     $FB
+            stx     UNKNWN13
             asl     a
             asl     a
-            rol     $FB
+            rol     UNKNWN13
             asl     a
-            rol     $FB
+            rol     UNKNWN13
             sec
-            sbc     $FA
+            sbc     TEMP1
             bcs     LD01F
-            dec     $FB
+            dec     UNKNWN13
 LD01F:      clc
             bit     EXFONT
             bpl     LD037
             adc     QEXFNT
-            sta     $F6
-            lda     $0232
-            adc     $FB
-            sta     $F7
+            sta     UNKNWN8
+            lda     QEXFNT+1
+            adc     UNKNWN13
+            sta     UNKNWN8+1
             lda     EXFTBK
             jmp     LD043
 
 LD037:      adc     #$50
-            sta     $F6
+            sta     UNKNWN8
             lda     #$FD
-            adc     $FB
-            sta     $F7
+            adc     UNKNWN13
+            sta     UNKNWN8+1
             lda     #$01
-LD043:      sta     $02D0
+LD043:      sta     L02D0
             jsr     LCF92
             jsr     LD106
-            ldx     $FC
+            ldx     UNKNWN14
             lda     LD084,x
-            sta     $02B2
+            sta     L02B2
             lda     LD07C,x
-            sta     $02B1
+            sta     L02B1
             ldx     #$09
 LD05C:      ldy     #$01
-            lda     $02B2
-            and     ($F4),y
-            ora     $02BD,x
-            sta     ($F4),y
+            lda     L02B2
+            and     (UNKNWN6),y
+            ora     L02BD,x
+            sta     (UNKNWN6),y
             dey
-            lda     $02B1
-            and     ($F4),y
-            ora     $02B3,x
-            sta     ($F4),y
+            lda     L02B1
+            and     (UNKNWN6),y
+            ora     L02B3,x
+            sta     (UNKNWN6),y
             jsr     LD149
             dex
             bpl     LD05C
@@ -1802,12 +1907,12 @@ LD084:      .byte   $FF
 			.byte   $0F       
 			.byte   $07  
 
-_OFFTCR:    asl     $021B
+_OFFTCR:    asl     CURVIS
             bcs     _FLPTCR
             rts
 
 _ONTCR:     sec
-            ror     $021B
+            ror     CURVIS
             ; Fall through
 
 _FLPTCR:    pha
@@ -1826,20 +1931,20 @@ _FLPTCR:    pha
 
 LD0A7:      jsr     LD13E
             jsr     LD106
-            ldx     $FC
+            ldx     UNKNWN14
             lda     LD0FE,x
-            sta     $02B2
+            sta     L02B2
             lda     LD0F6,x
-            sta     $02B1
+            sta     L02B1
             ldx     #$09
 LD0BD:      ldy     #$01
-            lda     $02B2
-            eor     ($F4),y
-            sta     ($F4),y
+            lda     L02B2
+            eor     (UNKNWN6),y
+            sta     (UNKNWN6),y
             dey
-            lda     $02B1
-            eor     ($F4),y
-            sta     ($F4),y
+            lda     L02B1
+            eor     (UNKNWN6),y
+            sta     (UNKNWN6),y
             jsr     LD149
             dex
             bpl     LD0BD
@@ -1848,15 +1953,15 @@ LD0BD:      ldy     #$01
 LD0D7:      jsr     LD13E
             jsr     LD149
             jsr     LD106
-            ldx     $FC
+            ldx     UNKNWN14
             lda     LD0FE,x
             ldy     #$01
-            eor     ($F4),y
-            sta     ($F4),y
+            eor     (UNKNWN6),y
+            sta     (UNKNWN6),y
             dey
             lda     LD0F6,x
-            eor     ($F4),y
-            sta     ($F4),y
+            eor     (UNKNWN6),y
+            sta     (UNKNWN6),y
             jmp     LD127
 
 ; EQUATES FOR CURSOR CELL POSITIONS
@@ -1916,19 +2021,19 @@ RETURN:     plp
 
 LD13B:      jsr     LCF17
 LD13E:      pha
-            lda     $F2
-            sta     $F4
-            lda     $F3
-            sta     $F5
+            lda     UNKNWN4
+            sta     UNKNWN6
+            lda     UNKNWN4+1
+            sta     UNKNWN6+1
             pla
             rts
 
-LD149:      lda     $F4
+LD149:      lda     UNKNWN6
             sec
             sbc     #$3C
-            sta     $F4
+            sta     UNKNWN6
             bcs     LD154
-            dec     $F5
+            dec     UNKNWN6+1
 LD154:      rts
 
 LD155:      bit     NOBELL
@@ -1968,20 +2073,20 @@ LD186:      rts
 _BEEP:      cmp     #$00
             bpl     LD18C
             lsr     a
-LD18C:      sta     $02B0
+LD18C:      sta     L02B0
             txa
             pha
             jsr     _TIOON
             lda     #$FF
             sta     $BFF3
-LD199:      lda     $02B0
+LD199:      lda     L02B0
             clc
             adc     #$80
             sta     $BFF1
             jsr     LD1C2
             lda     #$80
             sec
-            sbc     $02B0
+            sbc     L02B0
             sta     $BFF1
             jsr     LD1C2
             dex
@@ -1991,7 +2096,7 @@ LD199:      lda     $02B0
             jsr     _IORES
             pla
             tax
-            lda     $02B0
+            lda     L02B0
             rts
 
 LD1C2:      tya
@@ -2009,13 +2114,13 @@ LD1C7:      sbc     #$01
 _DRWLEG:    jsr     _CLRLEG
             ldy     #$00
             lda     #$05
-            sta     $FC
+            sta     UNKNWN14
             lda     #$FB
-            sta     $F3
+            sta     UNKNWN4+1
             lda     #$88
-LD1E0:      sta     $F2
+LD1E0:      sta     UNKNWN4
 LD1E2:      lda     #$08
-            sta     $F8
+            sta     UNKNWN10
 LD1E6:      jsr     LD13E
             lda     LEGTBL,y
             sec
@@ -2024,21 +2129,21 @@ LD1E6:      jsr     LD13E
             cmp     #$5F
             bcc     LD1F7
 LD1F5:      lda     #$00
-LD1F7:      sty     $F9
+LD1F7:      sty     UNKNWN10+1
             jsr     LD00B
-            lda     $FC
+            lda     UNKNWN14
             clc
             adc     #$06
             cmp     #$08
             bcc     LD209
             and     #$07
-            inc     $F2
-LD209:      sta     $FC
-            ldy     $F9
+            inc     UNKNWN4
+LD209:      sta     UNKNWN14
+            ldy     UNKNWN10+1
             iny
-            dec     $F8
+            dec     UNKNWN10
             bne     LD1E6
-            inc     $F2
+            inc     UNKNWN4
             cpy     #$20
             bne     LD21C
             lda     #$A6
@@ -2046,21 +2151,21 @@ LD209:      sta     $FC
 LD21C:      cpy     #$40
             bcc     LD1E2
             lda     #$C4
-            sta     $F2
+            sta     UNKNWN4
             lda     #$FB
-            sta     $F3
+            sta     UNKNWN4+1
             jsr     LD22F
             lda     #$E2
-            sta     $F2
+            sta     UNKNWN4
 LD22F:      jsr     LD106
             lda     #$04
-            sta     $F8
+            sta     UNKNWN10
 LD236:      jsr     LD24D
-            lda     $F2
+            lda     UNKNWN4
             clc
             adc     #$07
-            sta     $F2
-            dec     $F8
+            sta     UNKNWN4
+            dec     UNKNWN10
             bne     LD236
             jsr     LD13E
             jsr     LD260
@@ -2071,7 +2176,7 @@ LD24D:      jsr     LD13E
             jsr     LD260
 LD256:      ldy     #$06
             lda     #$FF
-LD25A:      sta     ($F4),y
+LD25A:      sta     (UNKNWN6),y
             dey
             bpl     LD25A
             rts
@@ -2080,9 +2185,9 @@ LD260:      ldy     #$00
             ldx     #$0D
             bne     LD269
 LD266:      jsr     LD149
-LD269:      lda     ($F4),y
+LD269:      lda     (UNKNWN6),y
             ora     #$80
-            sta     ($F4),y
+            sta     (UNKNWN6),y
             dex
             bne     LD266
             rts

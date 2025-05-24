@@ -6,6 +6,7 @@
 
             .setcpu "6502"
 
+            .include "monomeg.inc"
             .include "symbols.inc"
             .include "codos.inc"
 

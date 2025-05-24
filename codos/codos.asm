@@ -6,94 +6,20 @@
 ; Input file: codos.bin
 ; Page:       1
 
+            .include "monomeg.inc"
             .include "codos.inc"
 
+            .importzp QLN
+
 EXINBNK     := $0100        ; Location of the exec in bank routine
-
-            .segment "sysdata"
-
-            ; Loadable file data
-            ;
-            .byte   $58             ; CODOS loadable file header byte
-            .byte   $00             ; Memory overlay
-            .byte   $00             ; Memory bank
-            .byte   $00             ; Reserved
-            .addr   INITIO          ; Entry point
-            .addr   COL             ; Load address
-            .word   SYSDATA_SIZE    ; Memory image size
-
-            .export COL, LINE, KBECHO, NOLFCR, NOSCRL, UNDRLN, NOCLIK, NOBELL, RVIDEO
-            .export SHODEL, SHOUL, EXCCP, EXTHI, EXFONT, NLINET, YTDOWN, DBCDLA, DBCDLA
-            .export RPTRAT, CURDLA, CLKPER, CLKVOL, CLKCY, BELPER, BELVOL, BELCY, QEXCC
-            .export QEXFNT, QEXHI7, FNTTBL, EXFTBK, YLNLIM, NOLEKO, UKINLN, SPKTBL
-
-COL:        .byte   $01			    ; $0200 CURRENT COLUMN LOCATION OF TEXT CURSOR 1-80.
-LINE:       .byte   $01             ; $0201 CURRENT LINE NUMBER OF TEXT CURSOR. 1-NLINET.
-UNK0:       .byte   $00
-UNK1:       .byte   $00
-UNK2:       .byte   $00
-UNK3:       .byte   $00
-UNK4:       .byte   $00
-UNK5:       .byte   $00
-UNK6:       .byte   $00
-UNK7:       .byte   $00
-UNK8:       .byte   $80             ; $020A
-UNK9:       .byte   $F0             ; $020B
-UNK10:      .byte   $F0             ; $020C
-UNK11:      .byte   $00             ; $020D
-UNK12:      .byte   $00             ; $020E
-KBECHO:     .byte   $00             ; $020F IF BIT 7=1 THEN "ECHO" EACH KEY TO THE DISPLAY.
-NOLFCR:		.byte   $00             ; $0210	IF BIT 7=1 THEN NO AUTOMATIC LINE FEED AFTER CR.
-NOSCRL:     .byte   $00             ; $0211 IF BIT 7=1 THEN INSTEAD OF SCROLLING, THE TEXT WINDOW IS CLEARED AND THE CURSOR IS HOMED WHEN TEXT GOES BEYOND THE BOOTOM LINE.
-UNDRLN:		.byte   $00             ; $0212	IF BIT 7=1 THEN ALL CHARACTERS UNDERLINED WHEN DRAWN.
-NOCLIK:		.byte   $00             ; $0213	IF BIT 7=1 THEN NO CLICK WHEN A KEY IS PRESSED.
-NOBELL:     .byte   $00             ; $0214 IF BIT 7=1 THEN BEL CHARACTER IS IGNORED.
-RVIDEO:     .byte   $00             ; $0215 IF BIT 7=1 THEN CHARACTERS ARE DRAWN IN REVERSE VIDEO.
-SHODEL:     .byte   $00             ; $0216	IF BIT 7=1 THEN DISPLAY DEL (ROBOUT) AS A CHARACTER SHAPE
-SHOUL:      .byte   $00             ; $0217	IF BIT 7=1 THEN CHARACTER CELL IS ERASED BEFORE THE UNDERLINE CHARACTER IS DRAWN.
-EXCCP:      .byte   $00             ; $0218 IF BIT 7=1 THEN CALL USER CONTROL CHARACTER PROCESSOR.
-EXTHI:      .byte   $00             ; $0219 IF BIT 7=1 THEN CALL USER RUTINE TO PROCESS ALL CHARACTERS WHEN BIT 7 SET.
-EXFONT:     .byte   $00             ; $021A	IF BIT 7=1 THEN USE EXTERNAL FONT TABLE.
-UNK14:      .byte   $00             ; $021B
-UNK15:      .byte   $00             ; $021C
-UNK16:      .byte   $00             ; $021D
-NLINET:     .byte   $18             ; $021E NUMBER OF TEXT LINES IN THE TEXT WINDOW.
-YTDOWN:     .byte   $00             ; $021F 255-(Y COORDINATE OF TOP OF THE TEXT WINDOW).
-DBCDLA:     .byte   $05             ; $0220 WAIT TIME IN MILLISECONDS ALLOWED FOR CONTACT BOUNCE.
-RPTRAT:     .byte   $C3             ; $0221 INTERCHARACTER REPEAT DELAY IN 256uS UNITS.
-CURDLA:     .byte   $06             ; $0222 DETERMINES CURSOR BLINK SPEED, 0=NO BLINK.
-UNK17:      .byte   $05             ; $0223
-CLKPER:     .byte   $05             ; $0224 CLICK WAVEFORM PERIOD IN UNITS OF 200 MICROSECONDS.
-CLKVOL:     .byte   $20             ; $0225 CLICK VOLUME, $00 = MINIMUM, $7F = MAXIMUM.
-CLKCY:      .byte   $02             ; $0226 CLICK DURATION IN UNITS OF COMPLETE WAVEFORM CYCLES
-BELPER:     .byte   $05             ; $0227 BELL SOUND WAVEFORM PERIOD IN UNITS OF 200 MICROSECONDS.
-BELVOL:     .byte   $40             ; $0228	BELL SOUND VOLUME, $00 = MINIMUM, $7F MAXIMUM.
-BELCY:      .byte   $0C             ; $0229	BELL SOUND DURATION IN UNITS OF COMPLETE WAVEFORM CYCLES.
-UNK18:      .byte   $07             ; $022A
-UNK19:      .byte   $08             ; $022B
-UNK20:      .byte   $09             ; $022C
-UNK21:      .byte   $0C             ; $022D
-UNK22:      .byte   $18             ; $022E
-QEXCC:      .word   $031B           ; $022F ADDRESS OF EXTERNAL CONTROL CHARACTER PROCESSOR IF USED.
-QEXFNT:     .word   $031B           ; $0231 ADDRESS OF EXTERNAL FONT TABLE IF USED.
-QEXHI7:     .word   $031B           ; $0233	ADDRESS OF EXTERNAL PROCESSOR FOR CHARACTERS WITH BIT 7=1
-FNTTBL:     .word   $FD50           ; $0235 CHARACTER FONT TABLE
-EXFTBK:     .byte   $00             ; $0237	MEMORY BANK NUMBER CONTAINING EXTERNAL FONT TABLE.
-YLNLIM:     .byte   $C0             ; $0238 LINE SIZE LIMIT FOR INLINE AND ENDLINE ENTRY POINTS
-NOLEKO:     .byte   $00             ; $0239	ECHO FLAG NORMALLY 0 BUT IF SET TO 80 WILL DISABLE KEYBOARD ECHO
-UKINLN:     .byte   $00             ; $023A IF BIT 7=1 THEN IRRECOGNIZED KEYS ARE ACCEPTED FOR ENTRY POINTS INLINE AND ENDLINE.
-SPKTBL:     .word   $C5BC           ; $023B KEYBOARD SPECIAL KEYS TABLE
-UNK23:      .byte   $00             ; $023D
             
-            .export SEEIO
+            .export SEEIO, CNTRLC
 
 SEEIO       := $02F9                ; I-O space enable semaphore
 NMIPRC      := $02FA                ; Jump to NMI processor
 IRQBRK      := $02FD                ; Jump to IQR and BRK processor
 WARMRS      := $0300                ; Jump to operating system warm reset entry
-CNTRLC      := $0303                ; Jump executed when CNTRL-C is entered from console.
-
-SYSDATA_SIZE = * - COL
+CNTRLC      := $0303                ; Jump executed when CNTRL-C is entered from console
 
 ; RELEVANT KEYBOARD AND TEXT DISPLAY DRIVER ENTRY POINTS
 ;
@@ -101,15 +27,6 @@ SYSDATA_SIZE = * - COL
 
 KEYSTR      := $0400                ; (256 bytes) Function key substitute string table
 LEGTBL      := $05C0                ; (64 bytes) Function key legend table
-
-            .export SVIA1PORT, SVIA1DIR, BNKCTL, IOENABLE, IODISABLE
-
-SVIA1PORT   := $BFE0                ; System 1 6522 System control port data register
-SVIA1DIR    := $BFE2                ; System 1 6522 System control port direction register
-BNKCTL      := SVIA1PORT            ; System 1 6522 (Bank control data register)
-
-IOENABLE    := $FFFE                ; Enable I/O space from $BE00 to $BFFF
-IODISABLE   := $FFFF                ; Disable I/O space (enable RAM) from $BE00 to $BFFF
 
             ;   Disk Controller Registers
             ;
@@ -192,31 +109,11 @@ ERRNUM:     .res 1                  ; $ED  Error number for user-defined error r
 SVCENB:     .res 1                  ; $EE  ADDRESS OF SVC ENABLE FLAG
 SAVEACC:    .res 1                  ; $EF  TODO: Unknown
 
-            ; $F0 - $FF : Scratch RAM for console I-0. 
-
-            .exportzp QLN
-
-QLN:        .res 2                  ; $F0 Ptr to line-buffer used for INLINE and EDLINE 
-UNKNWN4:    .res 1                  ; $F2
-UNKNWN5:    .res 1                  ; $F3
-UNKNWN6:    .res 1                  ; $F4
-UNKNWN7:    .res 1                  ; $F5
-UNKNWN8:    .res 1                  ; $F6
-UNKNWN9:    .res 1                  ; $F7
-UNKNWN10:   .res 1                  ; $F8
-UNKNWN11:   .res 1                  ; $F9
-UNKNWN12:   .res 1                  ; $FA
-UNKNWN13:   .res 1                  ; $FB
-UNKNWN14:   .res 1                  ; $FC
-UNKNWN15:   .res 1                  ; $FD
-UNKNWN16:   .res 1                  ; $FE
-UNKNWN17:   .res 1                  ; $FF
-
             .segment "scratch1"
 
             .export NFILES, TEMP2, TEMP4, SAVEY7, SAVEAX, SAVEA5, SAVEA6, SAVEY8
 
-TEMP1:      .res 1                  ; $0283
+TEMP5:      .res 1                  ; $0283
 TEMP2:      .res 1                  ; $0284
 SAVEY1:     .res 1                  ; $0285 Used to preserve Y register during disk operations
 SAVEX1:     .res 1                  ; $0286
@@ -2274,20 +2171,20 @@ RET:        rts
             sta     DSFLAG          ; Store it
                                     ; Get sector offset
             lda     CURFINFO+FINFO::FPOS+2
-            sta     TEMP1           ;
+            sta     TEMP5           ;
             lda     CURFINFO+FINFO::FPOS+1
-            lsr     TEMP1           ; And divide it by 8
+            lsr     TEMP5           ; And divide it by 8
             ror     a               ;
-            lsr     TEMP1           ;
+            lsr     TEMP5           ;
             ror     a               ;
-            lsr     TEMP1           ;
+            lsr     TEMP5           ;
             ror     a               ;
             bit     DSFLAG          ; Is if a dual side disk?
-            bpl     CONT            ; No, we get the block offset in TEMP1, remainder
+            bpl     CONT            ; No, we get the block offset in TEMP5, remainder
                                     ; offset in block in A
             ldx     #$0F            ; Yes, update the sectors/block-1
             stx     SCTBLKM1        ;
-            lsr     TEMP1           ; And divide again (total is sector offset / 16)
+            lsr     TEMP5           ; And divide again (total is sector offset / 16)
             ror     a               ;
 CONT:       tax                     ; Transfer block offset to X
                                     ; Get first block of file
@@ -2324,7 +2221,7 @@ DIVLP:      inx                     ;
             bit     DSFLAG          ; Dual side disk?
             bpl     SKIP            ; Nope, skip
             asl     a               ; A  = ((CBLOCK-1) % (NSECTS/2))*BS (Dual side)
-SKIP:       sta     TEMP1           ; Save in TEMP1
+SKIP:       sta     TEMP5           ; Save in TEMP5
             txa                     ;
             asl     a               ;
             asl     a               ;
@@ -2341,7 +2238,7 @@ SKIP:       sta     TEMP1           ; Save in TEMP1
 SKIP2:      and     CURFINFO+FINFO::FPOS+1
             sta     BLKSCTOF        ; in the block
             clc                     ;
-            adc     TEMP1           ; Add sector offset to sector calculation
+            adc     TEMP5           ; Add sector offset to sector calculation
             
             ; Calculate track and sector
 
