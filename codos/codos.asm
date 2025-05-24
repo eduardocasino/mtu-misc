@@ -11,22 +11,22 @@
 
             .importzp QLN
 
-EXINBNK     := $0100        ; Location of the exec in bank routine
+EXINBNK     := __EXINBNK            ; Location of the exec in bank routine
             
             .export SEEIO, CNTRLC
 
-SEEIO       := $02F9                ; I-O space enable semaphore
-NMIPRC      := $02FA                ; Jump to NMI processor
-IRQBRK      := $02FD                ; Jump to IQR and BRK processor
-WARMRS      := $0300                ; Jump to operating system warm reset entry
-CNTRLC      := $0303                ; Jump executed when CNTRL-C is entered from console
+SEEIO       := __SEEIO              ; I-O space enable semaphore
+NMIPRC      := __NMIPRC             ; Jump to NMI processor
+IRQBRK      := __IRQBRK             ; Jump to IQR and BRK processor
+WARMRS      := __WARMRS             ; Jump to operating system warm reset entry
+CNTRLC      := __CNTRLC             ; Jump executed when CNTRL-C is entered from console
 
 ; RELEVANT KEYBOARD AND TEXT DISPLAY DRIVER ENTRY POINTS
 ;
             .export KEYSTR, LEGTBL
 
-KEYSTR      := $0400                ; (256 bytes) Function key substitute string table
-LEGTBL      := $05C0                ; (64 bytes) Function key legend table
+KEYSTR      := __KEYSTR             ; (256 bytes) Function key substitute string table
+LEGTBL      := __LEGTBL             ; (64 bytes) Function key legend table
 
             ;   Disk Controller Registers
             ;
@@ -635,10 +635,10 @@ STARTUPNAM: .byte   "STARTUP.J"
 
             .export INPLBUF, LBUFADDR, LBUFSIZE, INTSRVP, ERRRCVRYP, SECSTRK, CMDFNP
 
-INPLBUF:    .word   $0500           ; Pointer to start of system input line buffer.
-OUTLBUF:    .word   $0600           ; Pointer to start of system output line buffer
-LBUFADDR:   .word   $A000           ; Pointer to large transient buffer for COPYF, ETC.
-LBUFSIZE:   .word   $1400           ; Size (NOT. final address) of large transient buffer.
+INPLBUF:    .word   __INPLBUF       ; Pointer to start of system input line buffer.
+OUTLBUF:    .word   __OUTLBUF       ; Pointer to start of system output line buffer
+LBUFADDR:   .word   __LBUFADDR      ; Pointer to large transient buffer for COPYF, ETC.
+LBUFSIZE:   .word   __LBUFSIZE      ; Size (NOT. final address) of large transient buffer.
 INTSRVP:    .word   INTSRV          ; Pointer to user-defined interrupt service routine.
 ERRRCVRYP:  .word   ERRRCVRY        ; Pointer to user-defined error recovery routine.     
 SECSTRK:    .byte   NSECTS          ; Number of sects per track
