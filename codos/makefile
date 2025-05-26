@@ -16,6 +16,7 @@ FILESYSTEM = $(VERSIONS:%=build/%/codos.z) \
 		$(VERSIONS:%=build/%/overlays.bin) \
 		$(VERSIONS:%=build/%/dir.c) \
 		$(VERSIONS:%=build/%/format.c) \
+		$(VERSIONS:%=build/%/sysgendisk.c) \
 		fs/startup.j \
 		fs/syserrmsg.z
 
@@ -30,7 +31,7 @@ tests: images
 	@$(foreach ver,$(VERSIONS),bash -c "cd build/$(ver); echo -n \"Version $(ver): \"; \
 			(md5sum --quiet -c ../../checksums$(ver).md5 && echo \"OK.\")";)
 
-$(foreach ver,$(VERSIONS),$(eval images/codos$(ver).imd: build/$(ver)/codos.z build/$(ver)/overlays.bin build/$(ver)/syserrmsg.z build/$(ver)/startup.j build/$(ver)/dir.c build/$(ver)/format.c \
+$(foreach ver,$(VERSIONS),$(eval images/codos$(ver).imd: build/$(ver)/codos.z build/$(ver)/overlays.bin build/$(ver)/syserrmsg.z build/$(ver)/startup.j build/$(ver)/dir.c build/$(ver)/sysgendisk.c build/$(ver)/format.c \
 	; echo "CODOSDSK $$@" \
 	; ../utils/codosdsk format -y -p -s 2 -t 12 -v $(ver) -c build/$(ver)/codos.z -o build/$(ver)/overlays.bin images/codos$(ver).imd \
 	; ../utils/codosdsk copy images/codos$(ver).imd build/$(ver)/comdproc.z 0:comdproc.z \
@@ -38,6 +39,7 @@ $(foreach ver,$(VERSIONS),$(eval images/codos$(ver).imd: build/$(ver)/codos.z bu
 	; ../utils/codosdsk copy -a images/codos$(ver).imd build/$(ver)/startup.j 0:startup.j \
 	; ../utils/codosdsk copy images/codos$(ver).imd build/$(ver)/svcproc.z 0:svcproc.z \
 	; ../utils/codosdsk copy images/codos$(ver).imd build/$(ver)/iodriver.z 0:iodriver.z \
+	; ../utils/codosdsk copy images/codos$(ver).imd build/$(ver)/sysgendisk.c 0:sysgendisk.c \
 	; ../utils/codosdsk copy images/codos$(ver).imd build/$(ver)/dir.c 0:dir.c \
 	; ../utils/codosdsk copy images/codos$(ver).imd build/$(ver)/format.c 0:format.c))
 
@@ -115,6 +117,14 @@ $(foreach ver,$(VERSIONS),$(eval build/$(ver)/dir.c: build/$(ver)/dir.o dir.cfg 
 	; $(LD) -C dir.cfg -vm -m $(basename $$@).map -o $$@ $$<))
 
 $(foreach ver,$(VERSIONS),$(eval build/$(ver)/dir.o: dir.asm build/$(ver)/k1013.inc build/$(ver)/symbols.inc  \
+	; echo "AS $$@" \
+	; $(AS) -U -D CODOS2_VER=$(ver) -I build/$(ver) -l $(basename $$@).lst -o $$@ $$<))
+
+$(foreach ver,$(VERSIONS),$(eval build/$(ver)/sysgendisk.c: build/$(ver)/sysgendisk.o sysgendisk.cfg \
+	; echo "LD $$@" \
+	; $(LD) -C sysgendisk.cfg -vm -m $(basename $$@).map -o $$@ $$<))
+
+$(foreach ver,$(VERSIONS),$(eval build/$(ver)/sysgendisk.o: sysgendisk.asm build/$(ver)/k1013.inc build/$(ver)/symbols.inc  \
 	; echo "AS $$@" \
 	; $(AS) -U -D CODOS2_VER=$(ver) -I build/$(ver) -l $(basename $$@).lst -o $$@ $$<))
 

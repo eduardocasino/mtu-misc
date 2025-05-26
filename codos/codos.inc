@@ -29,6 +29,8 @@ SYSTEM      = 1                     ; MTU-130 with 8-inch floppy disk(s)
 NCYLS       = 77                    ; Number of cylinders
 NSECTS      = 26                    ; Sectors per track/side
 
+MAXDRIVES   = 4                     ; Maximum number of drives in the system
+MAXBUFFERS  = 8                     ; Naximum number of file buffers
 MAXFILES    = 247                   ; Maximum number of files per disk
 FNAMLEN     = 14                    ; Max file name length
 DATELEN     = 9                     ; Date string length (excluding null terminator)

@@ -171,7 +171,9 @@ PRTOUT      := USRRAM+$1280 ; Printer output entry point
 
             ; Loadable file data
             ;
-            .byte   $58             ; CODOS loadable file header byte
+            .export LDHEADER
+
+LDHEADER:   .byte   $58             ; CODOS loadable file header byte
             .byte   $00             ; Memory overlay
             .byte   $00             ; Memory bank
             .byte   $00             ; Reserved
@@ -192,7 +194,7 @@ CODOS:
             ; Jump table (page 179)
             ;
 
-            .export JOUTCH, JCPSEUDREGS, JERROR37, JINLINE
+            .export JCOLDST, JOUTCH, JCPSEUDREGS, JERROR37, JINLINE
 
 JCOLDST:    jmp     COLDST
 JWARMST:    jmp     WARMST
@@ -419,14 +421,16 @@ _SENSEDRV   = SENSEDRV-CMDTBL
 
 CMDTBL:
 
+            .export HDSTEP, HDLOAD
+
 SPECIFY:    .byte   $03             ; Command length 3
             .byte   $03             ; Specify
 .if CODOS2_VER = 14
-            .byte   $AF             ; Stepping Rate Time $A (6ms), Head Unload Time $F (240ms)
-            .byte   $30             ; Head Load Time $30 (48ms)
+HDSTEP:     .byte   $AF             ; Stepping Rate Time $A (6ms), Head Unload Time $F (240ms)
+HDLOAD:     .byte   $30             ; Head Load Time $30 (48ms)
 .else
-            .byte   $DF             ; Stepping Rate Time $D (3ms), Head Unload Time $F (240ms)
-            .byte   $26             ; Head Load Time $26 (38ms)
+HDSTEP:     .byte   $DF             ; Stepping Rate Time $D (3ms), Head Unload Time $F (240ms)
+HDLOAD:     .byte   $26             ; Head Load Time $26 (38ms)
 .endif
 
 RECAL:      .byte   $02             ; Command length 2
@@ -614,7 +618,7 @@ DEFAULTEXT: .byte   "C"             ; Current ASCII default file extension chara
 NUMOVL:     .byte   $11             ; Number of system overlays+1
 CURROVL:    .byte   $00             ; Current overlay number
 
-            .export DEFDRV, NUMFNAMES, DUMPBYTES, DUMPCHANN
+            .export DEFDRV, TOPASSIGTB, NUMFNAMES, DUMPBYTES, DUMPCHANN
 
 DEFDRV:     .byte   $00             ; Current default drive number (Set by DRIVE command).
 TOPASSIGTB: .byte   $4F             ; Top of active files table (6 active files max)
@@ -4637,6 +4641,8 @@ CONT:       lda     BYTRES          ; Get result
 ; Evaluate expression from command line and store it into P0SCRATCH,X
 ;
 ; Y contains current index into command line
+
+; Returns carry clear if no valid digit was converted, carry set otherwise
 ;
             .export EVALEXP
 
