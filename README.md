@@ -26,9 +26,9 @@ There are also some system utilities which make the OS minimally useful:
 
 ## Current status
 
-* `CODOS.Z`, `COMDPROC.Z`, `SVCPROC.Z`, `OVERLAYS`, `STARTUP.J`, `SYSERRMSG.Z`, `DIR.C`, `FORMAT.C` and `COPYF1DRIVE.C` are completed.
+* `CODOS.Z`, `COMDPROC.Z`, `SVCPROC.Z`, `OVERLAYS`, `STARTUP.J`, `SYSERRMSG.Z`, `DIR.C`, `FORMAT.C`, `COPYF.C` and `COPYF1DRIVE.C` are completed.
 * `IODRIVER.Z` is disassembled, partially annotated and builds from source, but it is far from complete. All the credit for `IODRIVER.Z` goes to [Michał Staręga](https://github.com/McGyverMauser98k/MTU-130-CODOS), who figured out the internal structure of the driver.
-* `COPYF.C`, `SYSGENDISK.C` and `SYSGENDEVICE.C` are not even started.
+* `SYSGENDEVICE.C` is not even started.
 
 ## Why?
 
