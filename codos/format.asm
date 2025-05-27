@@ -495,7 +495,7 @@ SETMBUF:    lda     LBUFADDR,x      ;
             sta     NBYTES+1        ;
             sbc     LBUFSIZE+1      ; Substract LBUFSIZE+1 (plus borrow)
             bcc     GETFPOS         ; If read less than LBUFSIZE bytes, skip
-            lda     #FLNORMAL       ; Set "More bytes to read" flag 
+            lda     #$80            ; Set "More bytes to read" flag 
             sta     MORETORD        ;
                                     ; Get position relative to of first data byte
 GETFPOS:    lda     CURFINFO+FINFO::FPOS 
