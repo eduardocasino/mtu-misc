@@ -1904,7 +1904,7 @@ ISWRT:      inc     WRERRCNT        ; Increment write error count
             jsr     DRVVALIDO       ; Check that drive X is valid and open
             lda     #$0C            ; Track $0C holds directory info
             jsr     CKSEEKTRK       ;
-            lda     #$94            ; Set transfer buffer to $E500 (Directory buffer)
+            dma     A, DIRBUF       ; Set DMA transfer buffer to $E500 (Directory buffer)
             sta     CURFINFO+FINFO::DMABF
             lda     SECTNUM         ; If this is non-zero
             bne     PTR12RET        ;   just return
