@@ -22,7 +22,8 @@
             .addr   START           ; Load address
             .word   PROG_SIZE       ; Memory image size
 
-START:      lda     #$00            ; Unprotect SYSRAM
+.proc START
+            lda     #$00            ; Unprotect SYSRAM
             sta     HSRCW           ;
             cld
             sta     MORETORD        ; Clear the "More bytes to read" flag
@@ -51,7 +52,7 @@ GETFIL:     ldx     #$00            ; Open drive 0
             ldy     #$00            ; Ge file and drive from command line
             jsr     GETFILNDRV      ;
             jsr     FOPEN0          ; Assign file to channel 0
-.if CODOS2_VER <> 14
+.if ::CODOS2_VER <> 14
             ; CODOS 1.5 fix
             ;
             ; Gets and stores the terminator byte of the source file date
@@ -122,7 +123,7 @@ CHKCOMPLTD: ldx     #$00            ; Close drive 0
             jsr     OPENDRV         ;
             jsr     ASSIGN0         ; Assign file to channel 0
             bit     NOT1STCHUNK     ; Check if it is the first file chunk
-.if CODOS2_VER = 14
+.if ::CODOS2_VER = 14
             bpl     WRTECHUNK       ; Yes, go write data to destination
 .else
             bmi     UPDPOSD         ; No, go update destination file pos
@@ -166,7 +167,7 @@ WRTECHUNK:  lda     LBUFADDR        ; Set buffer to large transient buffer
             lda     CURFINFO+FINFO::FPOS+2
             sbc     #$00            ;
             sta     DFILEPOS+2      ;
-.if CODOS2_VER <> 14
+.if ::CODOS2_VER <> 14
             bit     MORETORD        ; Check if more bytes to read
             bmi     GCPYCHUNK       ; Yes, go get them
             ldx     #$00            ; No, truncate destination file
@@ -179,7 +180,7 @@ FEXISTS:    jsr     OUTSTR
             .byte   $0D, $00
 .endif
             jmp     CPYCHUNK        ; Jump for next file
-
+.endproc
 
 ; Print message asking for source disk
 ;
