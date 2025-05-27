@@ -19,14 +19,16 @@ There are also some system utilities which make the OS minimally useful:
 
 * DIR.C: To print a more or less detailed directory listing.
 * FORMAT.C: You guessed it, formats disks and also transfer system files.
+* COPYF.C: Copies files to another disk with more than one drive.
+* COPYF1DSK.C: Copies files to another disk with only one drive.
 * SYSGENDISK.C: Generates a customised boot disk adapted to the system capabilities (like number of floppy drives)
 * SYSGENDEVICE.C: Generates new device drivers.
 
 ## Current status
 
-* `CODOS.Z`, `COMDPROC.Z`, `SVCPROC.Z`, `OVERLAYS`, `STARTUP.J`, `SYSERRMSG.Z`, `DIR.C` and `FORMAT.C` are completed.
+* `CODOS.Z`, `COMDPROC.Z`, `SVCPROC.Z`, `OVERLAYS`, `STARTUP.J`, `SYSERRMSG.Z`, `DIR.C`, `FORMAT.C` and `COPYF1DRIVE.C` are completed.
 * `IODRIVER.Z` is disassembled, partially annotated and builds from source, but it is far from complete. All the credit for `IODRIVER.Z` goes to [Michał Staręga](https://github.com/McGyverMauser98k/MTU-130-CODOS), who figured out the internal structure of the driver.
-* `SYSGENDISK.C` and `SYSGENDEVICE.C` are not even started.
+* `COPYF.C`, `SYSGENDISK.C` and `SYSGENDEVICE.C` are not even started.
 
 ## Why?
 

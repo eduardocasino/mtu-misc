@@ -4869,6 +4869,8 @@ RETOK:      clc                     ; Return OK
 
 ; Assigns default input device and set input buffer
 ;
+            .export DEFSETINPB
+
 .proc DEFSETINPB
             lda     #$00            ;
             ldx     CHANN1          ; Get input channel device
@@ -4933,6 +4935,8 @@ CONT:       ldy     #$00            ;
 
 ; Assigns default output device and set output buffer
 ;
+            .export DEFSETOUTB
+
 .proc DEFSETOUTB
             lda     #$00            ; Get and clear channel 2 device or file
             ldx     CHANN2          ; and save it in X
