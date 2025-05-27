@@ -6,6 +6,7 @@ SYMBOLS {
     __USRRAM   : type = export, value = $C000;
     __SYSRAM   : type = export, value = $E000;
 
+    # 
     # Large transient buffer for COPYF, ETC.
     #
     __LBUFADDR : type = export, value = $A000;
@@ -16,6 +17,10 @@ SYMBOLS {
     __SYSUTILS : type = export, value = __LBUFADDR + __LBUFSIZE;
     __SYSUSIZE : type = export, value = __LBUFADDR + $2000 - __SYSUTILS;
 
+    # Available RAM for Applications
+    __APPSADDR  : type = export, value = $0700;
+    __APPSSIZE  : type = export, value = __SYSUTILS + __SYSUSIZE - __APPSADDR;
+    
     # Low RAM
     #
     __LOWRAM   : type = export, value = $0400;
