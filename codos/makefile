@@ -1,11 +1,11 @@
-TARGET ?= MTU
+ARCH ?= MTU
 
 VERSIONS = 14 15 17
 
 AS = $(CC65)ca65
 LD = $(CC65)ld65
 
-AFLAGS = -U -D $(TARGET)
+AFLAGS = -U -D $(ARCH)
 
 define newline
 
@@ -28,17 +28,23 @@ FILESYSTEM = $(VERSIONS:%=build/%/codos.z) \
 
 IMAGES = $(VERSIONS:%=images/codos%.imd)
 
-all: info tests
+ifeq ("$(wildcard system_$(ARCH).map)","")
+    $(error #### UNSUPPORTED ARCH >>> $(ARCH) <<< ####)
+endif
 
+all: info tests
+	
 info:
-	$(info #### BUILDING FOR TARGET >>> $(TARGET) <<< ####)
+	$(info #### BUILDING FOR ARCH >>> $(ARCH) <<< ####)
 
 images: $(IMAGES)
 
 tests: images
-	@echo "MD5SUM"
-	@$(foreach ver,$(VERSIONS),bash -c "cd build/$(ver); echo -n \"Version $(ver): \"; \
+ifeq ($(ARCH), MTU)
+	echo "MD5SUM"
+	$(foreach ver,$(VERSIONS),bash -c "cd build/$(ver); echo -n \"Version $(ver): \"; \
 			(md5sum --quiet -c ../../checksums$(ver).md5 && echo \"OK.\")";)
+endif
 
 $(foreach ver,$(VERSIONS),$(eval images/codos$(ver).imd: build/$(ver)/codos.z build/$(ver)/overlays.bin build/$(ver)/syserrmsg.z build/$(ver)/startup.j build/$(ver)/dir.c build/$(ver)/sysgendisk.c build/$(ver)/format.c build/$(ver)/copyf.c build/$(ver)/copyf1drive.c \
 	; echo "CODOSDSK $$@" \
@@ -64,7 +70,7 @@ $(foreach ver,$(VERSIONS),$(eval build/$(ver)/symbols.inc: build/$(ver)/codos.z 
 	; echo "SYMBOLS $$@" \
 	; ./symbols.py --mapfile build/$(ver)/codos.z.map > build/$(ver)/symbols.inc))
 
-$(foreach ver,$(VERSIONS),$(eval build/$(ver)/%.cfg: system_$(TARGET).map %.cfg.in \
+$(foreach ver,$(VERSIONS),$(eval build/$(ver)/%.cfg: system_$(ARCH).map %.cfg.in \
 	; echo "CFG $$@" \
 	; echo "## AUTOMATICALLY GENERATED, DO NOT MODIFY!!!!" > $$@ \
 	; cat $$^ | sed -e 's/%%VERSION%%/$(ver)/' >> $$@))
