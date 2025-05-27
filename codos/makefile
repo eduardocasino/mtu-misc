@@ -1,7 +1,11 @@
+TARGET ?= MTU
+
 VERSIONS = 14 15 17
 
 AS = $(CC65)ca65
 LD = $(CC65)ld65
+
+AFLAGS = -U -D $(TARGET)
 
 define newline
 
@@ -22,7 +26,10 @@ FILESYSTEM = $(VERSIONS:%=build/%/codos.z) \
 
 IMAGES = $(VERSIONS:%=images/codos%.imd)
 
-all: tests
+all: info tests
+
+info:
+	$(info #### BUILDING FOR TARGET >>> $(TARGET) <<< ####)
 
 images: $(IMAGES)
 
@@ -53,9 +60,10 @@ $(foreach ver,$(VERSIONS),$(eval build/$(ver)/symbols.inc: build/$(ver)/codos.z 
 	; echo "SYMBOLS $$@" \
 	; ./symbols.py --mapfile build/$(ver)/codos.z.map > build/$(ver)/symbols.inc))
 
-$(foreach ver,$(VERSIONS),$(eval build/$(ver)/codos.cfg: codos.cfg.in \
-	; echo "SED $$@" \
-	; sed -e 's/%%VERSION%%/$(ver)/' < $$< > $$@))
+$(foreach ver,$(VERSIONS),$(eval build/$(ver)/codos.cfg: system_$(TARGET).map codos.cfg.in \
+	; echo "CFG $$@" \
+	; echo "## AUTOMATICALLY GENERATED, DO NOT MODIFY!!!!" > $$@ \
+	; cat $$^ | sed -e 's/%%VERSION%%/$(ver)/' >> $$@))
 
 $(foreach ver,$(VERSIONS),$(eval build/$(ver)/overlay.cfg: overlay.cfg.in \
 	; echo "SED $$@" \
@@ -63,23 +71,23 @@ $(foreach ver,$(VERSIONS),$(eval build/$(ver)/overlay.cfg: overlay.cfg.in \
 
 $(foreach ver,$(VERSIONS),$(eval build/$(ver)/codos.o: codos.asm build/$(ver)/k1013.inc monomeg.inc \
 	; echo "AS $$@" \
-	; $(AS) -U -D CODOS2_VER=$(ver) -I build/$(ver) -l $(basename $$@).lst -o $$@ $$<))
+	; $(AS) $(AFLAGS) -D CODOS2_VER=$(ver) -I build/$(ver) -l $(basename $$@).lst -o $$@ $$<))
 
 $(foreach ver,$(VERSIONS),$(eval build/$(ver)/comdproc.o: comdproc.asm build/$(ver)/k1013.inc monomeg.inc \
 	; echo "AS $$@" \
-	; $(AS) -U -D CODOS2_VER=$(ver) -I build/$(ver) -l $(basename $$@).lst -o $$@ $$<))
+	; $(AS) $(AFLAGS) -D CODOS2_VER=$(ver) -I build/$(ver) -l $(basename $$@).lst -o $$@ $$<))
 
 $(foreach ver,$(VERSIONS),$(eval build/$(ver)/svcproc.o: svcproc.asm build/$(ver)/k1013.inc \
 	; echo "AS $$@" \
-	; $(AS) -U -D CODOS2_VER=$(ver) -I build/$(ver) -l $(basename $$@).lst -o $$@ $$<))
+	; $(AS) $(AFLAGS) -D CODOS2_VER=$(ver) -I build/$(ver) -l $(basename $$@).lst -o $$@ $$<))
 
 $(foreach ver,$(VERSIONS),$(eval build/$(ver)/iodriver.o: iodriver.asm monomeg.inc \
 	; echo "AS $$@" \
-	; $(AS) -U -D CODOS2_VER=$(ver) -I build/$(ver) -l $(basename $$@).lst -o $$@ $$<))
+	; $(AS) $(AFLAGS) -D CODOS2_VER=$(ver) -I build/$(ver) -l $(basename $$@).lst -o $$@ $$<))
 
 $(foreach ver,$(VERSIONS),$(eval build/$(ver)/%.o: %.asm build/$(ver)/symbols.inc build/$(ver)/k1013.inc \
 	; echo "AS $$@" \
-	; $(AS) -U -D CODOS2_VER=$(ver) -I build/$(ver) -l $(basename $$@).lst -o $$@ $$<))
+	; $(AS) $(AFLAGS) -D CODOS2_VER=$(ver) -I build/$(ver) -l $(basename $$@).lst -o $$@ $$<))
 
 $(foreach ver,$(VERSIONS),$(eval \
 OVERLAYS =	build/$(ver)/overlay01.bin \
@@ -110,7 +118,7 @@ $(foreach ver,$(VERSIONS),$(eval build/$(ver)/overlay%.bin: build/$(ver)/overlay
 
 $(foreach ver,$(VERSIONS),$(eval build/$(ver)/overlay%.o: overlay%.asm build/$(ver)/k1013.inc build/$(ver)/symbols.inc monomeg.inc \
 	; echo "AS $$@" \
-	; $(AS) -U -D CODOS2_VER=$(ver) -I build/$(ver) -l $(basename $$@).lst -o $$@ $$<))
+	; $(AS) $(AFLAGS) -D CODOS2_VER=$(ver) -I build/$(ver) -l $(basename $$@).lst -o $$@ $$<))
 
 $(foreach ver,$(VERSIONS),$(eval build/$(ver)/dir.c: build/$(ver)/dir.o dir.cfg \
 	; echo "LD $$@" \
@@ -118,7 +126,7 @@ $(foreach ver,$(VERSIONS),$(eval build/$(ver)/dir.c: build/$(ver)/dir.o dir.cfg 
 
 $(foreach ver,$(VERSIONS),$(eval build/$(ver)/dir.o: dir.asm build/$(ver)/k1013.inc build/$(ver)/symbols.inc  \
 	; echo "AS $$@" \
-	; $(AS) -U -D CODOS2_VER=$(ver) -I build/$(ver) -l $(basename $$@).lst -o $$@ $$<))
+	; $(AS) $(AFLAGS) -D CODOS2_VER=$(ver) -I build/$(ver) -l $(basename $$@).lst -o $$@ $$<))
 
 $(foreach ver,$(VERSIONS),$(eval build/$(ver)/sysgendisk.c: build/$(ver)/sysgendisk.o sysgendisk.cfg \
 	; echo "LD $$@" \
@@ -126,7 +134,7 @@ $(foreach ver,$(VERSIONS),$(eval build/$(ver)/sysgendisk.c: build/$(ver)/sysgend
 
 $(foreach ver,$(VERSIONS),$(eval build/$(ver)/sysgendisk.o: sysgendisk.asm build/$(ver)/k1013.inc build/$(ver)/symbols.inc  \
 	; echo "AS $$@" \
-	; $(AS) -U -D CODOS2_VER=$(ver) -I build/$(ver) -l $(basename $$@).lst -o $$@ $$<))
+	; $(AS) $(AFLAGS) -D CODOS2_VER=$(ver) -I build/$(ver) -l $(basename $$@).lst -o $$@ $$<))
 
 $(foreach ver,$(VERSIONS),$(eval build/$(ver)/format.c: build/$(ver)/format.o format.cfg \
 	; echo "LD $$@" \
@@ -134,7 +142,7 @@ $(foreach ver,$(VERSIONS),$(eval build/$(ver)/format.c: build/$(ver)/format.o fo
 
 $(foreach ver,$(VERSIONS),$(eval build/$(ver)/format.o: format.asm build/$(ver)/k1013.inc build/$(ver)/symbols.inc  \
 	; echo "AS $$@" \
-	; $(AS) -U -D CODOS2_VER=$(ver) -I build/$(ver) -l $(basename $$@).lst -o $$@ $$<))
+	; $(AS) $(AFLAGS) -D CODOS2_VER=$(ver) -I build/$(ver) -l $(basename $$@).lst -o $$@ $$<))
 
 $(foreach ver,$(VERSIONS),$(eval build/$(ver)/syserrmsg.z: fs/syserrmsg.z  \
 	; echo "CP $$@" \
@@ -146,7 +154,7 @@ $(foreach ver,$(VERSIONS),$(eval build/$(ver)/startup.j: fs/startup.j  \
 
 $(foreach ver,$(VERSIONS),$(eval build/$(ver)/k1013.inc: k1013.asm build/$(ver)/codos.cfg \
 	; echo "SYMBOLS $$@" \
-	; $(AS) -U -D CODOS2_VER=$(ver) -l $(basename $$@).lst -o build/$(ver)/k1013.o $$< \
+	; $(AS) $(AFLAGS) -D CODOS2_VER=$(ver) -l $(basename $$@).lst -o build/$(ver)/k1013.o $$< \
 	; $(LD) -C build/$(ver)/codos.cfg -vm -m $(basename $$@).map -o build/$(ver)/k1013.dat build/$(ver)/k1013.o \
 	; ./symbols.py --mapfile $(basename $$@).map > $$@ ))
 
@@ -155,3 +163,5 @@ clean:
 	rm -rf $(VERSIONS:%=build/%) $(VERSIONS:%=images/*)
 
 .SILENT:
+
+.PHONY: info

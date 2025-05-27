@@ -1,0 +1,39 @@
+# System map configuration for the KIM-1
+#
+SYMBOLS {
+    # K-1013 RAM Banks
+    #
+    __USRRAM   : type = export, value = $C000;
+    __SYSRAM   : type = export, value = $E000;
+
+    # Large transient buffer for COPYF, ETC.
+    #
+    __LBUFADDR : type = export, value = $A000;
+    __LBUFSIZE : type = export, value = $1400;
+
+    # System utilities memory space
+    #
+    __SYSUTILS : type = export, value = __LBUFADDR + __LBUFSIZE;
+    __SYSUSIZE : type = export, value = __LBUFADDR + $2000 - __SYSUTILS;
+
+    # Low RAM
+    #
+    __LOWRAM   : type = export, value = $0400;
+
+    __KEYSTR   : type = export, value = __LOWRAM;       # (256 bytes) Function key table
+    __LEGTBL   : type = export, value = __LOWRAM+$01C0; # (64 bytes) F. key legend table
+    __INPLBUF  : type = export, value = __LOWRAM+$0100; # system input line buffer
+    __OUTLBUF  : type = export, value = __LOWRAM+$0200; # system output line buffer
+
+    # System RAM
+    #
+    __SYSTEM   : type = export, value = $0200;
+
+    __SEEIO    : type = export, value = __SYSTEM+$00F9; # I-O space enable semaphore
+    __NMIPRC   : type = export, value = __SYSTEM+$00FA; # Jump to NMI processor
+    __IRQBRK   : type = export, value = __SYSTEM+$00FD; # Jump to IQR and BRK processor
+    __WARMRS   : type = export, value = __SYSTEM+$0100; # Jump to operating system warm reset entry
+    __CNTRLC   : type = export, value = __SYSTEM+$0103; # Jump executed when CNTRL-C is entered from console
+
+    __EXINBNK  : type = export, value = $0100;           # Location of the exec in bank routine
+}
