@@ -60,7 +60,7 @@ $(foreach ver,$(VERSIONS),$(eval build/$(ver)/symbols.inc: build/$(ver)/codos.z 
 	; echo "SYMBOLS $$@" \
 	; ./symbols.py --mapfile build/$(ver)/codos.z.map > build/$(ver)/symbols.inc))
 
-$(foreach ver,$(VERSIONS),$(eval build/$(ver)/codos.cfg: system_$(TARGET).map codos.cfg.in \
+$(foreach ver,$(VERSIONS),$(eval build/$(ver)/%.cfg: system_$(TARGET).map %.cfg.in \
 	; echo "CFG $$@" \
 	; echo "## AUTOMATICALLY GENERATED, DO NOT MODIFY!!!!" > $$@ \
 	; cat $$^ | sed -e 's/%%VERSION%%/$(ver)/' >> $$@))
@@ -120,25 +120,25 @@ $(foreach ver,$(VERSIONS),$(eval build/$(ver)/overlay%.o: overlay%.asm build/$(v
 	; echo "AS $$@" \
 	; $(AS) $(AFLAGS) -D CODOS2_VER=$(ver) -I build/$(ver) -l $(basename $$@).lst -o $$@ $$<))
 
-$(foreach ver,$(VERSIONS),$(eval build/$(ver)/dir.c: build/$(ver)/dir.o dir.cfg \
+$(foreach ver,$(VERSIONS),$(eval build/$(ver)/dir.c: build/$(ver)/dir.o build/$(ver)/dir.cfg \
 	; echo "LD $$@" \
-	; $(LD) -C dir.cfg -vm -m $(basename $$@).map -o $$@ $$<))
+	; $(LD) -C build/$(ver)/dir.cfg -vm -m $(basename $$@).map -o $$@ $$<))
 
 $(foreach ver,$(VERSIONS),$(eval build/$(ver)/dir.o: dir.asm build/$(ver)/k1013.inc build/$(ver)/symbols.inc  \
 	; echo "AS $$@" \
 	; $(AS) $(AFLAGS) -D CODOS2_VER=$(ver) -I build/$(ver) -l $(basename $$@).lst -o $$@ $$<))
 
-$(foreach ver,$(VERSIONS),$(eval build/$(ver)/sysgendisk.c: build/$(ver)/sysgendisk.o sysgendisk.cfg \
+$(foreach ver,$(VERSIONS),$(eval build/$(ver)/sysgendisk.c: build/$(ver)/sysgendisk.o build/$(ver)/sysgendisk.cfg \
 	; echo "LD $$@" \
-	; $(LD) -C sysgendisk.cfg -vm -m $(basename $$@).map -o $$@ $$<))
+	; $(LD) -C build/$(ver)/sysgendisk.cfg -vm -m $(basename $$@).map -o $$@ $$<))
 
 $(foreach ver,$(VERSIONS),$(eval build/$(ver)/sysgendisk.o: sysgendisk.asm build/$(ver)/k1013.inc build/$(ver)/symbols.inc  \
 	; echo "AS $$@" \
 	; $(AS) $(AFLAGS) -D CODOS2_VER=$(ver) -I build/$(ver) -l $(basename $$@).lst -o $$@ $$<))
 
-$(foreach ver,$(VERSIONS),$(eval build/$(ver)/format.c: build/$(ver)/format.o format.cfg \
+$(foreach ver,$(VERSIONS),$(eval build/$(ver)/format.c: build/$(ver)/format.o build/$(ver)/format.cfg \
 	; echo "LD $$@" \
-	; $(LD) -C format.cfg -vm -m $(basename $$@).map -o $$@ $$<))
+	; $(LD) -C build/$(ver)/format.cfg -vm -m $(basename $$@).map -o $$@ $$<))
 
 $(foreach ver,$(VERSIONS),$(eval build/$(ver)/format.o: format.asm build/$(ver)/k1013.inc build/$(ver)/symbols.inc  \
 	; echo "AS $$@" \

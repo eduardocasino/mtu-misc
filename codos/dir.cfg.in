@@ -1,8 +1,7 @@
 MEMORY {
-    UTILS: start = $B400-$A, size = $A00+$A;
+    UTILS: start = __SYSUTILS-$A, size = __SYSUSIZE+$A;
 }
 SEGMENTS {
     CODE:  load = UTILS, type = rw;
-    DATA:  load = UTILS, type = rw;
     BSS:   load = UTILS, type = bss;
 }

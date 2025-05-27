@@ -1,6 +1,6 @@
 MEMORY {
-    UTILS: start = $B400-$A, size = $8BA+$A;
-    DATA:  start = $BCB0, size = $150;
+    UTILS: start = __SYSUTILS-$A, size = $8C4;
+    DATA:  start = __SYSUTILS+$8BA-$A, size = $146+$A;
 }
 SEGMENTS {
     CODE:  load = UTILS, type = rw;
