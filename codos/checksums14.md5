@@ -6,5 +6,6 @@ e7eb020458631db1cfc4b30ae2667328  syserrmsg.z
 cae32b509d3ad19ef94ba60c3284a03c  dir.c
 4c632e8ff24aac3b0055acafbcdb3fc8  sysgendisk.c
 5d4acd5c2ac0ec792943c3ceb8390213  format.c
+dfedc516991cb26311d14eb54f30278a  copyf.c
 994761001d7447fe7dd40e3e2557752e  copyf1drive.c
 02fd7e53f8bf17a183e307f3e94b13e5  iodriver.z
