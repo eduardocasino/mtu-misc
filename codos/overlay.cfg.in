@@ -1,5 +1,5 @@
 MEMORY {
-    OVERLAYS:   start = $FE00, size = $100;
+    OVERLAYS:   start = __SYSRAM+$1E00, size = $100;
 }
 SEGMENTS {
     overlays:   load = OVERLAYS, type = rw;
