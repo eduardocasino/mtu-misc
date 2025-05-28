@@ -139,7 +139,7 @@ $(foreach ver,$(VERSIONS),$(eval build/$(ver)/k1013.inc: k1013.asm build/$(ver)/
 
 clean:
 	echo "CLEAN"
-	rm -rf $(VERSIONS:%=build/%) $(VERSIONS:%=images/*)
+	rm -rf $(VERSIONS:%=build/%) $(VERSIONS:%=images/codos%.imd)
 
 .SILENT:
 
