@@ -28,6 +28,7 @@ FILESYSTEM = 	codos.z \
 				$(IODRIVER).z \
 				overlays.bin \
 				dir.c \
+				kill.c \
 				format.c \
 				copyf.c \
 				copyf1drive.c \
@@ -80,6 +81,7 @@ $(foreach ver,$(VERSIONS),$(eval images/codos$(ver).imd: $(addprefix build/$(ver
 	; ../utils/codosdsk copy images/codos$(ver).imd build/$(ver)/$(IODRIVER).z 0:$(IODRIVER).z \
 	; ../utils/codosdsk copy images/codos$(ver).imd build/$(ver)/sysgendisk.c 0:sysgendisk.c \
 	; ../utils/codosdsk copy images/codos$(ver).imd build/$(ver)/dir.c 0:dir.c \
+	; ../utils/codosdsk copy images/codos$(ver).imd build/$(ver)/kill.c 0:kill.c \
 	; ../utils/codosdsk copy images/codos$(ver).imd build/$(ver)/format.c 0:format.c \
 	; ../utils/codosdsk copy images/codos$(ver).imd build/$(ver)/copyf.c 0:copyf.c \
 	; ../utils/codosdsk copy images/codos$(ver).imd build/$(ver)/copyf1drive.c 0:copyf1drive.c))

@@ -4,6 +4,7 @@ fbbdf04aed0515acb392145f773ff3b2  svcproc.z
 e7eb020458631db1cfc4b30ae2667328  syserrmsg.z
 7eb19c1fbd09cdad2baea0580fe51384  overlays.bin
 cae32b509d3ad19ef94ba60c3284a03c  dir.c
+a3e6714babecf1eefc399f955d4dc426  kill.c
 4c632e8ff24aac3b0055acafbcdb3fc8  sysgendisk.c
 5d4acd5c2ac0ec792943c3ceb8390213  format.c
 dfedc516991cb26311d14eb54f30278a  copyf.c
