@@ -1108,10 +1108,14 @@ FILETBL:    .byte   "CODOS.Z"
             .byte   "SVCPROC.Z"
             .byte   "STARTUP.J"
             .byte   "DIR.C"
+.ifndef kim1
             .byte   "IODRIVER.Z"
 .if CODOS2_VER <> 14
             .byte   "GRAPHDRIVER.Z"
             .byte   "PRINTDRIVER.Z"
+.endif
+.else
+            .byte   "KIMIOTTY.Z"
 .endif
             .byte   $00
 
