@@ -6,7 +6,9 @@
 
             .setcpu "6502"
 
+.ifdef mtu
             .include "monomeg.inc"
+.endif
             .include "symbols.inc"
             .include "codos.inc"
 
@@ -79,21 +81,27 @@ STOR:       jsr     SETBYTE         ; Store byte
 ;
 .proc SETBYTE
             sta     SAVEAX          ; Save byte
+.ifdef ::mtu
             lda     NEWBNK          ; Get <from> bank
             bne     CONT            ; It is not bank 0
+.endif
             jsr     CHKVALID        ; Check if <from> is valid. Does not return if not.
+.ifdef ::mtu
             lda     NEWBNK          ; Get <from> bank again (which is 0)
 CONT:       eor     DEFBNKCFG       ; Switch to NEWBNK
             sta     BNKCTL          ;
+.endif
             lda     SAVEAX          ; Recover byte
             stx     SAVEAX          ; Save X
             ldx     #$00            ; Store byte to destination
             sta     (MEMBUFF,x)     ;
             cmp     (MEMBUFF,x)     ; And verify there was no error
+.ifdef ::mtu
             php                     ; Save comparison status
             lda     DEFBNKCFG       ; Restore bank settings
             sta     BNKCTL          ;
             plp                     ; Recover comparison status
+.endif
             beq     CHKOK           ; Same value, check ok
             jsr     ERROR23         ; Memory verify failure during SET or FILL
 CHKOK:      inc     MEMBUFF         ; Advance to next memory position
@@ -169,6 +177,7 @@ RETURN:     rts
             rts
 .endproc
 
+.ifdef mtu
             ; This block is just junk that was in the buffer when
             ; writing it to disk. I leave it to facilitate checksum
             ; comparisons with the original
@@ -178,3 +187,5 @@ RETURN:     rts
             .byte   $69, $30, $91, $CD, $4C, $A7, $FE, $60 
             .byte   $20, $68, $D9, $A2, $01, $4C, $94, $F5 
             .byte   $D7, $FE, $00, $FE, $60, $00, $00, $1E
+.endif
+            .end

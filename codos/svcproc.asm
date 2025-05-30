@@ -58,7 +58,7 @@ FNPTRT:     .word   PRCODOS         ; Show registers, enter CODOS monitor
             .word   GETARGS         ; Obtain line buffers and argument index
             .word   CMDEXEC         ; Execute any CODOS Monitor command
             .word   ISASSIGNED      ; Determine if channel is assigned or available
-.ifndef KIM1
+.ifndef kim1
             .word   RDRECORD        ; Read a record from a channel
             .word   WRRECORD        ; Write a record to a channel
 .else
@@ -283,7 +283,7 @@ COPY:       lda     INPLBUF,x       ;
             rts
 .endproc
 
-.ifndef KIM1
+.ifndef kim1
 
 ; SVC 15 - Read a record from a channel.
 ;
@@ -302,8 +302,10 @@ COPY:       lda     INPLBUF,x       ;
 ; NOTE: At SVC entry, U1 and U2 are copied to MEMBUFF and MEMCOUNT
 ;
 .proc RDRECORD
+.ifdef ::mtu
             lda     DATBANK         ; Set data bank as destination bank
             sta     DSTBANK         ;
+.endif
             jmp     GETMBUFF        ; Get MEMCOUNT characters from file/device A into (MEMBUFF)
             ; Not reached
 .endproc
@@ -324,8 +326,10 @@ COPY:       lda     INPLBUF,x       ;
 ; NOTE: At SVC entry, U1 and U2 are copied to MEMBUFF and MEMCOUNT
 ;
 .proc WRRECORD
+.ifdef mtu
             lda     DATBANK         ; Set data bank as destination bank
             sta     DSTBANK         ;
+.endif
             jmp     OUTMBUFF        ; Print MEMCOUNT characters from (MEMBUFF) to channel X
             ; Not reached
 .endproc
@@ -644,7 +648,7 @@ CINDEX:     .byte $00               ; Index in command line
 ;
 .proc ENDSVC23
             sta     PCSAVE+1        ; Finish to recover PCSAVE
-.ifndef ::KIM1
+.ifdef ::mtu
             lda     #$00            ; Set default program bank
             sta     PRGBANK         ;
 .if ::CODOS2_VER = 17

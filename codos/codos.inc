@@ -9,16 +9,16 @@
 CODOS2_VER  = 15
 .endif
 
-.if .defined(SIM1)
+.if .defined(sim1)
 RELEASE     = $10                   ; Release level of CODOS
 SYSTEM      = 5                     ; SYM-1 with 8-inch floppy disk(s)
-.elseif .defined(PET)
+.elseif .defined(pet)
 RELEASE     = $10                   ; Release level of CODOS
 SYSTEM      = 4                     ; PET or CBM with 8-inch floppy disk
-.elseif .defined(AIM65)
+.elseif .defined(aim65)
 RELEASE     = $10                   ; Release level of CODOS
 SYSTEM      = 3                     ; AIM-65 with 8-inch floppy disk(s)
-.elseif .defined(KIM1)
+.elseif .defined(kim1)
 RELEASE     = $10                   ; Release level of CODOS
 SYSTEM      = 2                     ; KIM-1 with 8-inch floppy disk(s)
 .else

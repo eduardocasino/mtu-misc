@@ -151,9 +151,12 @@ FEXT:       lda     DIRBUF+2,x      ; Store extension name
 RETURN:     rts
 .endproc
 
+.ifdef mtu
             ; This block is just junk that was in the buffer when
             ; writing it to disk. I leave it to facilitate checksum
             ; comparisons with the original
             ;
             .byte   $20, $68, $D9, $A2, $01, $4C, $94, $F5
             .byte   $D7, $FE, $00, $FE, $60, $00, $00, $1E
+.endif
+            .end

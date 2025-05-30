@@ -101,6 +101,7 @@ NEXT:       dey                     ; Decrement block slot
 
 DRIVE:      .byte   $00             ; Drive we are processing
 
+.ifdef mtu
             ; This block is just junk that was in the buffer when
             ; writing it to disk. I leave it to facilitate checksum
             ; comparisons with the original
@@ -116,3 +117,5 @@ DRIVE:      .byte   $00             ; Drive we are processing
             .byte   $F9, $20, $50, $FA, $20, $3D, $20, $00
             .byte   $60, $00, $00, $7F, $7F, $FE, $7B, $FE
             .byte   $88, $FE, $95, $FE, $B4, $FE, $E0, $FE
+.endif
+            .end

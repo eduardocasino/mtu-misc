@@ -161,10 +161,14 @@ SAVEX:      .byte   $00
             ; comparisons with the original
             ;
 .else
+.ifdef mtu
             .byte             $BD, $2A, $E6, $91, $CD, $C8
             .byte   $20, $D1, $F9, $4C, $6C, $FE, $8C, $93
             .byte   $02, $AE, $90, $02, $20, $A8, $EF, $20
 .endif
+.endif
+
+.ifdef mtu
             .byte   $E3, $EE, $20, $1C, $F8, $A9, $94, $85
             .byte   $E7, $20, $D0, $EF, $20, $B5, $ED, $AC
             .byte   $93, $02, $A2, $00, $BD, $01, $E5, $91
@@ -174,3 +178,5 @@ SAVEX:      .byte   $00
             .byte   $69, $30, $91, $CD, $4C, $A7, $FE, $60
             .byte   $20, $68, $D9, $A2, $01, $4C, $94, $F5
             .byte   $D7, $FE, $00, $FE, $60, $00, $00, $1E
+.endif
+            .end

@@ -6,7 +6,9 @@
 
             .setcpu "6502"
 
+.ifdef mtu
             .include "monomeg.inc"
+.endif
             .include "symbols.inc"
             .include "codos.inc"
 
@@ -31,9 +33,11 @@ MAXSTRLEN = $0B
 ;
 .proc HUNT
             jsr     GADDRBNKMB      ; Get <from> address:bank and store into MEMBUFF and NEWBNK
+.ifdef ::mtu
             lda     NEWBNK          ; Get <from> bank
             eor     DEFBNKCFG       ;
             sta     FROMBANK        ; And save it
+.endif
             jsr     GETTOP          ; Get <to> from command line and store into MEMCOUNT
             lda     MEMCOUNT        ; Convert MEMCOUNT to offset and store into TMPBUFP
             sec                     ;
@@ -113,8 +117,11 @@ GSRCH:      stx     SRCHSTRLEN      ; Store current string length
             cpx     #$00            ; If empty
             beq     MISERR          ; Missing arg
 
-SRCHPG:     ldx     FROMBANK        ; Set memory bank
+SRCHPG:
+.ifdef ::mtu
+            ldx     FROMBANK        ; Set memory bank
             stx     BNKCTL          ;
+.endif
             ldy     #$00            ; Init buffer index
             ldx     #$00            ; Init search string index
 CPBYTE:     lda     (DESTBUFF),y    ; Compare bytes
@@ -131,8 +138,10 @@ BMATCH:     iny                     ; Match, advance to next pos
 
             ; Print match
 
+.ifdef ::mtu
             ldx     DEFBNKCFG       ; Restore default bank
             stx     BNKCTL          ;
+.endif
             ldy     #$00            ; Set index to (OUTBUFP) to 0
             ldx     #_DESTBUFF      ; Set HEXENCOD to DESTBUFF
             jsr     HEXENCOD        ; Converts word at P0SCRATCH,x into 4-char ascii hex
@@ -154,8 +163,11 @@ ISENDP:     lda     TMPBUFP         ; Check if we've reached the end of page
 DCOUNT:     dec     TMPBUFP         ;
             jmp     SRCHPG          ; Search in new page
 
-RETURN:     ldx     DEFBNKCFG       ; Restore default bank
+RETURN:
+.ifdef ::mtu
+            ldx     DEFBNKCFG       ; Restore default bank
             stx     BNKCTL          ;
+.endif
             rts                     ; And return
 .endproc
 
@@ -163,9 +175,11 @@ RETURN:     ldx     DEFBNKCFG       ; Restore default bank
             ; writing it to disk. They should really be .res directives, but I leave
             ; them here to facilitate checksum comparisons with the original
             ;
+.ifdef mtu
 FROMBANK:   .byte   $C7             ; .res 1
+.endif
 SRCHSTRLEN: .byte   $AE             ; .res 1 - Serach string length
 WILDCARDP:  .byte   $D8             ; .res 1 - Position of the wildcard in the string
 SRCHSTR:    .byte   $E6, $8E, $E0, $BF, $60, $7F, $7F, $60, $00, $00, $1E
                                     ; .res 11 - Search string
-
+            .end

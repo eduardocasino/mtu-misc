@@ -6,7 +6,9 @@
 
             .setcpu "6502"
 
+.ifdef mtu
             .include "monomeg.inc"
+.endif
             .include "symbols.inc"
             .include "codos.inc"
 
@@ -33,11 +35,15 @@
 BADDST:     jsr     ERROR27         ; <destination> address missing or illegal
             ; Not reached
 
-CONT:       lda     NEWBNK          ; Get bank of starting address
+CONT:       
+.ifdef ::mtu
+            lda     NEWBNK          ; Get bank of starting address
             eor     DEFBNKCFG       ;
             sta     FROMBANK        ; Save it
             sta     DESTBANK        ; And set also as default for destination
+.endif
             jsr     GETNEXTNB       ; Get next non-blank from command line
+.ifdef ::mtu
             beq     ARGSDONE        ; If no more, continue
             cmp     COLON           ; Is it the bank delimiter? 
             bne     BADDST          ; No, bad destination address
@@ -48,7 +54,9 @@ CONT:       lda     NEWBNK          ; Get bank of starting address
             bcs     BADDST          ; No, bad destination
             eor     DEFBNKCFG       ; Set as destination bank
             sta     DESTBANK        ;
-
+.else
+            bne     BADDST
+.endif
 ARGSDONE:   jsr     GETCOUNT        ; Get number of bytes to copy
             bcs     CDIST           ; If not negative, continue
             jsr     ERROR16         ; <from> address greater than <to> address
@@ -142,37 +150,54 @@ CFRET:      jsr     COPYFWD         ; Copy last byte
 ; Copy byte backwards from <to> bank:address,y to <dest>+count bank:address,y
 ;
 .proc COPYBCK
+.ifdef ::mtu
             ldx     FROMBANK        ; Switch to source bank
             stx     BNKCTL          ;
+.endif
             lda     (MEMCOUNT),y    ; Read byte from address,y
+.ifdef ::mtu
             ldx     DESTBANK        ; Switch to dest bank
             stx     BNKCTL          ;
+.endif
             sta     (MEMBUFF),y     ; Store byte into address,y
+.ifdef ::mtu
             ldx     DEFBNKCFG       ; Switch to default bank
             stx     BNKCTL          ;
+.endif
             rts
 .endproc
 
 ; Copy byte forwards from <from> bank:address to dest bank:address
 ;
 .proc COPYFWD
+.ifdef ::mtu
             ldx     FROMBANK        ; Switch to source bank
             stx     BNKCTL          ;
+.endif
             lda     (MEMBUFF),y     ; Read byte from source address,y
+.ifdef ::mtu
             ldx     DESTBANK        ; Switch to dest bank
             stx     BNKCTL          ;
+.endif
             sta     (TMPBUFP),y     ; Store byte into dest address,y
+.ifdef ::mtu
             ldx     DEFBNKCFG       ; Switch to default bank
             stx     BNKCTL          ;
+.endif
             rts
 .endproc
 
+.ifdef mtu
 FROMBANK:      .byte   $7F
 DESTBANK:      .byte   $7F
+.endif
 BYTCOUNT:      .word   $0060
 
+.ifdef mtu
             ; These two bytes are just junk that was in the buffer when
             ; writing it to disk. I leave it to facilitate checksum
             ; comparisons with the original
             ;
             .byte   $00, $1E
+.endif
+            .end

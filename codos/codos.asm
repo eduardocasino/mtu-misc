@@ -6,27 +6,39 @@
 ; Input file: codos.bin
 ; Page:       1
 
+.ifdef mtu
             .include "monomeg.inc"
+.endif
             .include "codos.inc"
 
             .importzp QLN
 
+.ifdef mtu
+
 EXINBNK     := __EXINBNK            ; Location of the exec in bank routine
-            
-            .export SEEIO, CNTRLC
+
+            .export SEEIO
 
 SEEIO       := __SEEIO              ; I-O space enable semaphore
+
+.endif ; MTU
+
+            .export CNTRLC
+
 NMIPRC      := __NMIPRC             ; Jump to NMI processor
 IRQBRK      := __IRQBRK             ; Jump to IQR and BRK processor
 WARMRS      := __WARMRS             ; Jump to operating system warm reset entry
 CNTRLC      := __CNTRLC             ; Jump executed when CNTRL-C is entered from console
 
-; RELEVANT KEYBOARD AND TEXT DISPLAY DRIVER ENTRY POINTS
-;
+.ifdef mtu
+            ; Relevant keyboard and text display driver entry points
+            ;
             .export KEYSTR, LEGTBL
 
 KEYSTR      := __KEYSTR             ; (256 bytes) Function key substitute string table
 LEGTBL      := __LEGTBL             ; (64 bytes) Function key legend table
+
+.endif ; MTU
 
             ;   Disk Controller Registers
             ;
@@ -78,7 +90,9 @@ FILEPOS:    .res 3                  ; $CF-$D1 (24 bit) File position. Also used 
             ; This memory area is shared by the switch bank and exec routine and as
             ; a temporary storage space for different routines
 
+.ifdef mtu
 SWITCHNJMP:
+.endif
 L00D2:      .res 1                  ; $D2  $D2-$D9 is a temporary area
             .res 1                  ; $D3       with different uses, like
 TMPVAL:     .res 2                  ; $D4-$D5       the switch and jump routine
@@ -326,13 +340,14 @@ YREG:       .byte   $00             ; Y
 XREG:       .byte   $00             ; X
 ACCUM:      .byte   $00             ; Accumulator
 
+.ifdef mtu
             .export PRGBANK, DATBANK, DSTBANK
 
-PRGBANK:    .BYTE   $00             ; Current program bank
-DATBANK:    .BYTE   $00             ; Current data bank
-BNKCFG:     .BYTE   $00             ; Current bank configuration
-SVCSTAT:    .BYTE   $00             ; SVC status (enabled/disables) at interrupt?
-DSTBANK:    .BYTE   $00             ; Destination bank num for memory copy operations?
+PRGBANK:    .byte   $00             ; Current program bank
+DATBANK:    .byte   $00             ; Current data bank
+BNKCFG:     .byte   $00             ; Current bank configuration
+SVCSTAT:    .byte   $00             ; SVC status (enabled/disabled) at interrupt?
+DSTBANK:    .byte   $00             ; Destination bank num for memory copy operations?
 DSTBNKCFG:  .byte   $7F             ; Destination bank config
 
             .export NEWBNK, CHGBNKFLG, SVDFROMBNK, SVDDESTBNK
@@ -342,9 +357,17 @@ CHGBNKFLG:  .byte   $00             ; If set, switches to NEWBNK
 SVDFROMBNK: .byte   $00             ; Bank for saved file <from> bank
 SVDDESTBNK: .byte   $00             ; Bank for saved file <dest> bank
 
-            .export DEFBNKCFG, DEVICE
+            .export DEFBNKCFG
 
 DEFBNKCFG:  .byte   $7F             ; Default bank configuration
+
+.else ; !MTU
+
+SVCSTAT:    .byte   $00             ; SVC status (enabled/disabled) at interrupt?
+
+.endif
+            .export DEVICE
+
 CHANNEL:    .byte   $00             ; Current channel for I/O operations
 DEVICE:     .byte   $00             ; Current device/file for I/O operations
 
@@ -654,9 +677,10 @@ SAVECH:     .byte   $00             ; Used for temporary save character in I/O f
 
 ; Breakpoint table
 
+
             .export BPBANK, BPADDRLO, BPADDRHI, BPOP
 
-BPBANK:     .byte   $FF             ; Breakpoint bank
+BPBANK:     .byte   $FF             ; Breakpoint bank or BP set flag
             .byte   $FF             ;
             .byte   $FF             ;
 BPADDRLO:   .byte   $00             ; Breakpoint address (LSB)
@@ -710,15 +734,20 @@ CONT:       jmp     WARMST          ; Continue to warm start
 .proc SYSINIT
             ldx     #$00            ; Set DMA direction bit to read
             stx     HSRCW           ;
+.ifdef mtu
             stx     PRGBANK         ; Init current program bank
             stx     DATBANK         ; Init current data bank
+.endif
             stx     ERRNUM          ; Init error number
             stx     OVLORG          ; Init overlays
             stx     DEFDRV          ; Init default drive
+.ifdef mtu
             lda     #$7F            ; Bank 0, write disable $8000 to $BFFF 
             sta     DEFBNKCFG       ; 
             jsr     INIMMAP
-
+.else
+            jsr     CLEARBRK
+.endif
             lda     #$EA            ; Init the JPOSTERR jump with NOPs
             ldx     #$02            ;
 LOOP1:      sta     JPOSTERR,x      ;
@@ -802,7 +831,7 @@ LOOP:       tya                     ; Close drive
 ; Interrupt service routine
 ;
 .proc INTSRV
-           lda     #$00            ; Unprotect K-1013 SYSRAM
+            lda     #$00            ; Unprotect K-1013 SYSRAM
             sta     HSRCW           ;
             sta     NMIFLAG         ; Clear NMI flag
             ; Fall through
@@ -849,6 +878,7 @@ LOOP:       tya                     ; Close drive
             cld
             tsx                     ; Save stack pointer on entry
             stx     STACKP          ;
+.ifdef mtu
             lda     BNKCTL          ; Save current I/O and bank config
             sta     BNKCFG          ;
             and     #$03            ; Save current data bank
@@ -864,6 +894,9 @@ LOOP:       tya                     ; Close drive
             ora     #$0F            ;
             sta     DEFBNKCFG       ;
             jsr     INIMMAP         ;
+.else ; MTU
+            jsr     CLEARBRK
+.endif ; ! MTU
             lda     INTSVA          ; 
             sta     ACCUM
             bit     IRQFLAG         ; Is it an IRQ?
@@ -872,9 +905,14 @@ LOOP:       tya                     ; Close drive
             sec                     ; Set the "print registers at BP, not at error"
             ror     PRBPREGS        ;   flag
             ldx     #$02            ; Check which Break Point it is
-LOOP:       lda     BPBANK,x        ; Is it the same program bank?
+LOOP:       
+            lda     BPBANK,x        ; Is it the same program bank?
+.ifdef mtu
             cmp     PRGBANK         ;
             bne     NEXT            ; No, check next BP
+.else
+            bmi     NEXT            ; BP not set
+.endif
             lda     BPADDRLO,x      ; Is it the same address?
             cmp     PCSAVE          ;
             bne     NEXT            ; No, check next
@@ -882,13 +920,17 @@ LOOP:       lda     BPBANK,x        ; Is it the same program bank?
             cmp     PCSAVE+1        ; lets see the MSB
             bne     NEXT            ; No, check next
             ldy     #$00            ; Yes
+.ifdef mtu
             lda     PRGBANK         ; Get program bank
             eor     DEFBNKCFG       ;    What is it doing here?
             sta     BNKCTL          ;
+.endif
             lda     BPOP,x          ; Get saved instruction byte at BP 
             sta     (PCSAVE),y      ; and restore it to the PC
+.ifdef mtu
             lda     DEFBNKCFG       ; TODO: Again
             sta     BNKCTL          ;    Why?
+.endif            
             lda     #$FF            ; Invalidate/clear BP
             sta     BPBANK,x        ;
             jsr     DEFSETINPB      ; Set input buffer
@@ -902,8 +944,10 @@ NEXT:       dex                     ; Decrement BP
 
             ; If we are here, either it is an SVC or just a BRK
 
+.ifdef mtu
             lda     PRGBANK         ; SVC only available in bank 0
             bne     DOIRQ           ;
+.endif
             lda     SVCENB          ; Are SVC enabled?
             sta     SVCSTAT         ; Save SVC status
             bpl     DOIRQ           ; No, should be BRK
@@ -944,10 +988,16 @@ OUTSTAT:    jsr     OUTSTR          ; Print registers at interrupt
             .export ERROR25, ERROR26, ERROR27, ERROR28, ERROR29, ERROR30, ERROR31, ERROR32
             .export ERROR33, ERROR34, ERROR35, ERROR36, ERROR37, ERROR38, ERROR39, ERROR40
             .export ERROR41, ERROR42, ERROR43, ERROR44, ERROR45, ERROR46, ERROR47, ERROR48
-            .export ERROR49, ERROR50, ERROR51, ERROR52
+            .export ERROR49, ERROR50
+            
+.ifdef mtu
+            .export ERROR51, ERROR52
 
 ERROR52:    inc     ERRNUM          ; Missing or illegal function key number
 ERROR51:    inc     ERRNUM          ; Missing or illegal memory bank number
+
+.endif
+
 ERROR50:    inc     ERRNUM          ; System crash: Directory redundancy check failed
 ERROR49:    inc     ERRNUM          ; System crash: NEC 765 chip result phase error
 ERROR48:    inc     ERRNUM          ; System crash: NEC 765 chip command phase error
@@ -998,7 +1048,7 @@ ERROR04:  	inc     ERRNUM          ; Syntax error in command argument
 ERROR03:  	inc     ERRNUM          ; Drive needed is not open
 ERROR02:  	inc     ERRNUM          ; File not found
 ERROR01:  	inc     ERRNUM          ; Command not found
-            jmp     (ERRRCVRYP)     ; ANd go to error recovery routine
+            jmp     (ERRRCVRYP)     ; And go to error recovery routine
 
 ; Error recovery routine
 ;
@@ -1009,7 +1059,11 @@ ERROR01:  	inc     ERRNUM          ; Command not found
             lda     #$00            ; Unprotect K-1013 SYSRAM
             sta     HSRCW           ;
             cld
+.ifdef mtu
             jsr     INIMMAP         ; Set default memory config
+.else
+            jsr     CLEARBRK
+.endif
             bit     PERRPFLG        ; Error was during print error processing?
             bpl     OUTERR          ; No, go print error
             pla                     ; Yes, just do a warm start
@@ -1159,11 +1213,13 @@ RETURN:     jsr     FREECH0         ; Free channel and return
 
 .proc NEXT
             jsr     GETPC           ; Get program counter from command args
+.ifdef mtu
             bit     CHGBNKFLG       ; Is there a bank switch
             bpl     SKIP            ; No, skip it
             lda     NEWBNK          ; Yes, switch to the new bank
             sta     PRGBANK         ;
             sta     DATBANK         ;
+.endif
 SKIP:       jmp     CONTBP          ; Continue with command execution
 .endproc
 
@@ -1178,9 +1234,11 @@ SKIP:       jmp     CONTBP          ; Continue with command execution
 
 .proc GOCMD
             jsr     GETPC           ; Get program counter from command args
+.ifdef mtu
             lda     NEWBNK          ; Switches to new bank
             sta     PRGBANK         ;
             sta     DATBANK         ;
+.endif
             ; Fall through
 .endproc
 
@@ -1189,13 +1247,15 @@ SKIP:       jmp     CONTBP          ; Continue with command execution
             .export EXCMD
 
 .proc EXCMD
+.ifdef mtu
             ldx     #$7F            ; Set default bank configuration
             stx     DEFBNKCFG       ;
+.endif
             ldx     DEFSVCFLAG      ; Get default SVC state (enabled or disabled)
             stx     SVCSTAT         ; And set it as current
             ldx     #$FF            ; Discard stack
             bit     SVC13FLG        ; Was this invoked by SVC 13?
-            bpl     EXEC            ; No, skip and go to normal command exec
+            bpl     EXECCMD         ; No, skip and go to normal command exec
             ; Fall through
 .endproc
 
@@ -1208,19 +1268,28 @@ SKIP:       jmp     CONTBP          ; Continue with command execution
                                     ; memory protection, sets registers at invocation,
                                     ; copies the switch and jump routine to its page 0
                                     ; location.
+.ifdef mtu
             jmp     SWITCHNJMP      ; Switch bank and jump to saved PC to continue
                                     ; execution
+.else
+            jmp     JUMP        ; Jump to saved PC to continue execution
+.endif
+
 .endproc
 
 ; Continuation of EXCMD, normal command execution
 ;
-.proc EXEC
+.proc EXECCMD
             stx     STACKP          ; Discard stack
             jsr     PREPEXEC        ; Sets stack pointer, memory bank config and
                                     ; memory protection, sets registers at invocation,
                                     ; copies the switch and jump routine to its page 0
                                     ; location.
+.ifdef mtu
             jsr     EXINBNK         ; Switches to bank, execs code and restore bank
+.else
+            jsr     EXEC            ; Execs code
+.endif
             php                     ; Save flags
             cld                     ;
             lda     #$00            ; Unprotect K-1013 SYSRAM
@@ -1237,8 +1306,10 @@ SKIP:       jmp     CONTBP          ; Continue with command execution
             sta     PROCST          ;
             tsx                     ;   and the stack pointer
             stx     STACKP          ;
+.ifdef mtu
             lda     #$7F            ; Set up the default memory map config
             sta     DEFBNKCFG       ;
+.endif
             jmp     WARMST          ; And fo a warm start
 .endproc
 
@@ -1257,6 +1328,7 @@ SKIP:       jmp     CONTBP          ; Continue with command execution
 SKIP:       pha                     ; Push back the return address
             tya                     ;
             pha                     ;
+.ifdef mtu
             lda     PRGBANK         ; Set new memory bank config
             asl     a               ;
             asl     a               ;
@@ -1266,6 +1338,7 @@ SKIP:       pha                     ; Push back the return address
             lda     #$7F            ;
             sta     SVIA1DIR        ;
             jsr     CPYSWNJMP       ; Copy switch and jump routine to page 0
+.endif
             lda     #$00            ; Clear flags
             sta     INTCMDERR       ;   Error during internal command processing
             sta     PRBPREGS        ;   Print registers at BP instead of error
@@ -1286,7 +1359,9 @@ SKIP2:      sta     HSRCW           ;
             ldx     XREG            ; Get X at invocation
             lda     PROCST          ; Get Status register at invocation
             pha                     ; Save it (so next operation does not alter it)
+.ifdef mtu
             lda     BNKCFG          ; Get memory bank configuration
+.endif
             plp                     ; Recover flags and return
             rts                     ;
 .endproc
@@ -1324,6 +1399,8 @@ LOOP:       lda     CMDPROCNAM,x    ;
             jmp     FREECH0         ; Clse/free channel and return
 .endproc
 
+.ifdef mtu
+
 ; Init memory map config
 ;
             .export INIMMAP
@@ -1337,9 +1414,17 @@ LOOP:       lda     CMDPROCNAM,x    ;
             sta     BNKCTL          ;
             lda     #$7F            ;
             sta     SVIA1DIR        ;
+            ; Fall through
+.endproc
 
-            ; This clears the break flag by forcing an rti
+.endif ; MTU
 
+
+; Clears the break flag by forcing an rti
+;
+            .export CLEARBRK
+
+.proc CLEARBRK
             lda     #>RETURN        ; Set return address to $EC11
             pha                     ;
             lda     #<RETURN        ;
@@ -1348,6 +1433,35 @@ LOOP:       lda     CMDPROCNAM,x    ;
             rti                     ; This will return just below
 RETURN:     rts
 .endproc
+
+.ifndef mtu
+
+; Restore accumulator and jump to (PCSAVE)
+;
+.proc JUMP
+            php
+.if ::CODOS2_VER = 17
+            lda     SAVEACC         ; Get A at invocation
+.else
+            lda     INTSVA          ; Get A at invocation
+.endif
+            plp                     ; Restore flags
+            jmp     (PCSAVE)        ; Continue execution at  address stored in PCSAVE
+.endproc
+
+; Exec code at (PCSAVE), then restores A at entry
+;
+.proc EXEC
+            jsr     JUMP            ; Jumps to (PCSAVE)
+.if ::CODOS2_VER = 17
+            sta     SAVEACC         ; Restore A (was saved by SWITCHNJMP routine)
+.else
+            sta     INTSVA          ; Restore A (was saved by SWITCHNJMP routine)
+.endif
+            rts
+.endproc
+
+.else ; defined MTU
 
 ; Copy execute in bank routine to $0100-$0112
 ;
@@ -1409,6 +1523,9 @@ EXINBNK_O:  jsr     SWITCHNJMP      ; Switch bank and jumps to PC
             plp                     ; Restore flags and return
 EXINBNKEND: rts                     ;
 EXINBNKLEN = EXINBNKEND - EXINBNK_O ; Calculate routine length
+
+.endif ; MTU
+
 
 ;       Send command to uPD765
 ;       X : Command index
@@ -2429,8 +2546,11 @@ ISFILE:     jsr     PREPCPY         ; Check that dest memory is valid, flush any
             sta     LDAHI4          ;
             sta     LDAHI1          ;
 
-CPMEM:      lda     DSTBNKCFG       ; Set destination bank 
+CPMEM:      
+.ifdef mtu
+            lda     DSTBNKCFG       ; Set destination bank 
             sta     BNKCTL          ;
+.endif
             lda     L00D2+1         ; Current count > 256 (one page)
             beq     CPYREM          ; No, go copy remaining bytes
                                     ; Position at the beginning of a sector?
@@ -2499,8 +2619,11 @@ INCFPOS:    inc     CURFINFO+FINFO::FPOS+1
             bne     RESTBNK         ; Skip next if not overflow
                                     ; Increment third byte of file position
             inc     CURFINFO+FINFO::FPOS+2
-RESTBNK:    lda     DEFBNKCFG       ; Restore default bank
+RESTBNK:    
+.ifdef mtu
+            lda     DEFBNKCFG       ; Restore default bank
             sta     BNKCTL          ;
+.endif
             ldx     #$00            ; Zeroes first byte of file position
                                     ; From now on, we are page aligned
             stx     CURFINFO+FINFO::FPOS
@@ -2534,8 +2657,11 @@ ENDCPY:     iny                     ; Increment position in file buffer
                                     ; If not, update file position
             sty     CURFINFO+FINFO::FPOS
 
-CPDONE:     lda     DEFBNKCFG       ; Restore default bank
+CPDONE:     
+.ifdef mtu
+            lda     DEFBNKCFG       ; Restore default bank
             sta     BNKCTL          ;
+.endif
             jsr     UPDCFINFO       ; Update FINFO entry in active files table
             jmp     ENDSUB          ; And end subroutine
 
@@ -2584,11 +2710,15 @@ RET:        rts                     ;
 ; Inputs byte into (MEMBUFF) from device using previously set JDRIVERP
 ;
 .proc GETDRVBYTE
+.ifdef mtu
             lda     DEFBNKCFG       ; Switch to default bank
             sta     BNKCTL          ;
+.endif
             jsr     JDRIVERP        ; Get byte from driver
+.ifdef mtu
             ldx     DSTBNKCFG       ; Switch back to destination bank
             stx     BNKCTL          ;
+.endif
             nop                     ; Give the device driver time?
             nop                     ;
             nop                     ;
@@ -2604,7 +2734,7 @@ RETERR:     sec                     ; Set Cy for error
             rts                     ;
 .endproc
 
-; Jumps to the curren device driver's routine
+; Jumps to the current device driver's routine
 ;
 JDRIVERP:   jmp     (DRIVERP)       ; Jumps to DRIVERP address
 
@@ -2663,9 +2793,11 @@ CONT:       sec                     ; MEMCOUNT > remaining file size?
 ; Does not return if fails
 ;
 .proc DSTMEMOK
+.ifdef mtu
             lda     DSTBANK         ; Check destination bank
             bne     DESTOK          ; Is not system bank, so don't check for
                                     ; protected memory
+.endif
             lda     MEMBUFF+1       ;
             bne     NOTZP           ; Jump if dest not in ZP
             lda     MEMBUFF         ; Check if odestrig is in reserved ZP space
@@ -2690,8 +2822,10 @@ DESTOK:     lda     MEMCOUNT        ; Check if <dest> + <count> > $FFFF
             ; Not reached
 DESTOK2:    cmp     #>SYSRAM        ; Is it in SYSRAM (protected)
             bcc     DESTOK3         ; No, go on
+.ifdef mtu
             lda     DSTBANK         ; Bank 0?
             bne     DESTOK3         ; No, go on
+.endif
             bit     IGNORWRP        ; Is copy to CODOS space allowed?
             bmi     DESTOK3         ; Yes, go on
             jsr     ERROR17         ; No, reserved or protected memory violation
@@ -2699,6 +2833,8 @@ DESTOK2:    cmp     #>SYSRAM        ; Is it in SYSRAM (protected)
 DESTOK3:    nop                     ;
             ; Fall through
 .endproc
+
+.ifdef mtu
 
 ; Set destination bank config
 ;
@@ -2710,6 +2846,8 @@ DESTOK3:    nop                     ;
             rts                     ;
 .endproc
 
+.endif
+
 ; Output MEMCOUNT characters from (MEMBUFF) to channel X
 ;
             .export OUTMBUFF
@@ -2720,8 +2858,10 @@ DESTOK3:    nop                     ;
             jmp     ISDEV           ; Jump if a device
             ; Not reached
 
-ISFILE:     jsr     SETDBNKCFG      ; Set destination bank config
-
+ISFILE:     
+.ifdef mtu
+            jsr     SETDBNKCFG      ; Set destination bank config
+.endif
             jsr     GETCURCHKLK     ; Get current file and ensures it's not locked
                                     ; Get pointer to file buffer and copies
             lda     CURFINFO+FINFO::BUFF
@@ -2735,8 +2875,11 @@ ISFILE:     jsr     SETDBNKCFG      ; Set destination bank config
             sta     STAHI2          ;
             sta     STAHI4          ;
 
-CPMEM:      lda     DSTBNKCFG       ;
+CPMEM:      
+.ifdef mtu
+            lda     DSTBNKCFG       ;
             sta     BNKCTL          ;
+.endif
             lda     MEMCOUNT+1      ; Current count > 256 (one page)
             bne     CHKBOS          ; Yes, check if file pos is at the start of sector
             jmp     CPYREM          ; No, go copy remaining bytes
@@ -2799,8 +2942,11 @@ DECOUNT:    lda     CURFINFO+FINFO::FPOS
             bcs     WRSEC           ; If no borrow, skip page decrement
 
 DECCPGE:    dec     MEMCOUNT+1
-WRSEC:      lda     DEFBNKCFG       ; Switch to default bank
+WRSEC:      
+.ifdef mtu
+            lda     DEFBNKCFG       ; Switch to default bank
             sta     BNKCTL          ;
+.endif
             jsr     WRFPSECT        ; Write sector of current file pos
                                     ; Increment second byte of file position
             inc     CURFINFO+FINFO::FPOS+1
@@ -2853,8 +2999,11 @@ ENDCPY:     iny                     ; Increment position in file buffer
             ora     #FISDIRTY       ;
             sta     CURFINFO+FINFO::FLAGS
 
-CPDONE:     lda     DEFBNKCFG       ; Switch to the default bank
+CPDONE:     
+.ifdef mtu
+            lda     DEFBNKCFG       ; Switch to the default bank
             sta     BNKCTL          ;
+.endif
             jsr     FEOF            ; Check if end of file (Cy set if so)
             php                     ; Save flags
             bcc     UPDFINFO        ; If not FEOF, go update FINFO
@@ -2882,7 +3031,9 @@ ISDEV:      and     #$7F            ; Get index
             sta     DRIVERP         ; And set the driver pointer
             lda     DDTO+1,x        ;
             sta     DRIVERP+1       ;
+.ifdef mtu
             jsr     SETDBNKCFG      ; Set destination bank config
+.endif
             lda     #$00            ; This is weird... This code is calculating the 2's 
             sec                     ; complement negation of MEMCOUNT (-MEMCOUNT) and
             sbc     MEMCOUNT        ; then uses INC instructions in the @LOOP until it
@@ -2905,13 +3056,17 @@ NOMORE:     sec                     ; Set Cy
 ; Outputs char at (MEMBUFF) to device using previously set JDRIVERP
 ;
 .proc OUTDRVBYTE
+.ifdef mtu
             ldx     DEFBNKCFG       ; Switch to default bank
             stx     BNKCTL          ;
+.endif
             ldx     #$00            ; Get byte from MEMBUFF
             lda     (MEMBUFF,x)     ;
             jsr     JDRIVERP        ; And output to device drive
+.ifdef mtu
             lda     DSTBNKCFG       ; Switch back to destination bank
             sta     BNKCTL          ;
+.endif
             inc     MEMBUFF         ; Increment position in MEMBUFF
             bne     RETURN          ;
             inc     MEMBUFF+1       ;
@@ -3871,7 +4026,7 @@ CHKZ:       cmp     #'Z'+1          ; Is it 'Z' or lower?
 .proc NIBBLE
             and     #$0F            ; Get lower nibble
             clc                     ; Clear carry for addition
-            adc     #$30            ; Adds "0"
+            adc     #'0'            ; Adds "0"
             cmp     #$3A            ; Is it "9" or lower?
             bmi     STORE           ; Yes, goto store it
             adc     #$06            ; Nope, add 7 (6 + carry) to get hex digit
@@ -4069,6 +4224,7 @@ RETURN:     rts                     ;
             .byte   "P=", $0        ;
             ldx     #_PCSAVE        ; Print Program Counter as an HEX word
             jsr     HEXENCOD        ; Print address
+.ifdef mtu
             lda     #':'            ; Bank separator
             sta     (OUTBUFP),y     ;
             iny                     ;
@@ -4085,6 +4241,7 @@ RETURN:     rts                     ;
             adc     #'0'            ; Convert to ASCII
             sta     (OUTBUFP),y     ;
             iny                     ;
+.endif ; MTU
             lda     #' '            ;
             sta     (OUTBUFP),y     ;
             iny                     ;
@@ -4092,15 +4249,27 @@ RETURN:     rts                     ;
             sta     (OUTBUFP),y     ;
             iny                     ;
             jsr     POUTBUFF02      ; Print output buffer to console ( Sets Y = 0 )
+.ifdef mtu
             jsr     GETPCCONT       ; Contents of memory at P through P+2 in hex
+.else
+            lda     (PCSAVE),y      ; Contents of memory at P through P+2 in hex
+.endif
             jsr     HEXBYTE         ;
             dey                     ;
+.ifdef mtu
             jsr     GETPCCONT       ;
+.else
+            lda     (PCSAVE),y
+.endif
             iny                     ;
             jsr     HEXBYTE         ;
             dey                     ;
             dey                     ;
+.ifdef mtu
             jsr     GETPCCONT       ;
+.else
+            lda     (PCSAVE),y
+.endif
             iny                     ;
             iny                     ;
             jsr     HEXBYTE         ;
@@ -4125,6 +4294,8 @@ PREG:       lda     #' '            ; Separator
             jmp     POUTBUFF02      ; Print output buffer to console
 .endproc
 
+.ifdef mtu
+
 ; Get contents of memory at (PCSAVE),y 
 ; 
 .proc GETPCCONT
@@ -4136,6 +4307,8 @@ PREG:       lda     #' '            ; Separator
             stx     BNKCTL          ;
             rts                     ;
 .endproc
+
+.endif ; MTU
 
 ; String of valid register names
 ;
@@ -4721,11 +4894,13 @@ RETURN:     rts                     ; No more digits, return
             sta     SAVEDHDR+SHDR::OVLAY
             lda     #$00            ; Reserved: always 0
             sta     SAVEDHDR+SHDR::RSRVD
+.ifdef mtu
             lda     SVDFROMBNK      ; Get <from> bank
             bit     SAVDESTPF       ; Check if <dest> is set
             bpl     NODEST          ; No, use <from> info
             lda     SVDDESTBNK
-                                    ; Set memory bank
+.endif
+                                    ; Set memory bank (always 0 for non-MTU arch)
 NODEST:     sta     SAVEDHDR+SHDR::MEMBK
             lda     #SVDMAGIC       ; Set saved files magic number
             sta     SAVEDHDR+SHDR::MAGIC
@@ -4764,11 +4939,15 @@ CPYADD:     lda     P0SCRATCH,x     ;
             bpl     OUTB            ; No, skip 
             jsr     SETDSTBUFF      ; Set <dest> as loading address
 OUTB:       ldx     CHANNEL         ; Get channel
+.ifdef mtu
             lda     SVDFROMBNK      ; Get <from> bank
             sta     DSTBANK         ;
+.endif
             jsr     OUTMBUFF        ; Output buffer to channel
+.ifdef mtu
             lda     #$00            ; Set default bank
             sta     DSTBANK         ;
+.endif
             rts                     ;
 .endproc
 
@@ -4827,14 +5006,18 @@ LOOP:       lda     DESTBUFF,x      ;
             cmp     SAVEA3          ;
             bne     RETCS           ; No, return with error
             jsr     CPYPTRS         ; Yes, copy pointers from header to page 0
+.ifdef mtu
                                     ; Set destination bank from header
             lda     SAVEDHDR+SHDR::MEMBK
             sta     DSTBANK         ;
+.endif
             bit     SAVDESTPF       ; Was a <dest> specified?
             bpl     CONT            ; No, continue
             jsr     SETDSTBUFF      ; Set <dest> as loading address 
+.ifdef mtu
             lda     SVDDESTBNK      ; Set <dest> bank as loading bank
             sta     DSTBANK         ;
+.endif
 CONT:       ldx     CHANNEL         ; Load block into memory
             jsr     GETMBUFF        ;
             rts                     ;
@@ -4849,8 +5032,10 @@ RETCS:      sec                     ; Return with error
 
 .proc LD58HDR
             jsr     SVDRWPREP       ; Prepare read/write of "saved file" header
+.ifdef mtu
             lda     #$00            ; Set destination bank
             sta     DSTBANK         ;
+.endif
             sec                     ; Set ignore memory write protection flag
             ror     IGNORWRP        ;
             jsr     GETMBUFF        ; Get header from file into MEMBUFF

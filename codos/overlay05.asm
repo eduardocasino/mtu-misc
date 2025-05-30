@@ -138,6 +138,7 @@ LINELEN:    .byte   $00             ; Lenght of current input line
             rts
 .endproc
 
+.ifdef mtu
             ; This block is just junk that was in the buffer when
             ; writing it to disk. I leave it to facilitate checksum
             ; comparisons with the original
@@ -147,3 +148,5 @@ LINELEN:    .byte   $00             ; Lenght of current input line
             .byte   $E6, $8E, $E0, $BF, $60, $E6, $C7, $D0
             .byte   $02, $E6, $C8, $CE, $FE, $FE, $D0, $01
             .byte   $C8, $CE, $FD, $FE, $60, $00, $00, $1E
+.endif
+            .end

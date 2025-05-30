@@ -71,10 +71,11 @@ CPPT:       lda     SAVEDHDR+SHDR::ENTRY,x
             iny                     ;
             iny                     ;
             sty     LOADPOS         ; Save pos of load address for next lines
-PRBLK:      ldx     #_MEMBUFF       ; Convert load address to ASCII HEX
+PRLOAD:     ldx     #_MEMBUFF       ; Convert load address to ASCII HEX
             jsr     HEXENCOD        ;
             iny                     ; Leave two spaces
             iny                     ;
+.ifdef ::mtu
                                     ; Get memory bank
             lda     SAVEDHDR+SHDR::MEMBK
             beq     PRSZ            ; If bank 0, skip to print size
@@ -89,6 +90,7 @@ PRBLK:      ldx     #_MEMBUFF       ; Convert load address to ASCII HEX
             adc     #'0'            ;
             sta     (OUTBUFP),y     ; Print it
             iny                     ; And advance one pos
+.endif
 PRSZ:       iny                     ; Leave one space
             ldx     MEMBUFF         ; Calculate final load address
             bne     SKIP            ; decrementing start load address
@@ -153,7 +155,7 @@ CPPT2:      lda     SAVEDHDR+SHDR::LOAD,x
             dex                     ;
             bpl     CPPT2           ;
             ldy     LOADPOS         ; Get pos of load address for next lines
-            jmp     PRBLK           ; And go print block info
+            jmp     PRLOAD          ; And go print load address
 
 RETURN:     rts
 .endproc
@@ -161,6 +163,7 @@ RETURN:     rts
 LOADPOS:    .byte   $01             ; Pos of load address for 2nd and following lines
 OUTBUFLEN:  .byte   $01             ; Length of output buffer to print
 
+.ifdef mtu
             ; This block is just junk that was in the buffer when
             ; writing it to disk. I leave it to facilitate checksum
             ; comparisons with the original
@@ -168,3 +171,5 @@ OUTBUFLEN:  .byte   $01             ; Length of output buffer to print
             .byte        $30, $91, $CD, $4C, $A7, $FE, $60
             .byte   $20, $68, $D9, $A2, $01, $4C, $94, $F5
             .byte   $D7, $FE, $00, $FE, $60, $00, $00, $1E
+.endif
+            .end

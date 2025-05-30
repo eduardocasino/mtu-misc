@@ -6,7 +6,9 @@
 
             .setcpu "6502"
 
+.ifdef mtu
             .include "monomeg.inc"
+.endif
             .include "symbols.inc"
             .include "codos.inc"
 
@@ -157,13 +159,17 @@ LOOP:       sta     (OUTBUFP),y     ;
 ; Returns byte in A and restores bank
 ;
 .proc GETDUMPBYT
+.ifdef mtu
             lda     NEWBNK          ; Switch to <from> bank
             eor     DEFBNKCFG       ;
             sta     BNKCTL          ;
+.endif
             ldx     #$00            ; Get byte
             lda     (TMPBUFP,x)     ;
+.ifdef mtu
             ldx     DEFBNKCFG       ; Switch back to default bank
             stx     BNKCTL          ;
+.endif
             rts
 .endproc
 
@@ -190,8 +196,11 @@ NOEXTRA:    dec     BYTESLEFT       ; Decrement bytes left
 BYTESLEFT:  .byte   $00             ; Bytes left to print in current line
 BYTESPACE:  .byte   $00             ; Bytes left until extra space
 
+.ifdef mtu
             ; This byte is just junk that was in the buffer when
             ; writing it to disk. I leave it to facilitate checksum
             ; comparisons with the original
             ;
             .byte   $1E
+.endif
+            .end

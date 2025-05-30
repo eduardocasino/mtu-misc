@@ -13,3 +13,11 @@ KBACR       = $BFEB         ; AUXILIARY CONTROL REGISTER FOR KEYBOARD 6522
 
 IOENABLE    := $FFFE        ; Enable I/O space from $BE00 to $BFFF
 IODISABLE   := $FFFF        ; Disable I/O space (enable RAM) from $BE00 to $BFFF
+
+VIDEORAM    := $C000        ; Bit-mapped CRT display RAM
+VIDEOLEN    = $3C00         ; Display RAM length
+BCKTRBUF    := $FC50        ; Backtrack buffer (for lines recalled by CTRL-B)
+BCKTRLEN    = $0100         ; Backtrack buffer length
+
+VIDHRES     = 480           ; Horizontal and vertical video display resolution
+VIDVRES     = 256           ;

@@ -192,8 +192,11 @@ NEXT:       jsr     OUTCHAR         ; Output char
 
 MSGOUTC:    .byte   $00             ; Channel for msg out command
 
+.ifdef mtu
             ; This block is just junk that was in the buffer when
             ; writing it to disk. I leave it to facilitate checksum
             ; comparisons with the original
             ;
             .byte   $FE, $60, $00, $00, $1E
+.endif
+            .end

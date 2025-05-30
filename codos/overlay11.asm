@@ -99,6 +99,7 @@ RNLOOP2:    lda     DIRENT+DIRE::FNAM,x
 
 RENAMEDRV:  .byte   $00
 
+.ifdef mtu
             ; This block is just junk that was in the buffer when
             ; writing it to disk. I leave it to facilitate checksum
             ; comparisons with the original
@@ -120,3 +121,5 @@ RENAMEDRV:  .byte   $00
             .byte   $BF, $B1, $C3, $AE, $FB, $FE, $8E, $E0
             .byte   $BF, $91, $C7, $AE, $D8, $E6, $8E, $E0
             .byte   $BF, $60, $7F, $7F, $60, $00, $00, $1E
+.endif
+            .end

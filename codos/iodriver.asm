@@ -12,55 +12,53 @@
 ;
             .exportzp QLN
 
-QLN:        .res 2                  ; $F0 Ptr to line-buffer used for INLINE and EDLINE 
-UNKNWN4:    .res 2                  ; $F2 - $F3
-UNKNWN6:    .res 2                  ; $F4 - $F5
-UNKNWN8:    .res 2                  ; $F6 - $F7
-UNKNWN10:   .res 2                  ; $F8 - $F9
-TEMP1:      .res 1                  ; $FA Temporary storeage for keyboard routine
-UNKNWN13:   .res 1                  ; $FB
-UNKNWN14:   .res 1                  ; $FC
-UNKNWN15:   .res 1                  ; $FD
-UNKNWN16:   .res 1                  ; $FE
-UNKNWN17:   .res 1                  ; $FF
+QLN:        .res    2              ; $F0 Ptr to line-buffer used for INLINE and EDLINE
+VRAMDST:    .res    2              ; $F2 - $F3 Video ram dest for graphic funcs
+VRAMORG:    .res    2              ; $F4 - $F5 Video ram origin for graphic funcs
+CHARFNTP:   .res    2              ; $F6 - $F7 Pointer to character font
+VRAMCNT:    .res    2              ; $F8 - $F9 Video ram count for graphic funcs
+TEMP1:      .res    1              ; $FA Temporary storage for keyboard routine
+CHTBIDXHI:  .res    1              ; $FB MSB of index into character table
+CHRDISPL:   .res    1              ; $FC Horizontal displacement from the 8x5 char matrix
+LINEIDX:    .res    1              ; $FD
+UNKNWN16:   .res    1              ; $FE
+UNKNWN17:   .res    1              ; $FF
 
             .segment "ioscratch"
 
-; Scratch ram used by Console I-O and graphics drivers 
+; Scratch ram used by Console I-O and graphics drivers
 ;
-L02B0:      .res 1                  ; $02B0
-L02B1:		.res 1					; $02B1
-L02B2:		.res 1					; $02B2
-L02B3:		.res 1					; $02B3
-L02B4:		.res 2					; $02B4
-L02B6:		.res 7					; $02B6
-L02BD:		.res 1					; $02BD
-L02BE:		.res 2					; $02BE
-L02C0:		.res 7					; $02C0
-L02C7:		.res 1					; $02C7
-L02C8:		.res 1					; $02C8
-L02C9:		.res 1					; $02C9
-TCURS:		.res 2					; $02CA 
-L02CC:      .res 1                  ; $02CC
-XSVKB:		.res 1					; $02CD
-YSVKB:		.res 1					; $02CE
-L02CF:      .res 1                  ; $02CF
-L02D0:		.res 1					; $02D0
-L02D1:		.res 1					; $02D1
-L02D2:		.res 1					; $02D2
-L02D3:		.res 1					; $02D3
-L02D4:		.res 1					; $02D4
-L02D5:		.res 1					; $02D5
-L02D6:		.res 1					; $02D6
-L02D7:		.res 1					; $02D7
-L02D8:		.res 1					; $02D8
-L02D9:		.res 1					; $02D9
-L02DA:		.res 1					; $02DA
-L02DB:		.res 1					; $02DB
-L02DC:		.res 1					; $02DC
-L02DD:		.res 1					; $02DD
-L02DE:		.res 1					; $02DE
-L02DF:		.res 1					; $02DF
+L02B0:      .res    1               ; $02B0
+TMPMASK:    .res    2               ; $02B1-$02B2 - Temporary storage for video masks
+L02B3:      .res    1               ; $02B3
+L02B4:      .res    2               ; $02B4
+L02B6:      .res    7               ; $02B6
+L02BD:      .res    1               ; $02BD
+L02BE:      .res    2               ; $02BE
+L02C0:      .res    7               ; $02C0
+L02C7:      .res    1               ; $02C7
+L02C8:      .res    1               ; $02C8
+L02C9:      .res    1               ; $02C9
+TCURS:      .res    2               ; $02CA
+L02CC:      .res    1               ; $02CC
+XSVKB:      .res    1               ; $02CD
+YSVKB:      .res    1               ; $02CE
+L02CF:      .res    1               ; $02CF
+FNBNK:      .res    1               ; $02D0 Bank of current character table
+L02D1:      .res    1               ; $02D1
+L02D2:      .res    1               ; $02D2
+L02D3:      .res    1               ; $02D3
+L02D4:      .res    1               ; $02D4
+L02D5:      .res    1               ; $02D5
+L02D6:      .res    1               ; $02D6
+INSFLAG:    .res    1               ; $02D7 Flag. It bit 7 = 1, insert enabled
+L02D8:      .res    1               ; $02D8
+L02D9:      .res    1               ; $02D9
+L02DA:      .res    1               ; $02DA
+L02DB:      .res    1               ; $02DB
+FNJUMP:     .res    2               ; $02DC Jump to special key function
+L02DE:      .res    1               ; $02DE
+L02DF:      .res    1               ; $02DF
 
             .segment "iodata"
 
@@ -76,7 +74,7 @@ L02DF:		.res 1					; $02DF
 
             .export YLNLIM
 
-COL:        .byte   $01			    ; $0200 CURRENT COLUMN LOCATION OF TEXT CURSOR 1-80.
+COL:        .byte   $01             ; $0200 CURRENT COLUMN LOCATION OF TEXT CURSOR 1-80.
 LINE:       .byte   $01             ; $0201 CURRENT LINE NUMBER OF TEXT CURSOR. 1-NLINET.
 UNK0:       .byte   $00
 UNK1:       .byte   $00
@@ -92,20 +90,20 @@ UNK10:      .byte   $F0             ; $020C
 LSTKEY:     .byte   $00             ; $020D KEYBOARD KEY LAST DOWN
 RPTFLG:     .byte   $00             ; $020E FLAG USED BY AUTO REPEAT ALGORITHM
 KBECHO:     .byte   $00             ; $020F IF BIT 7=1 THEN "ECHO" EACH KEY TO THE DISPLAY.
-NOLFCR:		.byte   $00             ; $0210	IF BIT 7=1 THEN NO AUTOMATIC LINE FEED AFTER CR.
+NOLFCR:     .byte   $00             ; $0210    IF BIT 7=1 THEN NO AUTOMATIC LINE FEED AFTER CR.
 NOSCRL:     .byte   $00             ; $0211 IF BIT 7=1 THEN INSTEAD OF SCROLLING, THE TEXT WINDOW IS CLEARED AND THE CURSOR IS HOMED WHEN TEXT GOES BEYOND THE BOOTOM LINE.
-UNDRLN:		.byte   $00             ; $0212	IF BIT 7=1 THEN ALL CHARACTERS UNDERLINED WHEN DRAWN.
-NOCLIK:		.byte   $00             ; $0213	IF BIT 7=1 THEN NO CLICK WHEN A KEY IS PRESSED.
+UNDRLN:     .byte   $00             ; $0212    IF BIT 7=1 THEN ALL CHARACTERS UNDERLINED WHEN DRAWN.
+NOCLIK:     .byte   $00             ; $0213    IF BIT 7=1 THEN NO CLICK WHEN A KEY IS PRESSED.
 NOBELL:     .byte   $00             ; $0214 IF BIT 7=1 THEN BEL CHARACTER IS IGNORED.
 RVIDEO:     .byte   $00             ; $0215 IF BIT 7=1 THEN CHARACTERS ARE DRAWN IN REVERSE VIDEO.
-SHODEL:     .byte   $00             ; $0216	IF BIT 7=1 THEN DISPLAY DEL (ROBOUT) AS A CHARACTER SHAPE
-SHOUL:      .byte   $00             ; $0217	IF BIT 7=1 THEN CHARACTER CELL IS ERASED BEFORE THE UNDERLINE CHARACTER IS DRAWN.
+SHODEL:     .byte   $00             ; $0216    IF BIT 7=1 THEN DISPLAY DEL (ROBOUT) AS A CHARACTER SHAPE
+SHOUL:      .byte   $00             ; $0217    IF BIT 7=1 THEN CHARACTER CELL IS ERASED BEFORE THE UNDERLINE CHARACTER IS DRAWN.
 EXCCP:      .byte   $00             ; $0218 IF BIT 7=1 THEN CALL USER CONTROL CHARACTER PROCESSOR.
 EXTHI:      .byte   $00             ; $0219 IF BIT 7=1 THEN CALL USER RUTINE TO PROCESS ALL CHARACTERS WHEN BIT 7 SET.
-EXFONT:     .byte   $00             ; $021A	IF BIT 7=1 THEN USE EXTERNAL FONT TABLE.
+EXFONT:     .byte   $00             ; $021A    IF BIT 7=1 THEN USE EXTERNAL FONT TABLE.
 CURVIS:     .byte   $00             ; $021B FLAG INDICATING PRESENT STATE OF CURSOR
 UNK15:      .byte   $00             ; $021C
-UNK16:      .byte   $00             ; $021D
+CRSRWRAP:   .byte   $00             ; $021D FLAG INDICATING IF A CURSOR WRAP OCCURRED
 NLINET:     .byte   $18             ; $021E NUMBER OF TEXT LINES IN THE TEXT WINDOW.
 YTDOWN:     .byte   $00             ; $021F 255-(Y COORDINATE OF TOP OF THE TEXT WINDOW).
 DBCDLA:     .byte   $05             ; $0220 WAIT TIME IN MILLISECONDS ALLOWED FOR CONTACT BOUNCE.
@@ -116,8 +114,8 @@ CLKPER:     .byte   $05             ; $0224 CLICK WAVEFORM PERIOD IN UNITS OF 20
 CLKVOL:     .byte   $20             ; $0225 CLICK VOLUME, $00 = MINIMUM, $7F = MAXIMUM.
 CLKCY:      .byte   $02             ; $0226 CLICK DURATION IN UNITS OF COMPLETE WAVEFORM CYCLES
 BELPER:     .byte   $05             ; $0227 BELL SOUND WAVEFORM PERIOD IN UNITS OF 200 MICROSECONDS.
-BELVOL:     .byte   $40             ; $0228	BELL SOUND VOLUME, $00 = MINIMUM, $7F MAXIMUM.
-BELCY:      .byte   $0C             ; $0229	BELL SOUND DURATION IN UNITS OF COMPLETE WAVEFORM CYCLES.
+BELVOL:     .byte   $40             ; $0228    BELL SOUND VOLUME, $00 = MINIMUM, $7F MAXIMUM.
+BELCY:      .byte   $0C             ; $0229    BELL SOUND DURATION IN UNITS OF COMPLETE WAVEFORM CYCLES.
 UNK18:      .byte   $07             ; $022A
 UNK19:      .byte   $08             ; $022B
 UNK20:      .byte   $09             ; $022C
@@ -125,13 +123,13 @@ UNK21:      .byte   $0C             ; $022D
 UNK22:      .byte   $18             ; $022E
 QEXCC:      .word   ERR37           ; $022F ADDRESS OF EXTERNAL CONTROL CHARACTER PROCESSOR IF USED.
 QEXFNT:     .word   ERR37           ; $0231 ADDRESS OF EXTERNAL FONT TABLE IF USED.
-QEXHI7:     .word   ERR37           ; $0233	ADDRESS OF EXTERNAL PROCESSOR FOR CHARACTERS WITH BIT 7=1
+QEXHI7:     .word   ERR37           ; $0233    ADDRESS OF EXTERNAL PROCESSOR FOR CHARACTERS WITH BIT 7=1
 FNTTBL:     .word   CHTB            ; $0235 CHARACTER FONT TABLE
-EXFTBK:     .byte   $00             ; $0237	MEMORY BANK NUMBER CONTAINING EXTERNAL FONT TABLE.
+EXFTBK:     .byte   $00             ; $0237    MEMORY BANK NUMBER CONTAINING EXTERNAL FONT TABLE.
 YLNLIM:     .byte   $C0             ; $0238 LINE SIZE LIMIT FOR INLINE AND ENDLINE ENTRY POINTS
-NOLEKO:     .byte   $00             ; $0239	ECHO FLAG NORMALLY 0 BUT IF SET TO 80 WILL DISABLE KEYBOARD ECHO
+NOLEKO:     .byte   $00             ; $0239    ECHO FLAG NORMALLY 0 BUT IF SET TO 80 WILL DISABLE KEYBOARD ECHO
 UKINLN:     .byte   $00             ; $023A IF BIT 7=1 THEN IRRECOGNIZED KEYS ARE ACCEPTED FOR ENTRY POINTS INLINE AND ENDLINE.
-SPKTBL:     .word   LC5BC           ; $023B KEYBOARD SPECIAL KEYS TABLE
+SPKTBL:     .word   _SPKTBL         ; $023B KEYBOARD SPECIAL KEYS TABLE
 UNK23:      .byte   $00             ; $023D
 
 IODATA_SIZE = * - COL
@@ -148,15 +146,19 @@ IODATA_SIZE = * - COL
             .addr   GETKEY          ; Load address
             .word   JMPTBL_SIZE     ; Memory image size
 
-            .export GETKEY, OUTCH, TSTKEY, INITIO, DRWLEG, INLINE
+            .export GETKEY, OUTCH, TSTKEY, INITIO, CLRDSP, DRWLEG, INLINE, EDLINE
+            .export SDRAW, SMOVE, SDRAWR, SMOVER, SVEC, SVECR, SDOT, SDOTR, SGRIN
+            .export SLTPEN, SDRWCH, SISDOT, SOFFGC, SONGC, SINTLP, STSTLP, IFKEY
+            .export INITTW, DEFTW, CLRHTW, HOMETW, CRLF, CLRTW, CLRLEG, CLRTLN
+            .export LINEFD, OFFTCR, ONTCR, FLPTCR, TIOON, IORES, BEEP
 
 GETKEY:     jmp     _GETKEY     ; Wait until a keyboard key is struck and return character in A
 OUTCH:      jmp     _OUTCH      ; Display printable character or interpret control character
 TSTKEY:     jmp     _TSTKEY     ; Test if a key is pressed
 INITIO:     jmp     _INITIO     ; Clear screen and set default values of display parameters
 
-CLRDSP:     jmp     _CLRDSP     ; Clear the entire 480 by 256 screen
-DRWLEG:     jmp     _DRWLEG     ; Draw legends
+CLRDSP:     jmp     _CLRDSP     ; Clear the entire VIDHRES by VIDVRES screen
+DRWLEG:     jmp     _DRWLEG     ; Draw legend boxes
             jmp     ERR37
 ERR37:      jmp     JERROR37    ; Skips graphic routines if no graphic driver was loaded.
                                 ; If so appropriate JMPs are automatically updated.
@@ -221,7 +223,7 @@ JMPTBL_SIZE = * - GETKEY
 TABTBL:     .byte   $09, $11, $19, $21, $29, $31, $39, $41
             .byte   $49, $00, $00, $00, $00, $00, $00, $00
             .byte   $00, $00, $00, $00, $00, $00, $00, $00
-            .byte   $00, $00, $00, $00, $00, $00, $00, $00            
+            .byte   $00, $00, $00, $00, $00, $00, $00, $00
 
 TABTBL_SIZE = * - TABTBL
 
@@ -234,184 +236,210 @@ TABTBL_SIZE = * - TABTBL
             .byte   $00             ; Memory bank
             .byte   $00             ; Reserved
             .addr   INITIO          ; Entry point
-            .addr   LC5B0           ; Load address
+            .addr   SPKTRL          ; Load address
             .word   IODRIVER_SIZE   ; Memory image size
 
-;KEYBOARD ENTRY
-LC5B0:      .byte   $8A ;'*' MULTIPLY
-            .byte   $2A ;'*' MULTIPLY
-            .byte   $8B ;'/' DIVIDE
-            .byte   $2F ;'/' DIVIDE
-            .byte   $8C ;'-' MINUS
-            .byte   $2D ;'-' MINUS
-            .byte   $8D ;'+' PLUS
-            .byte   $2B ;'+' PLUS
-            .byte   $FF 
-            .byte   $FF 
-            .byte   $FF 
-            .byte   $FF 
+; Keyboard special keys with translation
+;
+SPKTRL:     .byte   $8A             ; '*' MULTIPLY
+            .byte   $2A             ; '*' MULTIPLY
+            .byte   $8B             ; '/' DIVIDE
+            .byte   $2F             ; '/' DIVIDE
+            .byte   $8C             ; '-' MINUS
+            .byte   $2D             ; '-' MINUS
+            .byte   $8D             ; '+' PLUS
+            .byte   $2B             ; '+' PLUS
+            .byte   $FF
+            .byte   $FF
+            .byte   $FF
+            .byte   $FF
 
-;KEYBOARD SPECIAL KEYS
-LC5BC:      .byte   $02 ;'stx'
-            .byte   $03 ;'ETX'
-            .byte   $05 ;'ENG'
-            .byte   $07 ;'BEL'
-            .byte   $08 ;'BS'      
-            .byte   $09 ;'HT'
-            .byte   $0A ;'LF'      
-            .byte   $0B ;'VT'      
-            .byte   $0C ;'FF'     
-            .byte   $0D ;'RETURN'
-            .byte   $12 ;'DC2'
-            .byte   $17 ;'ETB'      
-            .byte   $18 ;'CAN'      
-            .byte   $1A ;'SUB'      
-            .byte   $1B ;'ESC'      
-            .byte   $7F ;'DEL'      
-            .byte   $8E ;'ENTER'
-            .byte   $A0 ;'CURSOR UP'
-            .byte   $A1 ;'CURSOR LEFT'     
-            .byte   $A2 ;'CURSOR RIGHT'
-            .byte   $A3 ;'CURSOR DOWN'     
-            .byte   $A4 ;'HOME'
-            .byte   $A5 ;'DELETE'      
-            .byte   $A6 ;'INSERT'
-            .byte   $B0 ;'SHIFT/CURSOR UP'   
-            .byte   $B1 ;'SHIFT/CURSOR LEFT' 
-            .byte   $B2 ;'SHIFT/CURSOR RIGHT' 
-            .byte   $B3 ;'SHIFT/CURSOR DOWN' 
-            .byte   $B4 ;'SHIFT/ HOME 
-            .byte   $FF      
-            .byte   $FF      
+; Keyboard special keys
+;
+_SPKTBL:    .byte   $02             ; 'STX'
+            .byte   $03             ; 'ETX' (^C)
+            .byte   $05             ; 'ENQ' (^E)
+            .byte   $07             ; 'BEL'
+            .byte   $08             ; 'BS'  (^H)
+            .byte   $09             ; 'HT'  (^I)
+            .byte   $0A             ; 'LF'
+            .byte   $0B             ; 'VT'
+            .byte   $0C             ; 'FF'
+            .byte   $0D             ; 'RETURN'
+            .byte   $12             ; 'DC2'
+            .byte   $17             ; 'ETB'
+            .byte   $18             ; 'CAN'
+            .byte   $1A             ; 'SUB'
+            .byte   $1B             ; 'ESC'
+            .byte   $7F             ; 'DEL'
+            .byte   $8E             ; 'ENTER'
+            .byte   $A0             ; 'CURSOR UP'
+            .byte   $A1             ; 'CURSOR LEFT'
+            .byte   $A2             ; 'CURSOR RIGHT'
+            .byte   $A3             ; 'CURSOR DOWN'
+            .byte   $A4             ; 'HOME'
+            .byte   $A5             ; 'DELETE'
+            .byte   $A6             ; 'INSERT'
+            .byte   $B0             ; 'SHIFT/CURSOR UP'
+            .byte   $B1             ; 'SHIFT/CURSOR LEFT'
+            .byte   $B2             ; 'SHIFT/CURSOR RIGHT'
+            .byte   $B3             ; 'SHIFT/CURSOR DOWN'
+            .byte   $B4             ; 'SHIFT/ HOME
+            .byte   $FF
+            .byte   $FF
+SPKTBLSIZ = * - _SPKTBL
 
-;JUMP TABLE
-LC5DB:      .addr   LC682       
-            .addr   CNTRLC ; $0303 JUMP EXECUTED WHEN CTRL-C IS ENTERED FROM CONSOLE   
-            .addr   LC68B            
-            .addr   LC696             
-            .addr   LC69C             
-            .addr   LC6AE             
-            .addr   LC6B4             
-            .addr   LC6CF             
-            .addr   LC6EB             
-            .addr   LC6F4             
-            .addr   LC70A             
-            .addr   LC710 
-            .addr   LC716 
-            .addr   LC71C             
-            .addr   LC722             
-            .addr   LC728             
-            .addr   LC6F4             
-            .addr   LC6CF             
-            .addr   LC69C             
-            .addr   LC734             
-            .addr   LC6B4 
-            .addr   LC746 
-            .addr   LC74C 
-            .addr   LC752             
-            .addr   LC6CF             
-            .addr   LC759             
-            .addr   LC765 
-            .addr   LC6B4 
-            .addr   LC6EB             
-            .addr   $0000             
-            .addr   $0000             
+; Special keys jump table
+;
+SPKJMP:     .addr   SKSTX           ; STX
+            .addr   CNTRLC          ; CTRL-C
+            .addr   SKENQ           ; ENQ (^E)
+            .addr   SKBEL           ; BEL
+            .addr   SKBS            ; BS  (^H)
+            .addr   SKHT            ; HT  (^I)
+            .addr   SKLF            ; LF
+            .addr   SKVT            ; VT
+            .addr   SKFF            ; FF
+            .addr   SKRET           ; RETURN
+            .addr   SKDC2           ; DC2
+            .addr   SKETB           ; ETB
+            .addr   SKCAN           ; CAN
+            .addr   SKSUB           ; SUB
+            .addr   SKESC           ; ESC
+            .addr   SKSUP           ; DEL
+            .addr   SKRET           ; ENTER
+            .addr   SKVT            ; CURSOR UP
+            .addr   SKBS            ; CURSOR LEFT
+            .addr   SKCSRR          ; CURSOR RIGHT
+            .addr   SKLF            ; CURSOR DOWN
+            .addr   SKHOME          ; HOME
+            .addr   SKDEL           ; DELETE
+            .addr   SKINS           ; INSERT
+            .addr   SKVT            ; SHIFT CURSOR UP
+            .addr   SKSCSRL         ; SHIFT CURSOR LEFT
+            .addr   SKSCSRR         ; SHIFT CURSOR RIGHT
+            .addr   SKLF            ; SHIFT CURSOR DOWN
+            .addr   SKFF            ; SHIFT HOME
+            .addr   $0000
+            .addr   $0000
 
-
-_INLINE:    ldy     #$00
+; INLINE - input an entire line from the keyboard, with editing permitted
+;
+; Arguments: None (QLN must be set)
+;
+; Arguments returned: A = number of characters in the line, Y = 0, X preserved
+;                     QLN points to the complted line
+;
+_INLINE:    ldy     #$00            ; Init line index
             ; Fall through
 
-_EDLINE:    sty     UNKNWN15
+
+; EDLINE - Edit an entire line using the keyboard
+;
+; Arguments: Y=indexes the implied CR at the end of the line to be edited
+;            QLN (address $00F) points to start of line to be edited
+;
+; Arguments returned: A = number of characters in the line, Y = 0, X preserved
+;                     QLN points to the complted line
+;
+_EDLINE:    sty     LINEIDX         ; Update line index
             cld
             lda     UNK23
             sta     L02DA
             stx     L02D6
-LC627:      jsr     LC837
-LC62A:      lda     #$00
-            sta     L02D7
-LC62F:      jsr     _GETKEY
-            cmp     #$7F
-            bcs     LC640
-            cmp     #$20
-            bcc     LC64D
-LC63A:      jsr     LC76F
-            jmp     LC62F
-
-LC640:      beq     LC64D
+LC627:      jsr     LC837           ; Flush pending chars to screen
+LC62A:      lda     #$00            ; Clear insert flag
+            sta     INSFLAG         ;
+GKLOOP:     jsr     _GETKEY         ; Get key
+            cmp     #$7F            ; Printable?
+            bcs     LC640           ; No, go ...
+            cmp     #' '            ; Maybe:
+            bcc     CHKSPCL         ; Character below space, go check special keys
+KNORMAL:    jsr     LC76F           ; Normal character key
+            jmp     GKLOOP          ; And continue processing the input line
+LC640:      beq     CHKSPCL         ; Char is $7F (DEL)
             cmp     #$88
-            bcs     LC64D
+            bcs     CHKSPCL
             jsr     LC8B3
             cmp     #$0D
-            bne     LC62F
-LC64D:      ldx     #$1E
-LC64F:      cmp     LC5BC,x
-            beq     LC669
-            dex
-            bpl     LC64F
-            ldx     #$0A
-LC659:      cmp     LC5B0,x
-            beq     LC67B
-            dex
-            dex
-            bpl     LC659
-            bit     UKINLN
-            bmi     LC63A
-            bpl     LC62F
-LC669:      txa
-            asl     a
-            tax
-            lda     LC5DB,x
-            sta     L02DC
-            lda     LC5DB+1,x
-            sta     L02DD
-            jmp     (L02DC)
+            bne     GKLOOP          ; And continue processing the input line
+CHKSPCL:    ldx     #SPKTBLSIZ-1    ; Search for the char into the SPKTBL
+CHKSPNX:    cmp     _SPKTBL,x       ; Found?
+            beq     FJMP            ; Yes, go jump to handler function
+            dex                     ; No, check next
+            bpl     CHKSPNX         ; Repeat until no more
+            ldx     #$0A            ; Now check if it is an special key with translation
+SPTLOOP:    cmp     SPKTRL,x        ; Match?
+            beq     TRNSLTE         ; Yes, translate to normal equivalent
+            dex                     ; No, advance to next entry
+            dex                     ;
+            bpl     SPTLOOP         ; Repeat until no more or match
+            bit     UKINLN          ; Unrecognized keys allowed?
+            bmi     KNORMAL         ; Yes, continue as normal key
+            bpl     GKLOOP          ; No, continue processing the input line
+FJMP:       txa                     ; Multiply by two for use in jump table
+            asl     a               ;
+            tax                     ;
+            lda     SPKJMP,x        ; Get function address
+            sta     FNJUMP          ;
+            lda     SPKJMP+1,x      ;
+            sta     FNJUMP+1        ;
+            jmp     (FNJUMP)        ; And jump
+TRNSLTE:    inx                     ; Advance to next pos in table (key equivalent)
+            lda     SPKTRL,x        ; Get the equivalent
+            jmp     KNORMAL         ; And continue as normal key
 
-LC67B:      inx
-            lda     LC5B0,x
-            jmp     LC63A
-
-
-LC682:      jsr     LC817
+; Local procedure: Handle STX special character
+;
+SKSTX:      jsr     LC817
             jsr     LC926
             jmp     LC627
 
-LC68B:      lda     NOLEKO
-            eor     #$FF
-            sta     NOLEKO
-            jmp     LC62F
+; Local procedure: Handle ^E special character
+;
+; CODOS uses it to enable/disable keyboard echo
+;
+SKENQ:      lda     NOLEKO          ; Get "No keyboard echo" flag
+            eor     #$FF            ; Flip it
+            sta     NOLEKO          ;
+            jmp     GKLOOP          ; And continue processing the input line
 
-LC696:      jsr     LD155
-            jmp     LC62F
+; Local procedure: Handle BEL special character
+;
+SKBEL:      jsr     RNGBEL          ; Ring the bell
+            jmp     GKLOOP          ; And continue processing the input line
 
-LC69C:      cpy     L02D5
+; Local procedure: Handle BS special character
+;
+SKBS:       cpy     L02D5
             beq     LC6A8
             dey
 LC6A2:      jsr     LCEF0
             jmp     LC62A
 
-LC6A8:      cpy     UNKNWN15
+LC6A8:      cpy     LINEIDX
             beq     LC6A2
             bne     LC6B1
 
-LC6AE:      jsr     LC7CE
+SKHT:       jsr     LC7CE
 LC6B1:      jmp     LC62A
 
-LC6B4:      tya
+SKLF:       tya
             clc
             adc     #$50
             bcs     LC6C5
-            cmp     UNKNWN15
+            cmp     LINEIDX
             bcs     LC6C5
             tay
 LC6BF:      jsr     _LINEFD
             jmp     LC62A
 
-LC6C5:      cpy     UNKNWN15
+LC6C5:      cpy     LINEIDX
             bne     LC70D
             sty     L02D5
             jmp     LC6BF
 
-LC6CF:      tya
+SKVT:       tya
             sec
             sbc     #$50
             bcc     LC6E1
@@ -421,17 +449,17 @@ LC6CF:      tya
 LC6DB:      jsr     LCF08
             jmp     LC62A
 
-LC6E1:      cpy     UNKNWN15
+LC6E1:      cpy     LINEIDX
             bne     LC70D
             sty     L02D5
             jmp     LC6DB
 
-LC6EB:      jsr     _CLRHTW
+SKFF:       jsr     _CLRHTW
 LC6EE:      sty     L02D5
             jmp     LC62A
 
-LC6F4:      clc
-            ldy     UNKNWN15
+SKRET:      clc
+            ldy     LINEIDX
 LC6F7:      lda     #$0D
             sta     (QLN),y
             php
@@ -443,86 +471,90 @@ LC6F7:      lda     #$0D
             ldx     L02D6
             rts
 
-LC70A:      jsr     LC837
+SKDC2:      jsr     LC837
 LC70D:      jmp     LC62A
 
-LC710:      jsr     LC7B9
+SKETB:      jsr     LC7B9
             jmp     LC62A
 
-LC716:      jsr     LC817
+SKCAN:      jsr     LC817
             jmp     LC62A
 
-LC71C:      cpy     #$00
+SKSUB:      cpy     #$00
             bne     LC70D
             beq     LC6F7
-LC722:      jsr     _GETKEY
-            jmp     LC63A
+SKESC:      jsr     _GETKEY
+            jmp     KNORMAL
 
-LC728:      jsr     LC793
-            jmp     LC62F
+SKSUP:      jsr     LC793
+            jmp     GKLOOP
 
             jsr     LC849
-            jmp     LC62F
+            jmp     GKLOOP
 
-LC734:      cpy     UNKNWN15
+SKCSRR:     cpy     LINEIDX
             bcs     LC73F
             iny
-LC739:      jsr     LCEDA
+LC739:      jsr     CURSORR
             jmp     LC62A
 
 LC73F:      cpy     L02D5
             beq     LC739
             bne     LC70D
-LC746:      jsr     _HOMETW
+SKHOME:     jsr     _HOMETW
             jmp     LC6EE
 
-LC74C:      jsr     LC849
-            jmp     LC62F
+SKDEL:      jsr     LC849
+            jmp     GKLOOP
 
-LC752:      sec
-            ror     L02D7
-            jmp     LC62F
+; Internal procedure: Manage INS key. Set the insert flag.
+;
+SKINS:      sec                     ; Set insert flag
+            ror     INSFLAG         ;
+            jmp     GKLOOP          ; And continue processing the input line
 
-LC759:      lda     L02D5
+SKSCSRL:    lda     L02D5
             sta     L02D4
             jsr     LC8A1
             jmp     LC62A
 
-LC765:      cpy     UNKNWN15
+SKSCSRR:    cpy     LINEIDX
             beq     LC70D
-            jsr     LCEDA
+            jsr     CURSORR
             iny
-            bne     LC765
-LC76F:      cpy     YLNLIM
-            bcc     LC777
-            jmp     LD155
+            bne     SKSCSRR
+LC76F:      cpy     YLNLIM          ; Reached line limit?
+            bcc     LC777           ; No, continue
+            jmp     RNGBEL          ; Yes, ring the bell and return
 
-LC777:      bit     L02D7
-            bpl     LC77F
-            jmp     LC86C
+LC777:      bit     INSFLAG         ; Check insert flag
+            bpl     LC77F           ; No, continue
+            jmp     LC86C           ; Yes, jump to insert
 
-LC77F:      sta     (QLN),y
-            cpy     UNKNWN15
-            bcc     LC787
-            inc     UNKNWN15
-LC787:      iny
-LC788:      bit     NOLEKO
-            bmi     LC790
-            jmp     OUTCH
+LC77F:      sta     (QLN),y         ; Save char into input line buffer
+            cpy     LINEIDX         ; Are we past the line index?
+            bcc     LC787           ; No, go to advance pos
+            inc     LINEIDX         ; Yes, increment index
+LC787:      iny                     ;
 
-LC790:      jmp     LCEDA
+;
+LC788:      bit     NOLEKO          ; Check keyboard echo flag
+            bmi     NOECHO          ; If no echo, skip
+            jmp     OUTCH           ; Echo on, output the character
+NOECHO:     jmp     CURSORR         ; Advance cursor to the right and return
+
 
 LC793:      cpy     L02D5
             beq     LC7B8
-            bit     L02D7
+            bit     INSFLAG
             bpl     LC7A4
             jsr     LCEF0
             dey
             jmp     LC849
 
-LC7A4:      cpy     UNKNWN15
+LC7A4:      cpy     LINEIDX
             bcc     LC7AA
-            dec     UNKNWN15
+            dec     LINEIDX
 LC7AA:      dey
             jsr     LCEF0
             lda     #$20
@@ -532,14 +564,14 @@ LC7AA:      dey
 LC7B8:      rts
 
 LC7B9:      sty     L02D4
-LC7BC:      cpy     UNKNWN15
+LC7BC:      cpy     LINEIDX
             bcs     LC7C8
             lda     #$20
             jsr     LC788
             iny
             bne     LC7BC
 LC7C8:      jsr     LC8A1
-            sty     UNKNWN15
+            sty     LINEIDX
             rts
 
 LC7CE:      sty     L02D4
@@ -556,11 +588,11 @@ LC7D3:      lda     TABTBL,x
             tya
             ldy     L02D4
             sta     L02D4
-LC7ED:      cpy     UNKNWN15
+LC7ED:      cpy     LINEIDX
             bcs     LC7FC
             cpy     L02D4
             bcs     LC80D
-            jsr     LCEDA
+            jsr     CURSORR
             iny
             bne     LC7ED
 LC7FC:      lda     #$20
@@ -570,7 +602,7 @@ LC7FC:      lda     #$20
             sta     (QLN),y
             iny
             bne     LC7FC
-LC80B:      sty     UNKNWN15
+LC80B:      sty     LINEIDX
 LC80D:      rts
 
 LC80E:      inx
@@ -583,7 +615,7 @@ LC817:      lda     L02D5
             sta     L02D4
             jsr     LC8A1
             lda     #$20
-LC822:      cpy     UNKNWN15
+LC822:      cpy     LINEIDX
             bcs     LC82C
             jsr     LC788
             iny
@@ -591,24 +623,24 @@ LC822:      cpy     UNKNWN15
 LC82C:      jsr     LC8A1
             ldy     #$00
             sty     L02D5
-            sty     UNKNWN15
+            sty     LINEIDX
             rts
 
-LC837:      ldy     #$00
+LC837:      ldy     #$00            ;
             sty     L02D5
-LC83C:      cpy     UNKNWN15
-            beq     LC848
-            lda     (QLN),y
-            jsr     LC788
-            iny
-            bne     LC83C
+LC83C:      cpy     LINEIDX         ; Have we reached the current pos?
+            beq     LC848           ; Yes, return
+            lda     (QLN),y         ; No, get char from line buffer
+            jsr     LC788           ; Echo (if set) and advance cursor right
+            iny                     ; Next char
+            bne     LC83C           ; Loop until current pos
 LC848:      rts
 
-LC849:      cpy     UNKNWN15
+LC849:      cpy     LINEIDX
             bcs     LC86B
             sty     L02D4
 LC850:      iny
-            cpy     UNKNWN15
+            cpy     LINEIDX
             bcs     LC861
             lda     (QLN),y
             dey
@@ -619,17 +651,17 @@ LC850:      iny
 
 LC861:      lda     #$20
             jsr     LC788
-            dec     UNKNWN15
+            dec     LINEIDX
             jsr     LC8A1
 LC86B:      rts
 
-LC86C:      sta     L02D3
-            sty     L02D4
-            ldy     UNKNWN15
-            cpy     YLNLIM
-            bcc     LC87F
-            jsr     LD155
-            jmp     LC8AF
+LC86C:      sta     L02D3           ; Save char
+            sty     L02D4           ; And current index
+            ldy     LINEIDX         ; Check line index
+            cpy     YLNLIM          ; Line full?
+            bcc     LC87F           ; No, continue
+            jsr     RNGBEL          ; Yes, ring the bell
+            jmp     LC8AF           ; Restore index and return
 
 LC87F:      cpy     L02D4
             beq     LC88D
@@ -639,13 +671,13 @@ LC87F:      cpy     L02D4
             sta     (QLN),y
             dey
             bne     LC87F
-LC88D:      inc     UNKNWN15
+LC88D:      inc     LINEIDX
             lda     L02D3
             sta     (QLN),y
 LC894:      lda     (QLN),y
             jsr     LC788
             iny
-            cpy     UNKNWN15
+            cpy     LINEIDX
             bcc     LC894
             inc     L02D4
 LC8A1:      tya
@@ -701,20 +733,20 @@ LC8FC:      iny
             sty     L02D4
             ldy     UNK23
             iny
-            jsr     LD106
+            jsr     SWTBANK1        ; Turns on I-O address space and switches to bank 1
             txa
-            sta     (UNKNWN4),y
-            jsr     LD127
+            sta     (VRAMDST),y
+            jsr     RSTBANK0        ; Restores Bank 0 and turns on RAM at BE00-BFFF
             sty     UNK23
             ldy     L02D4
-            cpy     UNKNWN15
+            cpy     LINEIDX
             bne     LC8FC
             rts
 
 LC91B:      lda     #$50
-            sta     UNKNWN4
+            sta     VRAMDST
             lda     #$FC
-            sta     UNKNWN4+1
+            sta     VRAMDST+1
             ldy     #$FF
             rts
 
@@ -724,8 +756,8 @@ LC926:      sty     L02D4
 LC92F:      dey
             cpy     UNK23
             beq     LC92F
-            jsr     LD106
-            lda     (UNKNWN4),y
+            jsr     SWTBANK1        ; Turns on I-O address space and switches to bank 1
+            lda     (VRAMDST),y
             cmp     #$FF
             bne     LC947
             lda     UNK23
@@ -737,10 +769,10 @@ LC947:      cmp     #$0D
             sty     L02DA
 LC94E:      sty     L02DB
 LC951:      iny
-            jsr     LD106
-            lda     (UNKNWN4),y
+            jsr     SWTBANK1        ; Turns on I-O address space and switches to bank 1
+            lda     (VRAMDST),y
             tax
-            jsr     LD127
+            jsr     RSTBANK0        ; Restores Bank 0 and turns on RAM at BE00-BFFF
             sty     L02DB
             ldy     L02D4
             txa
@@ -752,7 +784,7 @@ LC951:      iny
             ldy     L02DB
             jmp     LC951
 
-LC972:      sty     UNKNWN15
+LC972:      sty     LINEIDX
             rts
 
 ; SUBROUTINE _GETKEY: WAIT FOR KEYBOARD KEY DEPRESSION, RETURN
@@ -859,7 +891,7 @@ GETK9:      jsr     WA1TST          ; WAIT FOR 1 MILLISECOND THEN TEST AGAIN
             bne     GETK9           ; CONTINUE VERIFICATION
 GETK10:     lda     RPTRAT          ; staRT THE REPEAT TIMER
             sta     KBT1CH
-            jsr     _OFFTCR          ; ENSURE CURSOR IS OFF
+            jsr     _OFFTCR         ; ENSURE CURSOR IS OFF
             jsr     ASCII           ; CONVERT MATRIX ADDRESS IN LSTKEY TO
                                     ; ASCII CODE IN A
             jsr     CLICK           ; SOUND AUDIO "CLICK" TO ACKNOWLEDGE KEY
@@ -965,12 +997,12 @@ LCAA0:      lsr     a
 
 ; MASK TABLE TO ISOLATE ROW BITS
 ;
-ROWMSK:     .byte %00000100         ; keyboard ROW
-            .byte %00001000
-            .byte %00010000
-            .byte %00100000
-            .byte %01000000
-            .byte %10000000
+ROWMSK:     .byte   %00000100       ; keyboard ROW
+            .byte   %00001000
+            .byte   %00010000
+            .byte   %00100000
+            .byte   %01000000
+            .byte   %10000000
 
 ;        SUBROUTINE WA1MS: WAIT ONE MILLISECOND.
 ;
@@ -1130,7 +1162,7 @@ COLMKS:     .byte   $0F             ; 10 (NO CODE) MASK TO ISOLATE COL ADDR
             .byte   $70             ; 1B P
             .byte   $5B             ; 1C LEFT BRACKET RIGHT BRACKET
             .byte   $5C             ; 1D BACKSLASH VERTICAL BAR
-            .byte   $0A             ; 1E LINE FEED        
+            .byte   $0A             ; 1E LINE FEED
             .byte   $7F             ; 1F RUBOUT
 LSHIFT:     .byte   $20             ; 20 (NO CODE) bit MASK FOR LEFT SHIFT
 RSHIFT:     .byte   $40             ; 21 (NO KEY) bit MASK FOR RIGHT SHIFT
@@ -1180,7 +1212,7 @@ RSHIFT:     .byte   $40             ; 21 (NO KEY) bit MASK FOR RIGHT SHIFT
             .byte   $A1             ; 4D CURSOR LEFT
             .byte   $A0             ; 3E CURSOR UP
             .byte   $30             ; 4F 0
-            .byte   $00             ; 50 (NO KEY)                   
+            .byte   $00             ; 50 (NO KEY)
             .byte   $8C             ; 51 SUBTRACT
             .byte   $36             ; 52 6
             .byte   $8D             ; 53 ADD
@@ -1275,7 +1307,7 @@ LCBFC:      sec
             jmp     LCC80
 
 LCC04:      pha
-            asl     UNK16
+            asl     CRSRWRAP
             jsr     LD13B
             pla
             cmp     #$5F
@@ -1285,7 +1317,7 @@ LCC04:      pha
             jsr     LCEF0
             jsr     LD13B
             lda     #$00
-            jsr     LD00B
+            jsr     PRNCHR
             jmp     LCC48
 
 LCC23:      cmp     #$3F
@@ -1295,14 +1327,14 @@ LCC23:      cmp     #$3F
             jsr     LD0D7
             jmp     LCC45
 
-LCC32:      jsr     LD00B
+LCC32:      jsr     PRNCHR
             bit     UNDRLN
             bpl     LCC3D
             jsr     LD0D7
 LCC3D:      bit     RVIDEO
             bpl     LCC45
             jsr     LD0A7
-LCC45:      jsr     LCEDA
+LCC45:      jsr     CURSORR
 LCC48:      ldy     L02C9
             ldx     L02C8
             lda     L02C7
@@ -1320,7 +1352,7 @@ LCC54:      cmp     LCCFF,x
 
 LCC66:      cmp     #$A2
             bne     LCC70
-            jsr     LCEDA
+            jsr     CURSORR
             jmp     LCC48
 
 LCC70:      cmp     #$A4
@@ -1339,7 +1371,7 @@ LCC80:      clc
 
 LCC8B:      cmp     #$0D
             bne     LCC9A
-            asl     UNK16
+            asl     CRSRWRAP
             bcs     LCC48
             jsr     _CRLF
             jmp     LCC48
@@ -1369,7 +1401,7 @@ LCCC2:      cmp     UNK21
 
 LCCCD:      cmp     UNK18
             bne     LCCD8
-            jsr     LD155
+            jsr     RNGBEL
             jmp     LCC48
 
 LCCD8:      cmp     UNK20
@@ -1391,66 +1423,70 @@ LCCF7:      inx
             bne     LCCE2
 LCCFC:      jmp     LCC48
 
-LCCFF:      .byte   $00          
-            .byte   $8A          
-            .byte   $8B          
-            .byte   $8C 
-            .byte   $8D 
-            .byte   $8E          
-            .byte   $A1 
-            .byte   $A3          
-            .byte   $B4 
+LCCFF:      .byte   $00
+            .byte   $8A
+            .byte   $8B
+            .byte   $8C
+            .byte   $8D
+            .byte   $8E
+            .byte   $A1
+            .byte   $A3
+            .byte   $B4
 
-LCD08:      .byte   $00          
-            .byte   $2A          
-            .byte   $2F          
-            .byte   $2D 
-            .byte   $2B 
-            .byte   $0D          
-            .byte   $08          
-            .byte   $0A          
+LCD08:      .byte   $00
+            .byte   $2A
+            .byte   $2F
+            .byte   $2D
+            .byte   $2B
+            .byte   $0D
+            .byte   $08
+            .byte   $0A
             .byte   $0C
 
-_INITIO:    jsr     _INITTW
-            lda     #$00
-            sta     QLN
-            lda     #$05
-            sta     $F1
-            ldx     #$40
-            lda     #$20
-LCD20:      sta     $05BF,x
-            dex
-            bne     LCD20
-            lda     #$80
-LCD28:      sta     KEYSTR,x
-            dex
-            bne     LCD28
-            lda     #$00
-            sta     LSTKEY
-            jmp     _DRWLEG
+; INITIO - Clear screen and set default values of display parameters
+;
+_INITIO:    jsr     _INITTW         ; Init text window
+            lda     #<__INPLBUF     ; Inits input line buffer
+            sta     QLN             ;
+            lda     #>__INPLBUF     ;
+            sta     QLN+1           ;
+            ldx     #$40            ; Clears last 64 bytes of input buffer to make
+            lda     #' '            ; room for the 8 key legends
+INITIO1:    sta     __INPLBUF+__INPBSIZ-1,x
+            dex                     ;
+            bne     INITIO1         ; Loop until done
+            lda     #$80            ; Mark KEYSTR table as empty
+INITIO2:    sta     KEYSTR,x        ;
+            dex                     ;
+            bne     INITIO2         ; Repeat until done
+            lda     #$00            ; Clear last key pressed
+            sta     LSTKEY          ;
+            jmp     _DRWLEG         ; Go to draw legends and return
 
+; INITTW - INITIALIZE THE TEXT WINDOW TO 24 LINES and CLEAR THE TEXT WINDOW ONLY
+;
 _INITTW:    cld
-            jsr     _CLRDSP
-            lda     #$00
-            sta     NOLEKO
-            ldx     #$0F
-LCD41:      sta     KBECHO,x
-            dex
-            bpl     LCD41
-            lda     #$01
-            tax
-            tay
-            jsr     _BEEP
+            jsr     _CLRDSP         ; Clear the entire VIDHRES by VIDVRES screen
+            lda     #$00            ; Enable keyboard echo
+            sta     NOLEKO          ;
+            ldx     #<(CRSRWRAP-KBECHO+1)
+INITTW1:    sta     KBECHO,x        ; Clear flags (from KBECHO to CRSRWRAP)
+            dex                     ;
+            bpl     INITTW1         ;
+            lda     #$01            ; Make a short beep
+            tax                     ;
+            tay                     ;
+            jsr     _BEEP           ;
             jsr     LC91B
             ldy     #$00
-            jsr     LD106
+            jsr     SWTBANK1        ; Turns on I-O address space and switches to bank 1
             lda     #$FF
-            sta     (UNKNWN4),y
+            sta     (VRAMDST),y
             iny
             lda     #$0D
-            sta     (UNKNWN4),y
+            sta     (VRAMDST),y
             sty     UNK23
-            jsr     LD127
+            jsr     RSTBANK0        ; Restores Bank 0 and turns on RAM at BE00-BFFF
             lda     #$18
             ldy     #$00
             ; Fall through
@@ -1490,14 +1526,14 @@ _CLRDSP:    pha
             txa
             pha
             lda     #$00
-            sta     UNKNWN6
+            sta     VRAMORG
             lda     #$C0
-            sta     UNKNWN6+1
+            sta     VRAMORG+1
             lda     #$00
-            sta     UNKNWN10
+            sta     VRAMCNT
             lda     #$3C
-            sta     UNKNWN10+1
-            jsr     LCE15
+            sta     VRAMCNT+1
+            jsr     CLRVRAM
             pla
             tax
             pla
@@ -1508,35 +1544,42 @@ _CLRTW:     pha
             pha
             lda     YTDOWN
             jsr     LCF63
-            jsr     LD13E
+            jsr     VDST2ORG
             lda     NLINET
             ldx     #$50
             jsr     LCF36
-            lda     UNKNWN4
+            lda     VRAMDST
             sec
-            sbc     UNKNWN6
-            sta     UNKNWN10
-            lda     UNKNWN4+1
-            sbc     UNKNWN6+1
-            sta     UNKNWN10+1
-            inc     UNKNWN10
+            sbc     VRAMORG
+            sta     VRAMCNT
+            lda     VRAMDST+1
+            sbc     VRAMORG+1
+            sta     VRAMCNT+1
+            inc     VRAMCNT
             bne     LCDD6
-            inc     UNKNWN10+1
-LCDD6:      jsr     LCE15
+            inc     VRAMCNT+1
+LCDD6:      jsr     CLRVRAM
             pla
             tax
             pla
             rts
 
-_CLRLEG:    lda     #$40
-            sta     UNKNWN6
-            lda     #$F8
-            sta     UNKNWN6+1
-            lda     #$C0
-            sta     UNKNWN10
-            lda     #$03
-            sta     UNKNWN10+1
-            jmp     LCE15
+; CLRLEG - CLEAR THE LEGEND DISPLAY AREA (BOTTOMMOST 16 SCAN LINES)
+;
+; Monomeg display is VIDHRESxVIDVRES bits
+;
+; Last 16 lines start at VIDHRES*(VIDVRES-16)/8 = VIDEORAM+$3840
+; and occupy 16*VIDHRES/8 = $3C0 bytes
+; 
+_CLRLEG:    lda     #<(VIDEORAM+VIDHRES*(VIDVRES-16)/8)
+            sta     VRAMORG
+            lda     #>(VIDEORAM+VIDHRES*(VIDVRES-16)/8)
+            sta     VRAMORG+1
+            lda     #<(16*VIDHRES/8)
+            sta     VRAMCNT
+            lda     #>(16*VIDHRES/8)
+            sta     VRAMCNT+1
+            jmp     CLRVRAM         ; Jump to clear the video ram and return
 
 LCDF0:      lda     NLINET
             ; Fall through
@@ -1546,45 +1589,48 @@ _CLRTLN:    ldx     #$50
             bcc     LCDFD
             lda     NLINET
 LCDFD:      jsr     LCF36
-            lda     UNKNWN4
+            lda     VRAMDST
             sec
             sbc     #$57
-            sta     UNKNWN6
-            lda     UNKNWN4+1
+            sta     VRAMORG
+            lda     VRAMDST+1
             sbc     #$02
-            sta     UNKNWN6+1
+            sta     VRAMORG+1
             lda     #$58
-            sta     UNKNWN10
+            sta     VRAMCNT
             lda     #$02
-            sta     UNKNWN10+1
+            sta     VRAMCNT+1
             ; Fall through
 
-LCE15:      jsr     LD106
-            jsr     LCE1E
-            jmp     LD127
+; Local procedure: Clears VRAMCNT bytes of video RAM starting at VRAMORG
+;
+CLRVRAM:    jsr     SWTBANK1        ; Turns on I-O address space and switches to bank 1
+            jsr     _CLRVRAM        ; Do the actual clearing
+            jmp     RSTBANK0        ; Restores Bank 0 and turns on RAM at BE00-BFFF
 
-LCE1E:      tya
-            pha
-            lda     #$00
-            ldy     UNKNWN10+1
-            beq     LCE35
-            tay
-LCE27:      sta     (UNKNWN6),y
-            iny
-            sta     (UNKNWN6),y
-            iny
-            bne     LCE27
-            inc     UNKNWN6+1
-            dec     UNKNWN10+1
-            bne     LCE27
-LCE35:      ldy     UNKNWN10
-            beq     LCE3E
-LCE39:      dey
-            sta     (UNKNWN6),y
-            bne     LCE39
-LCE3E:      pla
-            tay
+_CLRVRAM:   tya                     ; Saves Y register
+            pha                     ;
+            lda     #$00            ; Set for clear
+            ldy     VRAMCNT+1       ; Get count MSB
+            beq     CLRVREM         ; Count is less than a page, go copy remainder
+            tay                     ; Init index
+CLRVRPAG:   sta     (VRAMORG),y     ; Clears two bytes per iteration for speed
+            iny                     ;
+            sta     (VRAMORG),y     ;
+            iny                     ;
+            bne     CLRVRPAG        ; While not end of page, continue
+            inc     VRAMORG+1       ; Increment page origin
+            dec     VRAMCNT+1       ; Decrement page count
+            bne     CLRVRPAG        ; Repeat until last page
+CLRVREM:    ldy     VRAMCNT         ; Get remainder bytes
+            beq     CLRVDONE        ; None, we're finished  
+CLRVREML:   dey                     
+            sta     (VRAMORG),y
+            bne     CLRVREML        ; Loop until done
+CLRVDONE:   pla                     ; Restore Y and return
+            tay                     ;
             rts
+
 
 _LINEFD:    lda     LINE
             cmp     NLINET
@@ -1602,63 +1648,63 @@ LCE5A:      lda     NLINET
             bcc     LCE9A
             ldx     #$50
             jsr     LCF36
-            lda     UNKNWN4
-            sta     UNKNWN10
-            lda     UNKNWN4+1
-            sta     UNKNWN10+1
+            lda     VRAMDST
+            sta     VRAMCNT
+            lda     VRAMDST+1
+            sta     VRAMCNT+1
             lda     YTDOWN
             jsr     LCF63
-            jsr     LD13E
-            lda     UNKNWN6
+            jsr     VDST2ORG
+            lda     VRAMORG
             clc
             adc     #$58
-            sta     UNKNWN4
-            lda     UNKNWN6+1
+            sta     VRAMDST
+            lda     VRAMORG+1
             adc     #$02
-            sta     UNKNWN4+1
-            lda     UNKNWN10
+            sta     VRAMDST+1
+            lda     VRAMCNT
             sec
-            sbc     UNKNWN4
-            sta     UNKNWN10
-            lda     UNKNWN10+1
-            sbc     UNKNWN4+1
-            sta     UNKNWN10+1
-            inc     UNKNWN10
+            sbc     VRAMDST
+            sta     VRAMCNT
+            lda     VRAMCNT+1
+            sbc     VRAMDST+1
+            sta     VRAMCNT+1
+            inc     VRAMCNT
             bne     LCE97
-            inc     UNKNWN10+1
+            inc     VRAMCNT+1
 LCE97:      jsr     LCE9D
 LCE9A:      jmp     LCDF0
 
-LCE9D:      jsr     LD106
+LCE9D:      jsr     SWTBANK1        ; Turns on I-O address space and switches to bank 1
             jsr     LCEA6
-            jmp     LD127
+            jmp     RSTBANK0        ; Restores Bank 0 and turns on RAM at BE00-BFFF
 
 LCEA6:      tya
             pha
             ldy     #$00
-            ldx     UNKNWN10+1
+            ldx     VRAMCNT+1
             beq     LCECB
-LCEAE:      lda     (UNKNWN4),y
-            sta     (UNKNWN6),y
+LCEAE:      lda     (VRAMDST),y
+            sta     (VRAMORG),y
             iny
-            lda     (UNKNWN4),y
-            sta     (UNKNWN6),y
+            lda     (VRAMDST),y
+            sta     (VRAMORG),y
             iny
-            lda     (UNKNWN4),y
-            sta     (UNKNWN6),y
+            lda     (VRAMDST),y
+            sta     (VRAMORG),y
             iny
-            lda     (UNKNWN4),y
-            sta     (UNKNWN6),y
+            lda     (VRAMDST),y
+            sta     (VRAMORG),y
             iny
             bne     LCEAE
-            inc     UNKNWN4+1
-            inc     UNKNWN6+1
+            inc     VRAMDST+1
+            inc     VRAMORG+1
             dex
             bne     LCEAE
-LCECB:      ldx     UNKNWN10
+LCECB:      ldx     VRAMCNT
             beq     LCED7
-LCECF:      lda     (UNKNWN4),y
-            sta     (UNKNWN6),y
+LCECF:      lda     (VRAMDST),y
+            sta     (VRAMORG),y
             iny
             dex
             bne     LCECF
@@ -1666,18 +1712,20 @@ LCED7:      pla
             tay
             rts
 
-LCEDA:      pha
-            lda     COL
-            cmp     #$50
-            bcs     LCEE7
-            inc     COL
-            pla
+; Local procedure: Advance cursor position to the right and manage wrap
+;
+CURSORR:    pha                     ; Save accumulator
+            lda     COL             ; Get column
+            cmp     #$50            ; Have we reached pos 80?
+            bcs     WRAP            ; Yes,
+            inc     COL             ; No, increment position
+            pla                     ; Recover accumulator and return
             rts
 
-LCEE7:      jsr     _CRLF
-            sec
-            ror     UNK16
-            pla
+WRAP:       jsr     _CRLF           ; Cursor wrap (first col and down one line)
+            sec                     ; Set the curor wrap flag
+            ror     CRSRWRAP        ;
+            pla                     ; Recover accumulator and return
             rts
 
 LCEF0:      dec     COL
@@ -1733,59 +1781,59 @@ LCF36:      sta     TEMP1
             pha
             asl     a
             and     #$07
-            sta     UNKNWN14
+            sta     CHRDISPL
             pla
             lsr     a
             lsr     a
             clc
-            adc     UNKNWN4
-            sta     UNKNWN4
+            adc     VRAMDST
+            sta     VRAMDST
             bcc     LCF60
-            inc     UNKNWN4+1
+            inc     VRAMDST+1
 LCF60:      rts
 
             eor     #$FF
 LCF63:      pha
             lda     #$00
-            sta     UNKNWN13
+            sta     CHTBIDXHI
             pla
             asl     a
-            rol     UNKNWN13
+            rol     CHTBIDXHI
             asl     a
-            rol     UNKNWN13
+            rol     CHTBIDXHI
             sta     TEMP1
-            lda     UNKNWN13
-            sta     UNKNWN4+1
+            lda     CHTBIDXHI
+            sta     VRAMDST+1
             lda     TEMP1
             asl     a
-            rol     UNKNWN4+1
+            rol     VRAMDST+1
             asl     a
-            rol     UNKNWN4+1
+            rol     VRAMDST+1
             asl     a
-            rol     UNKNWN4+1
+            rol     VRAMDST+1
             asl     a
-            rol     UNKNWN4+1
+            rol     VRAMDST+1
             sec
             sbc     TEMP1
-            sta     UNKNWN4
-            lda     UNKNWN4+1
-            sbc     UNKNWN13
+            sta     VRAMDST
+            lda     VRAMDST+1
+            sbc     CHTBIDXHI
             clc
             adc     #$C0
-            sta     UNKNWN4+1
+            sta     VRAMDST+1
             rts
 
 LCF92:      jsr     LCFFD
             jsr     _TIOON
             lda     BNKCTL
-            eor     L02D0
+            eor     FNBNK
             sta     BNKCTL
             ldy     #$06
             ldx     #$00
 LCFA5:      stx     TEMP1
-            lda     (UNKNWN8),y
+            lda     (CHARFNTP),y
             and     #$F8
-            ldx     UNKNWN14
+            ldx     CHRDISPL
             beq     LCFB5
 LCFAF:      lsr     a
             ror     TEMP1
@@ -1797,7 +1845,7 @@ LCFB5:      sta     L02B4,y
             dey
             bpl     LCFA5
             iny
-            lda     (UNKNWN8),y
+            lda     (CHARFNTP),y
             ror     a
             bcc     LCFF2
             ldx     #$06
@@ -1810,12 +1858,12 @@ LCFC8:      lda     L02B4,x
             lda     #$00
             ldx     #$02
             jsr     LD001
-            lda     (UNKNWN8),y
+            lda     (CHARFNTP),y
             ror     a
             ror     a
             bcc     LCFF2
             lda     #$20
-            ldx     UNKNWN14
+            ldx     CHRDISPL
 LCFE8:      lsr     a
             ror     L02BE
             dex
@@ -1834,78 +1882,96 @@ LD001:      sta     L02B3,x
             bpl     LD001
             rts
 
-LD00B:      sta     TEMP1
-            ldx     #$00
-            stx     UNKNWN13
-            asl     a
-            asl     a
-            rol     UNKNWN13
-            asl     a
-            rol     UNKNWN13
-            sec
-            sbc     TEMP1
-            bcs     LD01F
-            dec     UNKNWN13
-LD01F:      clc
-            bit     EXFONT
-            bpl     LD037
-            adc     QEXFNT
-            sta     UNKNWN8
-            lda     QEXFNT+1
-            adc     UNKNWN13
-            sta     UNKNWN8+1
-            lda     EXFTBK
-            jmp     LD043
+;
+; Internal procedure: Print character to screen at address VRAMORG
+; using the internal or external font, depending on the value of EXFONT
+;
+; A contains character index to char table (ascii code - $20)
+; VRAMORG is start location in video memory
+;
+; On exit, 
+;
+.proc PRNCHR
+            sta     TEMP1           ; Save character index
+            ldx     #$00            ; Init CHTBIDXHI
+            stx     CHTBIDXHI       ;
 
-LD037:      adc     #$50
-            sta     UNKNWN8
-            lda     #$FD
-            adc     UNKNWN13
-            sta     UNKNWN8+1
-            lda     #$01
-LD043:      sta     L02D0
+            ; Multiply character index by 7, result into CHTBIDXHI:A
+            ; First, multiply by 8. Then, if result is not 0, substract
+            ; character index to obtain the result.
+
+            asl     a               ; Bigger char pos id 5F, so first shift never
+                                    ; Generates carry
+            asl     a               ; Second shift, insert carry into CHTBIDXHI
+            rol     CHTBIDXHI       ;
+            asl     a               ; Third shift, insert carry into CHTBIDXHI
+            rol     CHTBIDXHI       ;
+            sec                     ; Clear borrow
+            sbc     TEMP1           ; Substract char pos from accumulator to obtain x7
+            bcs     SKIP            ; No borrow skip       
+            dec     CHTBIDXHI       ; Borrow, decrement MSB
+SKIP:       clc                     ; Clear carry for next addition
+            bit     EXFONT          ; Use xsternal font table?
+            bpl     INTERNAL        ; No, go set internal
+            adc     QEXFNT          ; Add char index to external table addr
+            sta     CHARFNTP        ; and set the address of char in font table
+            lda     QEXFNT+1        ;
+            adc     CHTBIDXHI       ;
+            sta     CHARFNTP+1      ;
+            lda     EXFTBK          ; Get bank of external font table
+            jmp     PRINT           ; And continue to print character     
+
+INTERNAL:   adc     #<__CHARTBL     ; Set pointer to character into internal char table
+            sta     CHARFNTP        ;
+            lda     #>__CHARTBL     ;
+            adc     CHTBIDXHI       ;
+            sta     CHARFNTP+1      ;
+            lda     #$01            ; Bank of internal character table
+
+PRINT:      sta     FNBNK           ; Set bank of current character table
             jsr     LCF92
-            jsr     LD106
-            ldx     UNKNWN14
-            lda     LD084,x
-            sta     L02B2
-            lda     LD07C,x
-            sta     L02B1
+            jsr     SWTBANK1        ; Turns on I-O address space and switches to bank 1
+            ldx     CHRDISPL        ; Get window mask for the char displacement
+            lda     WMASKTHI,x      ; 
+            sta     TMPMASK+1       ; And store it
+            lda     WMASKTLO,x      ;
+            sta     TMPMASK         ;
             ldx     #$09
 LD05C:      ldy     #$01
-            lda     L02B2
-            and     (UNKNWN6),y
+            lda     TMPMASK+1
+            and     (VRAMORG),y
             ora     L02BD,x
-            sta     (UNKNWN6),y
+            sta     (VRAMORG),y
             dey
-            lda     L02B1
-            and     (UNKNWN6),y
+            lda     TMPMASK
+            and     (VRAMORG),y
             ora     L02B3,x
-            sta     (UNKNWN6),y
+            sta     (VRAMORG),y
             jsr     LD149
             dex
             bpl     LD05C
-            jmp     LD127
+            jmp     RSTBANK0        ; Restores Bank 0 and turns on RAM at BE00-BFFF
+.endproc
 
 ; TABLE OF MASKS FOR OPENING UP A 5 BIT WINDOW ANYWHERE IN GRAPHIC MEMORY
 ;
-LD07C:      .byte   $03       
-			.byte   $81 
-			.byte   $C0       
-			.byte   $E0
-			.byte   $F0       
-			.byte   $F8       
-			.byte   $FC       
-			.byte   $FE
+WMASKTLO:   .byte   $03
+            .byte   $81
+            .byte   $C0
+            .byte   $E0
+            .byte   $F0
+            .byte   $F8
+            .byte   $FC
+            .byte   $FE
 ;HIGH BYTE
-LD084:      .byte   $FF 
-			.byte   $FF       
-			.byte   $FF       
-			.byte   $7F       
-			.byte   $3F       
-			.byte   $1F       
-			.byte   $0F       
-			.byte   $07  
+WMASKTHI:   .byte   $FF
+            .byte   $FF
+            .byte   $FF
+            .byte   $7F
+            .byte   $3F
+            .byte   $1F
+            .byte   $0F
+            .byte   $07
 
 _OFFTCR:    asl     CURVIS
             bcs     _FLPTCR
@@ -1929,40 +1995,40 @@ _FLPTCR:    pha
             pla
             rts
 
-LD0A7:      jsr     LD13E
-            jsr     LD106
-            ldx     UNKNWN14
+LD0A7:      jsr     VDST2ORG
+            jsr     SWTBANK1        ; Turns on I-O address space and switches to bank 1
+            ldx     CHRDISPL
             lda     LD0FE,x
-            sta     L02B2
+            sta     TMPMASK+1
             lda     LD0F6,x
-            sta     L02B1
+            sta     TMPMASK
             ldx     #$09
 LD0BD:      ldy     #$01
-            lda     L02B2
-            eor     (UNKNWN6),y
-            sta     (UNKNWN6),y
+            lda     TMPMASK+1
+            eor     (VRAMORG),y
+            sta     (VRAMORG),y
             dey
-            lda     L02B1
-            eor     (UNKNWN6),y
-            sta     (UNKNWN6),y
+            lda     TMPMASK
+            eor     (VRAMORG),y
+            sta     (VRAMORG),y
             jsr     LD149
             dex
             bpl     LD0BD
-            jmp     LD127
+            jmp     RSTBANK0        ; Restores Bank 0 and turns on RAM at BE00-BFFF
 
-LD0D7:      jsr     LD13E
+LD0D7:      jsr     VDST2ORG
             jsr     LD149
-            jsr     LD106
-            ldx     UNKNWN14
+            jsr     SWTBANK1        ; Turns on I-O address space and switches to bank 1
+            ldx     CHRDISPL
             lda     LD0FE,x
             ldy     #$01
-            eor     (UNKNWN6),y
-            sta     (UNKNWN6),y
+            eor     (VRAMORG),y
+            sta     (VRAMORG),y
             dey
             lda     LD0F6,x
-            eor     (UNKNWN6),y
-            sta     (UNKNWN6),y
-            jmp     LD127
+            eor     (VRAMORG),y
+            sta     (VRAMORG),y
+            jmp     RSTBANK0        ; Restores Bank 0 and turns on RAM at BE00-BFFF
 
 ; EQUATES FOR CURSOR CELL POSITIONS
 ;
@@ -1983,14 +2049,16 @@ LD0FE:      .byte   $00
             .byte   $F0
             .byte   $F8
 
-LD106:      jsr     _TIOON
-            lda     BNKCTL
-            ora     #$03
-            eor     #$01
-            sta     BNKCTL
-            lda     SVIA1DIR
-            ora     #$03
-            sta     SVIA1DIR
+; Turns on I-O address space and switches to bank 1
+;
+SWTBANK1:   jsr     _TIOON          ; Turn on I-O address space
+            lda     BNKCTL          ; Switch to bank 1
+            ora     #$03            ;
+            eor     #$01            ;
+            sta     BNKCTL          ;
+            lda     SVIA1DIR        ; Set port direction
+            ora     #$03            ;
+            sta     SVIA1DIR        ;
             rts
 
 ; Turn on I-O address space
@@ -2003,7 +2071,9 @@ _TIOON:     php                     ; Save IRQ enable flag
             plp                     ; Restore IRQ enable flag
             rts
 
-LD127:      lda     BNKCTL
+; Switches back to Bank 0 and turns on RAM at BE00-BFFF
+;
+RSTBANK0:   lda     BNKCTL          ; Switch to bank 0
             ora     #$03
             sta     BNKCTL
             ; Fall through
@@ -2020,38 +2090,45 @@ RETURN:     plp
 
 
 LD13B:      jsr     LCF17
-LD13E:      pha
-            lda     UNKNWN4
-            sta     UNKNWN6
-            lda     UNKNWN4+1
-            sta     UNKNWN6+1
+
+; Local procedure: Sets new video RAM origin at last video RAM destination
+;
+VDST2ORG:   pha
+            lda     VRAMDST
+            sta     VRAMORG
+            lda     VRAMDST+1
+            sta     VRAMORG+1
             pla
             rts
 
-LD149:      lda     UNKNWN6
+LD149:      lda     VRAMORG
             sec
             sbc     #$3C
-            sta     UNKNWN6
+            sta     VRAMORG
             bcs     LD154
-            dec     UNKNWN6+1
+            dec     VRAMORG+1
 LD154:      rts
 
-LD155:      bit     NOBELL
-            bmi     LD186
-            pha
-            txa
-            pha
-            tya
-            pha
-            ldy     BELPER
-            ldx     BELCY
-            lda     BELVOL
-            jmp     LD17E
+; Local procedure: Ring the bell
+;
+; Preserves registers
+;
+RNGBEL:     bit     NOBELL          ; Check if bell is on
+            bmi     SKDONE          ; No, just return
+            pha                     ; Save A onto the stack
+            txa                     ; Save X
+            pha                     ;
+            tya                     ; Save Y
+            pha                     ;
+            ldy     BELPER          ; Get period
+            ldx     BELCY           ;   volume
+            lda     BELVOL          ;   and duration
+            jmp     MKSOUND         ; Make sound, restore registers and return
 
 ; GENERATE A CLICK
 ;
 CLICK:      bit     NOCLIK
-            bmi     LD186
+            bmi     SKDONE
             pha
             txa
             pha
@@ -2062,13 +2139,17 @@ CLICK:      bit     NOCLIK
             lda     CLKVOL
             ; Fall through
 
-LD17E:      jsr     _BEEP
-            pla
-            tay
-            pla
-            tax
-            pla
-LD186:      rts
+; Local procedure: Generates an audible beep of period Y, volume X and duration A
+;
+; On exit, restores A, X and Y from the stack
+;
+MKSOUND:    jsr     _BEEP           ; Make the sound
+            pla                     ; Restore Y
+            tay                     ;
+            pla                     ; Restore X
+            tax                     ;
+            pla                     ; Restore A
+SKDONE:     rts
 
 _BEEP:      cmp     #$00
             bpl     LD18C
@@ -2111,39 +2192,52 @@ LD1C7:      sbc     #$01
             tay
             rts
 
-_DRWLEG:    jsr     _CLRLEG
+; DRWLEG - Draw legend boxes at the bottom 16 raster lines
+;
+; Monomeg display is VIDHRESxVIDVRES bits = $3C00 bytes
+;
+; Last 16 lines start at VIDHRES*(VIDVRES-16)/8 = $3840
+; and occupy 16*VIDHRES/8 = $3C0 bytes
+;
+; Dest of first vertical lines is VIDHRES*(VIDVRES-2)/8 = $3B88
+;
+_DRWLEG:    jsr     _CLRLEG         ; Clear the legend boxes area
             ldy     #$00
-            lda     #$05
-            sta     UNKNWN14
-            lda     #$FB
-            sta     UNKNWN4+1
-            lda     #$88
-LD1E0:      sta     UNKNWN4
-LD1E2:      lda     #$08
-            sta     UNKNWN10
-LD1E6:      jsr     LD13E
-            lda     LEGTBL,y
-            sec
-            sbc     #$20
-            bcc     LD1F5
-            cmp     #$5F
-            bcc     LD1F7
-LD1F5:      lda     #$00
-LD1F7:      sty     UNKNWN10+1
-            jsr     LD00B
-            lda     UNKNWN14
-            clc
-            adc     #$06
-            cmp     #$08
-            bcc     LD209
-            and     #$07
-            inc     UNKNWN4
-LD209:      sta     UNKNWN14
-            ldy     UNKNWN10+1
+            lda     #$05            ; Horizontal displacement from the 8x5 character
+            sta     CHRDISPL        ; matrix
+
+            ; Set origin of first legend (using dest because entering
+            ; the loop, orig is set as last dest)
+
+            lda     #>(VIDEORAM+VIDHRES*(VIDVRES-2)/8)
+            sta     VRAMDST+1
+            lda     #<(VIDEORAM+VIDHRES*(VIDVRES-2)/8)
+LD1E0:      sta     VRAMDST
+LD1E2:      lda     #$08            ; Legends are 8 bytes long
+            sta     VRAMCNT         ;
+LD1E6:      jsr     VDST2ORG        ; Make last dest the new orig
+            lda     LEGTBL,y        ; Get char of legend
+            sec                     ;
+            sbc     #' '            ; Char table starts with space, so rebase index
+            bcc     DRBLNK          ; If it is not printable, print a space instead
+            cmp     #$5F            ; Is it over the last printable char?
+            bcc     LD1F7           ; No, continue
+DRBLNK:     lda     #$00            ; Yes, print a space instead
+LD1F7:      sty     VRAMCNT+1       ; Count MSB is always 0
+            jsr     PRNCHR          ; Print char
+            lda     CHRDISPL        ; Recover displacement of last char
+            clc                     ;
+            adc     #$06            ; Calculate next displacement adding char width
+            cmp     #$08            ; If within the block with
+            bcc     LD209           ; Skip
+            and     #$07            ; 
+            inc     VRAMDST         ; And increment 
+LD209:      sta     CHRDISPL        ; Store new displacement
+            ldy     VRAMCNT+1
             iny
-            dec     UNKNWN10
+            dec     VRAMCNT
             bne     LD1E6
-            inc     UNKNWN4
+            inc     VRAMDST
             cpy     #$20
             bne     LD21C
             lda     #$A6
@@ -2151,32 +2245,32 @@ LD209:      sta     UNKNWN14
 LD21C:      cpy     #$40
             bcc     LD1E2
             lda     #$C4
-            sta     UNKNWN4
+            sta     VRAMDST
             lda     #$FB
-            sta     UNKNWN4+1
+            sta     VRAMDST+1
             jsr     LD22F
             lda     #$E2
-            sta     UNKNWN4
-LD22F:      jsr     LD106
+            sta     VRAMDST
+LD22F:      jsr     SWTBANK1        ; Turns on I-O address space and switches to bank 1
             lda     #$04
-            sta     UNKNWN10
+            sta     VRAMCNT
 LD236:      jsr     LD24D
-            lda     UNKNWN4
+            lda     VRAMDST
             clc
             adc     #$07
-            sta     UNKNWN4
-            dec     UNKNWN10
+            sta     VRAMDST
+            dec     VRAMCNT
             bne     LD236
-            jsr     LD13E
+            jsr     VDST2ORG
             jsr     LD260
-            jmp     LD127
+            jmp     RSTBANK0        ; Restores Bank 0 and turns on RAM at BE00-BFFF
 
-LD24D:      jsr     LD13E
+LD24D:      jsr     VDST2ORG
             jsr     LD256
             jsr     LD260
 LD256:      ldy     #$06
             lda     #$FF
-LD25A:      sta     (UNKNWN6),y
+LD25A:      sta     (VRAMORG),y
             dey
             bpl     LD25A
             rts
@@ -2185,14 +2279,14 @@ LD260:      ldy     #$00
             ldx     #$0D
             bne     LD269
 LD266:      jsr     LD149
-LD269:      lda     (UNKNWN6),y
+LD269:      lda     (VRAMORG),y
             ora     #$80
-            sta     (UNKNWN6),y
+            sta     (VRAMORG),y
             dex
             bne     LD266
             rts
 
-IODRIVER_SIZE = * - LC5B0
+IODRIVER_SIZE = * - SPKTRL
 
 
             .segment "chartbl"
@@ -2267,7 +2361,7 @@ CHTB:       .byte        $00, $00, $00  ; BLANK
             .byte        $70, $88, $88  ; 9
             .byte   $78, $08, $08, $70
             .byte        $00, $00, $30  ; :
-            .byte   $30, $00, $30, $30        
+            .byte   $30, $00, $30, $30
             .byte        $31, $30, $00  ; ;
             .byte   $30, $30, $10, $20
             .byte        $10, $20, $40  ; LESS THAN
@@ -2406,7 +2500,6 @@ CHTB:       .byte        $00, $00, $00  ; BLANK
             .byte   $00, $00, $00, $00
             .byte        $A8, $50, $A8 ; RUBOUT
             .byte   $50, $A8, $50, $A8
-
 
 CHTB_SIZE = * - CHTB
 

@@ -1,4 +1,4 @@
-# System map configuration for the KIM-1
+# System map configuration for the MTU-130 and MTU-140 systems
 #
 SYMBOLS {
     # K-1013 RAM Banks
@@ -6,6 +6,7 @@ SYMBOLS {
     __USRRAM   : type = export, value = $C000;
     __SYSRAM   : type = export, value = $E000;
 
+    # 
     # Large transient buffer for COPYF, ETC.
     #
     __LBUFADDR : type = export, value = $A000;
@@ -16,18 +17,20 @@ SYMBOLS {
     __SYSUTILS : type = export, value = __LBUFADDR + __LBUFSIZE;
     __SYSUSIZE : type = export, value = __LBUFADDR + $2000 - __SYSUTILS;
 
-    # Available RAM for Applications
-    __APPSADDR  : type = export, value = $2000;
-    __APPSSIZE  : type = export, value = __SYSUTILS + __SYSUSIZE - __APPSADDR;
-
     # Low RAM
     #
     __LOWRAM   : type = export, value = $0400;
 
+    # Available RAM for Applications
+    __APPSADDR  : type = export, value = __LOWRAM+$0300;
+    __APPSSIZE  : type = export, value = __SYSUTILS + __SYSUSIZE - __APPSADDR;
+    
     __KEYSTR   : type = export, value = __LOWRAM;       # (256 bytes) Function key table
     __LEGTBL   : type = export, value = __LOWRAM+$01C0; # (64 bytes) F. key legend table
     __INPLBUF  : type = export, value = __LOWRAM+$0100; # system input line buffer
     __OUTLBUF  : type = export, value = __LOWRAM+$0200; # system output line buffer
+    __INPBSIZ  : type = export, value = $C0;            # system input line buffer len
+    __OUTBSIZ  : type = export, value = $E0;            # system output line buffer len
 
     # System RAM
     #
@@ -39,5 +42,10 @@ SYMBOLS {
     __WARMRS   : type = export, value = __SYSTEM+$0100; # Jump to operating system warm reset entry
     __CNTRLC   : type = export, value = __SYSTEM+$0103; # Jump executed when CNTRL-C is entered from console
 
-    __EXINBNK  : type = export, value = $0100;           # Location of the exec in bank routine
+    __EXINBNK  : type = export, value = $0100;          # Location of the exec in bank routine
+
+    # Bank 1
+    #
+    __CHARTBL  : type = export, value = $FD50;          # Location of internal char table
+    __CHARTSZ  : type = export, value = $2A0;           # Size of internal char table
 }

@@ -1,4 +1,4 @@
-ARCH ?= MTU
+ARCH ?= mtu
 
 VERSIONS = 14 15 17
 
@@ -12,10 +12,20 @@ AFLAGS = -U -D $(ARCH)
 
 IMAGES = $(VERSIONS:%=images/codos%.imd)
 
+ifeq ($(wildcard system_$(ARCH).map),)
+    $(error #### UNSUPPORTED ARCH >>> $(ARCH) <<< ####)
+endif
+
+ifeq ($(ARCH),kim1)
+  IODRIVER = kimiotty
+else
+  IODRIVER = iodriver
+endif
+
 FILESYSTEM = 	codos.z \
 				comdproc.z \
 				svcproc.z \
-				iodriver.z \
+				$(IODRIVER).z \
 				overlays.bin \
 				dir.c \
 				format.c \
@@ -25,7 +35,7 @@ FILESYSTEM = 	codos.z \
 				startup.j \
 				syserrmsg.z
 
-CODOSOBJS = codos.o comdproc.o svcproc.o iodriver.o
+CODOSOBJS = codos.o comdproc.o svcproc.o $(IODRIVER).o
 
 CODOSFILES = $(CODOSOBJS:.o=.z) $(CODOSOBJS:.o=.z.map)
 
@@ -46,10 +56,6 @@ OVERLAYS =	overlay01.bin \
 			overlay15.bin \
 			overlay16.bin
 
-ifeq ($(wildcard system_$(ARCH).map),)
-    $(error #### UNSUPPORTED ARCH >>> $(ARCH) <<< ####)
-endif
-
 all: info tests
 	
 info:
@@ -58,7 +64,7 @@ info:
 images: $(IMAGES)
 
 tests: images
-ifeq ($(ARCH), MTU)
+ifeq ($(ARCH), mtu)
 	echo "MD5SUM"
 	$(foreach ver,$(VERSIONS),bash -c "cd build/$(ver); echo -n \"Version $(ver): \"; \
 			(md5sum --quiet -c ../../checksums$(ver).md5 && echo \"OK.\")";)
@@ -71,7 +77,7 @@ $(foreach ver,$(VERSIONS),$(eval images/codos$(ver).imd: $(addprefix build/$(ver
 	; ../utils/codosdsk copy -a images/codos$(ver).imd build/$(ver)/syserrmsg.z 0:syserrmsg.z \
 	; ../utils/codosdsk copy -a images/codos$(ver).imd build/$(ver)/startup.j 0:startup.j \
 	; ../utils/codosdsk copy images/codos$(ver).imd build/$(ver)/svcproc.z 0:svcproc.z \
-	; ../utils/codosdsk copy images/codos$(ver).imd build/$(ver)/iodriver.z 0:iodriver.z \
+	; ../utils/codosdsk copy images/codos$(ver).imd build/$(ver)/$(IODRIVER).z 0:$(IODRIVER).z \
 	; ../utils/codosdsk copy images/codos$(ver).imd build/$(ver)/sysgendisk.c 0:sysgendisk.c \
 	; ../utils/codosdsk copy images/codos$(ver).imd build/$(ver)/dir.c 0:dir.c \
 	; ../utils/codosdsk copy images/codos$(ver).imd build/$(ver)/format.c 0:format.c \
@@ -89,7 +95,7 @@ $(foreach ver,$(VERSIONS),$(eval build/$(ver)/symbols.inc: build/$(ver)/codos.z.
 $(foreach ver,$(VERSIONS),$(eval build/$(ver)/%.cfg: system_$(ARCH).map %.cfg.in \
 	; echo "CFG $$@" \
 	; echo "## AUTOMATICALLY GENERATED, DO NOT MODIFY!!!!" > $$@ \
-	; cat $$^ | sed -e 's/%%VERSION%%/$(ver)/' >> $$@))
+	; cat $$^ | sed -e 's/%%VERSION%%/$(ver)/' -e 's/%%IODRIVER%%/$(IODRIVER)/' >> $$@))
 
 $(foreach ver,$(VERSIONS),$(eval build/$(ver)/codos.o: codos.asm build/$(ver)/k1013.inc codos.inc monomeg.inc \
 	; echo "AS $$@" \
@@ -103,7 +109,7 @@ $(foreach ver,$(VERSIONS),$(eval build/$(ver)/svcproc.o: svcproc.asm build/$(ver
 	; echo "AS $$@" \
 	; $(AS) $(AFLAGS) -D CODOS2_VER=$(ver) -I build/$(ver) -l $(basename $$@).lst -o $$@ $$<))
 
-$(foreach ver,$(VERSIONS),$(eval build/$(ver)/iodriver.o: iodriver.asm monomeg.inc \
+$(foreach ver,$(VERSIONS),$(eval build/$(ver)/$(IODRIVER).o: $(IODRIVER).asm monomeg.inc \
 	; echo "AS $$@" \
 	; $(AS) $(AFLAGS) -D CODOS2_VER=$(ver) -I build/$(ver) -l $(basename $$@).lst -o $$@ $$<))
 
@@ -127,7 +133,7 @@ $(foreach ver,$(VERSIONS),$(eval build/$(ver)/%.o: %.asm build/$(ver)/k1013.inc 
 	; echo "AS $$@" \
 	; $(AS) $(AFLAGS) -D CODOS2_VER=$(ver) -I build/$(ver) -l $(basename $$@).lst -o $$@ $$<))
 
-$(foreach ver,$(VERSIONS),$(eval build/$(ver)/%: fs/%  \
+$(foreach ver,$(VERSIONS),$(eval build/$(ver)/%: fs/$(ARCH)/% \
 	; echo "CP $$@" \
 	; cp $$< $$@))
 

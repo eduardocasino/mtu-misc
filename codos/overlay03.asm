@@ -131,9 +131,12 @@ RETURN:     rts
 .endproc
 
 UNDATED:    .byte   "*UNDATED*"
-        
+
+.ifdef mtu      
             ; This block is just junk that was in the buffer when
             ; writing it to disk. I leave it to facilitate checksum
             ; comparisons with the original
             ;
             .byte   $D7, $FE, $00, $FE, $60, $00, $00, $1E
+.endif
+            .end

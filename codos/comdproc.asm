@@ -3,7 +3,9 @@
 ; Input file: command.bin
 ; Page:       1
 
+.ifdef mtu
             .include "monomeg.inc"
+.endif
             .include "codos.inc"
 
             .importzp MEMBUFF, MEMCOUNT, TMPBUFP, INPBUFP, P0SCRATCH, DESTBUFF
@@ -43,9 +45,12 @@ LOOP:       sta     INTCMDERR,x     ;
         
             sta     ERRNUM          ; Clear error
             sta     SVCENB          ; Disable SVCs
-        
+.ifdef mtu        
             jsr     INIMMAP         ; Set default memory config
             jsr     CPYEXINBNK      ; Copy execute in bank routine to page zero
+.else
+            jsr     CLEARBRK
+.endif
             lda     UNPROTFLG       ; Get status of memory protection flag
             sta     IGNORWRP        ; And copy to the ignore protection flag
             jsr     SETOUTBCH       ; Set output buffer to output line buffer
@@ -54,7 +59,11 @@ LOOP:       sta     INTCMDERR,x     ;
             cmp     #$82            ; Console input?
             bne     CONT            ; Nope
             jsr     OUTSTR          ; Yes, print CODOS prompt
+.ifdef mtu
             .byte   $0D, "CODOS> ", $00
+.else
+            .byte   $0D, "> ", $00
+.endif
 
 CONT:       ldx     #$01            ;
             jsr     GETLINE         ; Get entire line
@@ -141,9 +150,11 @@ CONT:       lda     SAVEDHDR+SHDR::ENTRY
             sta     PCSAVE          ;
             lda     SAVEDHDR+SHDR::ENTRY+1
             sta     PCSAVE+1        ;
+.ifdef mtu
             lda     DSTBANK         ; Sets program and data banks
             sta     PRGBANK         ;
             sta     DATBANK         ;
+.endif
 NEXT:       ldx     #$00            ; Get next block
             txa                     ;
             jsr     LOADSVD         ;
@@ -334,6 +345,7 @@ INVALID:    jsr     GETNEXTCH       ; Get char
             bcs     CONT            ; If OK, continue
             jsr     ERROR14         ; <from> address missing or illegal
 CONT:       sty     CMDLIDX         ; Update command line index
+.ifdef mtu
             lda     #$00            ; Some initialization
             sta     NEWBNK          ; Inits NEWBNK to bank 0
             sta     CHGBNKFLG       ; Clears change bank flag
@@ -354,6 +366,7 @@ ERROR:      jsr     ERROR51         ; Missing or illegal memory bank number
 SETBNK:     sta     NEWBNK          ; New bank
             sec                     ; And sets change bank flag
             ror     CHGBNKFLG       ;
+.endif
 RETURN:     rts
 .endproc
 
@@ -375,9 +388,11 @@ CONT:       sty     CMDLIDX         ; Recover command line index
             .export GETPC
 
 .proc GETPC
+.ifdef mtu
             lda     #$00            ; Clears bank switching flag
             sta     CHGBNKFLG       ;
             sta     NEWBNK          ; And sets bank 0 as new bank
+.endif
             jsr     GETNEXTNB       ; Get next char from command line
             beq     RETURN          ; If none, returns
             jsr     GADDRBNKMB      ; Get address and bank and store into MEMBUFF and NEWBNK
@@ -453,15 +468,20 @@ LOOP:       lda     BPBANK,x        ; Get bank
             lda     BPADDRHI,x      ;
             sta     MEMBUFF+1       ;
             ldy     #$00
+.ifdef mtu
             lda     BPBANK,x        ; Get bank
             eor     DEFBNKCFG       ; And switch to it 
             sta     BNKCTL          ;
+.endif
             lda     (MEMBUFF),y     ; Get OP at BP address
             bne     CONT            ; If not a BRK, do nothing
             lda     BPOP,x          ; Restore original OP
             sta     (MEMBUFF),y     ;
-CONT:       lda     DEFBNKCFG       ; Switch back to default bank
+CONT:
+.ifdef mtu
+            lda     DEFBNKCFG       ; Switch back to default bank
             sta     BNKCTL          ;
+.endif
             lda     #$FF            ; Invalidate/clear BP
             sta     BPBANK,x        ;
 NEXT:       dex                     ; Advance to next BP
@@ -472,36 +492,49 @@ GETARGS:    jsr     GADDRBNKMB      ; Get <from> address:bank and store into MEM
             ldy     #$00
 
             ldx     #$02            ; Search for a free BP slot
-LOOP2:      lda     BPBANK,x        ; Get bank
+LOOP2:      lda     BPBANK,x        ; Get bank (or BP set flag)
             bpl     NOTFREE         ; This BP slot is not free
 
 SETBP:      lda     MEMBUFF         ; Set BP address
             sta     BPADDRLO,x      ;
             lda     MEMBUFF+1       ;
             sta     BPADDRHI,x      ;
+.ifdef mtu
             lda     NEWBNK          ; Set BP memory bank
             sta     BPBANK,x        ;
             eor     DEFBNKCFG       ; And switch to it
             sta     BNKCTL          ;
+.else
+            lda     #$00
+            sta     BPBANK,x        ; Set "BP set"
+.endif
             lda     (MEMBUFF),y     ; Get current opcode at BP address
             sta     BPOP,x          ; and save it
             tya                     ; Y is currently 0 (BRK)
             sta     (MEMBUFF),y     ; Set BRK at BP address
-RSTBNK:     lda     DEFBNKCFG       ; Switch bank bank
+RSTBNK:
+.ifdef mtu
+            lda     DEFBNKCFG       ; Switch to default bank
             sta     BNKCTL          ;
+.endif
             rts
 
-NOTFREE:    cmp     PRGBANK         ; Is it in the current program bank?
+NOTFREE:    
+.ifdef mtu
+            cmp     PRGBANK         ; Is it in the current program bank?
             bne     NEXT2           ; No, go try next slot
+.endif
             lda     BPADDRLO,x      ; Get address
             cmp     MEMBUFF         ; Is it in the desired address?
             bne     NEXT2           ; No, go try next slot
             lda     BPADDRHI,x      ; Maybe, get MSB
             cmp     MEMBUFF+1       ;
             bne     NEXT2           ; No, go try next slot
+.ifdef mtu
             lda     NEWBNK          ; Definitely, switch to BP bank
             eor     DEFBNKCFG       ;
             sta     BNKCTL          ;
+.endif
             lda     (MEMBUFF),y     ; Get opcode at BP address
             bne     SETBP           ; Not a BRK, set BP
             beq     RSTBNK          ; Already a BRK, just restore bank and return
@@ -596,11 +629,15 @@ CLOSE0:     ldx     #$00            ; Set drive 0
 OVERWR:     ldy     CMDLIDX         ; Recover command line index
             jsr     GETENTRYP       ; Get =<entry> address
 MEMBLK:     jsr     GADDRBNKMB      ; Get <from> address:bank and store into MEMBUFF and NEWBNK
+.ifdef mtu
             lda     NEWBNK          ; Store bank for saved file <from>
             sta     SVDFROMBNK      ;
+.endif
             jsr     GETDESTP        ; Get =<dest> address
+.ifdef mtu
             lda     NEWBNK          ; Store bank for <dest>
             sta     SVDDESTBNK      ;
+.endif
             jsr     GETTOP          ; Get TO address and store into MEMCOUNT
             lda     #$00            ; Set overlay as 0
             tax                     ; This seems useless, as X is modified before use
@@ -630,8 +667,10 @@ MEMBLK:     jsr     GADDRBNKMB      ; Get <from> address:bank and store into MEM
             jsr     FOPEN0          ; Assigns channel 0 to file (fails if not found)
             ldy     CMDLIDX         ; Get command line index
             jsr     GETDESTP        ; Get =<dest> address (if specified)
+.ifdef mtu
             lda     NEWBNK          ; Store bank for <dest>
             sta     SVDDESTBNK      ;
+.endif
             ldx     #$00            ; Set channel 0
             txa                     ; Set overlay 0
             jsr     LOADSVD         ; Loads $58 segment from file
@@ -641,9 +680,11 @@ CONT:       lda     P0SCRATCH       ; Store entry address into PCSAVE
             sta     PCSAVE          ;
             lda     P0SCRATCH+1     ;
             sta     PCSAVE+1        ;
+.ifdef mtu
             lda     DSTBANK         ; Set DATBANK and PRGBANK from header (or <dest> if set)
             sta     PRGBANK         ;
             sta     DATBANK         ;
+.endif
 NEXT:       ldy     CMDLIDX         ; Recover command line index
             jsr     GETDESTP        ; Get <dest>, if set
             ldx     #$00            ; Set channel 0
@@ -756,13 +797,18 @@ CMDNAMTBL:  .byte   "ASSIGN",   $07
             .byte   "DO",       $07
             .byte   "HUNT",     $0C
             .byte   "COMPARE",  $0F
+.ifdef mtu
             .byte   "ONKEY",    $0E
+.endif
             .byte   "BP",       $00
             .byte   "RESAVE",   $00
             .byte   "MSG",      $06
 
             ; Reserved for new commands
 
+.ifndef mtu
+            .byte   $00
+.endif
             .byte   $00, $00, $00, $00, $00, $00, $00, $00
             .byte   $00, $00, $00, $00, $00, $00, $00, $00
             .byte   $00, $00, $00, $00, $00, $00, $00, $00
@@ -803,10 +849,15 @@ CMDFUNTBL:  .word   $0000
             .word   OVLORG+$F0      ; Do
             .word   OVLORG+$01      ; Hunt
             .word   OVLORG+$01      ; Compare
+.ifdef mtu
             .word   OVLORG+$01      ; Onkey
+.endif
             .word   BREAKP
             .word   RESAVE
             .word   OVLORG+$B3      ; Msg
+.ifndef mtu
+            .word   $0000           ; Reserved
+.endif
             .word   $0000           ; Reserved
             .word   $0000           ; Reserved
             .word   $0000           ; Reserved

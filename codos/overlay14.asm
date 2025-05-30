@@ -13,6 +13,7 @@
 
             .byte   $0E             ; Overlay number
 
+.ifdef mtu
 ; ONKEY Command
 ;
 ; DESCRIPTION:  Define a function key legend and associated substitution string.
@@ -171,3 +172,6 @@ RETURN:     rts
             .byte   $6F, $FB, $A9, $FB, $B2, $FB, $BB, $FB
             .byte   $56, $FE, $61, $FE, $6E, $FE, $7B, $FE
             .byte   $88, $FE, $95, $FE, $B4, $FE, $E0, $FE
+
+.endif ; MTU
+            .end

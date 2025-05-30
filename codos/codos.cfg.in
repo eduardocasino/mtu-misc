@@ -2,18 +2,18 @@ MEMORY {
 
 # BANK 0
     ZEROPAGE  : start = $0000,                size = $100;
-    IODATA    : start = __SYSTEM-$A,          size = $280+$A,      file="build/%%VERSION%%/iodriver.z";
+    IODATA    : start = __SYSTEM-$A,          size = $280+$A,      file="build/%%VERSION%%/%%IODRIVER%%.z";
     SCRATCH   : start = __SYSTEM+$0080,       size = $30,          file="";
     IOSCRATCH : start = __SYSTEM+$00B0,       size = $48,          file="";
-    IODRVJMP  : start = __SYSTEM+$0106-$A,    size = $90+$A,       file="build/%%VERSION%%/iodriver.z";
-    TABTBL    : start = __LOWRAM+$02E0-$A,    size = $20+$A,       file="build/%%VERSION%%/iodriver.z";
-    IODRIVER  : start = __USRRAM+$05B0-$A,    size = $CD0+$A,      file="build/%%VERSION%%/iodriver.z";
+    IODRVJMP  : start = __SYSTEM+$0106-$A,    size = $90+$A,       file="build/%%VERSION%%/%%IODRIVER%%.z";
+    TABTBL    : start = __LOWRAM+$02E0-$A,    size = $20+$A,       file="build/%%VERSION%%/%%IODRIVER%%.z";
+    IODRIVER  : start = __USRRAM+$05B0-$A,    size = $CD0+$A,      file="build/%%VERSION%%/%%IODRIVER%%.z";
     CMDPROC   : start = __USRRAM+$1800-$A,    size = $800+$A,      file="build/%%VERSION%%/comdproc.z";
     SVCPROC   : start = __USRRAM+$1D20-$A,    size = $2E0+$A,      file="build/%%VERSION%%/svcproc.z";
     CODOS     : start = __SYSRAM+$600-$B6-$A, size = $1900+$B6+$A, file=%O;
 
 # BANK 1
-    CHARTBL   : start = $FD50-$A,             size = $2A0+$A,      file="build/%%VERSION%%/iodriver.z";
+    CHARTBL   : start = __CHARTBL-$A,         size = __CHARTSZ+$A, file="build/%%VERSION%%/%%IODRIVER%%.z";
 }
 
 SEGMENTS {
