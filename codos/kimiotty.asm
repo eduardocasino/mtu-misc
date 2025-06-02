@@ -12,25 +12,25 @@
 ;
             .exportzp QLN
 
-QLN:        .res 2                  ; $F0 Ptr to line-buffer used for INLINE and EDLINE 
-UNKNWN4:    .res 2                  ; $F2 - $F3
-UNKNWN6:    .res 2                  ; $F4 - $F5
-UNKNWN8:    .res 2                  ; $F6 - $F7
-UNKNWN10:   .res 2                  ; $F8 - $F9
-TEMP1:      .res 1                  ; $FA Temporary storeage for keyboard routine
-UNKNWN13:   .res 1                  ; $FB
-UNKNWN14:   .res 1                  ; $FC
-UNKNWN15:   .res 1                  ; $FD
-UNKNWN16:   .res 1                  ; $FE
-UNKNWN17:   .res 1                  ; $FF
+QLN:        .res    2               ; $F0 Ptr to line-buffer used for INLINE and EDLINE 
+TPTR:       .res    2               ; Temporary pointer     
+UNKNWN6:    .res    2               ; $F4 - $F5
+UNKNWN8:    .res    2               ; $F6 - $F7
+UNKNWN10:   .res    2               ; $F8 - $F9
+TEMP1:      .res    1               ; $FA Temporary storeage for keyboard routine
+UNKNWN13:   .res    1               ; $FB
+UNKNWN14:   .res    1               ; $FC
+UNKNWN15:   .res    1               ; $FD
+UNKNWN16:   .res    1               ; $FE
+UNKNWN17:   .res    1               ; $FF
 
             .segment "ioscratch"
 
 ; Scratch ram used by Console I-O and graphics drivers 
 ;
-ASVKB:		.res    1			    ; Saved A reg
-XSVKB:		.res    1			    ; Saved X reg
-YSVKB:		.res    1				; Saved Y reg
+ASVKB:      .res    1               ; Saved A reg
+XSVKB:      .res    1               ; Saved X reg
+YSVKB:      .res    1               ; Saved Y reg
 
             .segment "iodata"
 
@@ -46,7 +46,7 @@ YSVKB:		.res    1				; Saved Y reg
 
             .export YLNLIM
 
-COL:        .byte   $01			    ; $0200 CURRENT COLUMN LOCATION OF TEXT CURSOR 1-80.
+COL:        .byte   $01             ; $0200 CURRENT COLUMN LOCATION OF TEXT CURSOR 1-80.
 LINE:       .byte   $01             ; $0201 CURRENT LINE NUMBER OF TEXT CURSOR. 1-NLINET.
 UNK0:       .byte   $00
 UNK1:       .byte   $00
@@ -62,17 +62,17 @@ UNK10:      .byte   $F0             ; $020C
 LSTKEY:     .byte   $00             ; $020D KEYBOARD KEY LAST DOWN
 RPTFLG:     .byte   $00             ; $020E FLAG USED BY AUTO REPEAT ALGORITHM
 KBECHO:     .byte   $00             ; $020F IF BIT 7=1 THEN "ECHO" EACH KEY TO THE DISPLAY.
-NOLFCR:		.byte   $00             ; $0210	IF BIT 7=1 THEN NO AUTOMATIC LINE FEED AFTER CR.
+NOLFCR:     .byte   $00             ; $0210    IF BIT 7=1 THEN NO AUTOMATIC LINE FEED AFTER CR.
 NOSCRL:     .byte   $00             ; $0211 IF BIT 7=1 THEN INSTEAD OF SCROLLING, THE TEXT WINDOW IS CLEARED AND THE CURSOR IS HOMED WHEN TEXT GOES BEYOND THE BOOTOM LINE.
-UNDRLN:		.byte   $00             ; $0212	IF BIT 7=1 THEN ALL CHARACTERS UNDERLINED WHEN DRAWN.
-NOCLIK:		.byte   $00             ; $0213	IF BIT 7=1 THEN NO CLICK WHEN A KEY IS PRESSED.
+UNDRLN:     .byte   $00             ; $0212    IF BIT 7=1 THEN ALL CHARACTERS UNDERLINED WHEN DRAWN.
+NOCLIK:     .byte   $00             ; $0213    IF BIT 7=1 THEN NO CLICK WHEN A KEY IS PRESSED.
 NOBELL:     .byte   $00             ; $0214 IF BIT 7=1 THEN BEL CHARACTER IS IGNORED.
 RVIDEO:     .byte   $00             ; $0215 IF BIT 7=1 THEN CHARACTERS ARE DRAWN IN REVERSE VIDEO.
-SHODEL:     .byte   $00             ; $0216	IF BIT 7=1 THEN DISPLAY DEL (ROBOUT) AS A CHARACTER SHAPE
-SHOUL:      .byte   $00             ; $0217	IF BIT 7=1 THEN CHARACTER CELL IS ERASED BEFORE THE UNDERLINE CHARACTER IS DRAWN.
+SHODEL:     .byte   $00             ; $0216    IF BIT 7=1 THEN DISPLAY DEL (ROBOUT) AS A CHARACTER SHAPE
+SHOUL:      .byte   $00             ; $0217    IF BIT 7=1 THEN CHARACTER CELL IS ERASED BEFORE THE UNDERLINE CHARACTER IS DRAWN.
 EXCCP:      .byte   $00             ; $0218 IF BIT 7=1 THEN CALL USER CONTROL CHARACTER PROCESSOR.
 EXTHI:      .byte   $00             ; $0219 IF BIT 7=1 THEN CALL USER RUTINE TO PROCESS ALL CHARACTERS WHEN BIT 7 SET.
-EXFONT:     .byte   $00             ; $021A	IF BIT 7=1 THEN USE EXTERNAL FONT TABLE.
+EXFONT:     .byte   $00             ; $021A    IF BIT 7=1 THEN USE EXTERNAL FONT TABLE.
 CURVIS:     .byte   $00             ; $021B FLAG INDICATING PRESENT STATE OF CURSOR
 UNK15:      .byte   $00             ; $021C
 UNK16:      .byte   $00             ; $021D
@@ -86,8 +86,8 @@ CLKPER:     .byte   $05             ; $0224 CLICK WAVEFORM PERIOD IN UNITS OF 20
 CLKVOL:     .byte   $20             ; $0225 CLICK VOLUME, $00 = MINIMUM, $7F = MAXIMUM.
 CLKCY:      .byte   $02             ; $0226 CLICK DURATION IN UNITS OF COMPLETE WAVEFORM CYCLES
 BELPER:     .byte   $05             ; $0227 BELL SOUND WAVEFORM PERIOD IN UNITS OF 200 MICROSECONDS.
-BELVOL:     .byte   $40             ; $0228	BELL SOUND VOLUME, $00 = MINIMUM, $7F MAXIMUM.
-BELCY:      .byte   $0C             ; $0229	BELL SOUND DURATION IN UNITS OF COMPLETE WAVEFORM CYCLES.
+BELVOL:     .byte   $40             ; $0228    BELL SOUND VOLUME, $00 = MINIMUM, $7F MAXIMUM.
+BELCY:      .byte   $0C             ; $0229    BELL SOUND DURATION IN UNITS OF COMPLETE WAVEFORM CYCLES.
 UNK18:      .byte   $07             ; $022A
 UNK19:      .byte   $08             ; $022B
 UNK20:      .byte   $09             ; $022C
@@ -95,11 +95,11 @@ UNK21:      .byte   $0C             ; $022D
 UNK22:      .byte   $18             ; $022E
 QEXCC:      .word   ERR37           ; $022F ADDRESS OF EXTERNAL CONTROL CHARACTER PROCESSOR IF USED.
 QEXFNT:     .word   ERR37           ; $0231 ADDRESS OF EXTERNAL FONT TABLE IF USED.
-QEXHI7:     .word   ERR37           ; $0233	ADDRESS OF EXTERNAL PROCESSOR FOR CHARACTERS WITH BIT 7=1
+QEXHI7:     .word   ERR37           ; $0233    ADDRESS OF EXTERNAL PROCESSOR FOR CHARACTERS WITH BIT 7=1
 FNTTBL:     .word   $0000           ; $0235 CHARACTER FONT TABLE
-EXFTBK:     .byte   $00             ; $0237	MEMORY BANK NUMBER CONTAINING EXTERNAL FONT TABLE.
+EXFTBK:     .byte   $00             ; $0237    MEMORY BANK NUMBER CONTAINING EXTERNAL FONT TABLE.
 YLNLIM:     .byte   $C0             ; $0238 LINE SIZE LIMIT FOR INLINE AND ENDLINE ENTRY POINTS
-NOLEKO:     .byte   $00             ; $0239	ECHO FLAG NORMALLY 0 BUT IF SET TO 80 WILL DISABLE KEYBOARD ECHO
+NOLEKO:     .byte   $00             ; $0239    ECHO FLAG NORMALLY 0 BUT IF SET TO 80 WILL DISABLE KEYBOARD ECHO
 UKINLN:     .byte   $00             ; $023A IF BIT 7=1 THEN IRRECOGNIZED KEYS ARE ACCEPTED FOR ENTRY POINTS INLINE AND ENDLINE.
 SPKTBL:     .word   $0000           ; $023B KEYBOARD SPECIAL KEYS TABLE
 UNK23:      .byte   $00             ; $023D
@@ -158,10 +158,10 @@ STSTLP:     jmp     ERR37       ; TEST FOR LIGHT PEN HIT and RETURN COORDINATES 
 IFKEY:      jmp     _IFKEY      ; IFKEY - TEST IF A KEY IS PRESSED WITHOUT MULTIPLE RECOGNITION LOCKOUT
 INITTW:     jmp     ERR37       ; INITTW - INITIALIZE THE TEXT WINDOW TO 24 LINES and CLEAR THE TEXT WINDOW ONLY
 DEFTW:      jmp     ERR37       ; DEFTW - SET THE POSITION and SIZE OF THE TEXT WINDOW
-CLRHTW:     jmp     ERR37       ; CLRHTW - CLEAR THE TEXT WINDOW and HOME THE CURSOR.
-HOMETW:     jmp     ERR37       ; HOMETW - PLACE THE CURSOR IN THE HOME POSITION (COL=1, LINE=1)
+CLRHTW:     jmp     _CLRHTW     ; CLRHTW - CLEAR THE TEXT WINDOW and HOME THE CURSOR.
+HOMETW:     jmp     _HOMETW     ; HOMETW - PLACE THE CURSOR IN THE HOME POSITION (COL=1, LINE=1)
 CRLF:       jmp     ERR37       ; CRLF - MOVE CURSOR TO THE LEFT SCREEN EDGE and DOWN ONE LINE
-CLRTW:      jmp     ERR37       ; CLRTW - CLEAR THE TEXT WINDOW WITHOUT MOVING THE CURSOR
+CLRTW:      jmp     _CLRTW      ; CLRTW - CLEAR THE TEXT WINDOW WITHOUT MOVING THE CURSOR
 CLRLEG:     jmp     ERR37       ; CLRLEG - CLEAR THE LEGEND DISPLAY AREA (BOTTOMMOST 16 SCAN LINES)
 CLRTLN:     jmp     ERR37       ; CLRTLN - CLEAR A SPECIFIED TEXT LINE
 LINEFD:     jmp     ERR37       ; LINEFD - MOVE CURSOR DOWN  ONE TEXT LINE
@@ -219,6 +219,9 @@ TABTBL_SIZE = * - TABTBL
             sta     QLN+1           ;
             lda     #$00            ; Clear last key pressed
             sta     LSTKEY          ;
+
+            jsr     _CLRHTW         ; Clear the text window and homes cursor
+            
             rts
 .endproc
 
@@ -234,8 +237,6 @@ TABTBL_SIZE = * - TABTBL
 ; NOTE: THE ENTRY POINT FOR "_GETKEY" IS IN THE JUMP TABLE.
 ;
 .proc _GETKEY
-            stx     XSVKB           ; Save X registers (TTYBGETCH preserves X and Y)
-
             lda     LSTKEY          ; Is there a pending key?
             bne     RETLAST
 
@@ -257,9 +258,9 @@ INCH:       jsr     TTYBGETCH
             sta     SBD
             pla
 
-RETLAST:    ldx     #0
+RETLAST:    stx     XSVKB           ; Preserve X
+            ldx     #0
             stx     LSTKEY
-
             ldx     XSVKB
 
             rts
@@ -373,17 +374,74 @@ LOOP:       lda     SAD             ; Get 8 bits loop
 ; OUTCH - Display character
 ;
 .proc _OUTCH
+            sta     ASVKB
             stx     XSVKB
             sty     YSVKB
 
+            cmp     #$0D            ; If CR, echo an additional LF
+            bne     SKIP
             jsr     KOUTCH
+            lda     #$0A
+SKIP:       jsr     KOUTCH
 
             ldx     XSVKB
             ldy     YSVKB
+            lda     ASVKB
 
             rts
 .endproc
 
+
+;  CLRTW - CLEAR THE TEXT WINDOW WITHOUT MOVING THE CURSOR
+;
+.proc _CLRTW
+
+            jsr     OUTSEQ
+            .byte   $1B, "[2J", $00
+            rts
+.endproc
+
+
+; CLRHTW - CLEAR THE TEXT WINDOW and HOME THE CURSOR
+;
+.proc _CLRHTW
+            jsr     _CLRTW
+            ; Fall through
+.endproc
+
+
+; HOMETW - PLACE THE CURSOR IN THE HOME POSITION (COL=1, LINE=1)
+.proc _HOMETW
+            jsr     OUTSEQ
+            .byte   $1B, "[2H", $00
+            rts
+.endproc
+
+
+; Internal procedure: print sequence of characters immediately following the subroutine call
+; (Ripped-off from OUTSTR)
+;
+.proc OUTSEQ
+
+            pla                     ; Get PC and save in TMPPTR. PC points
+            sta     TPTR            ; to last opcode of instruction
+            pla                     ;
+            sta     TPTR+1          ;
+NEXT:       inc     TPTR            ; Increment PC (points to first char of string)
+            bne     GETC            ;
+            inc     TPTR+1          ;
+GETC:       ldy     #$00            ;
+            lda     (TPTR),y        ; Get char
+            beq     FINISH          ; If null, end of sequence
+            jsr     _OUTCH          ; Print char
+            jmp     NEXT            ; Loop
+
+FINISH:     lda     TPTR+1          ; Push new PC to the stack
+            pha                     ;
+            lda     TPTR            ;
+            pha                     ;
+            rts                     ;
+.endproc
 
 ; INLINE - input an entire line from the keyboard
 ;
@@ -394,7 +452,6 @@ LOOP:       lda     SAD             ; Get 8 bits loop
 ;                     Cy clear
 ;
 .proc _INLINE
-            stx     XSVKB
             ldy     #$00            ; Init character count
 
 GKLOOP:     jsr     _GETKEY         ; Get key
@@ -414,18 +471,17 @@ CHKSPCL:    cmp     #$08            ; Backspace?
             jmp     GKLOOP          ; And continue processing the input line
 
 DECCNT:     dey                     ; Decrement count
-            jsr     KOUTCH          ; Move cursor left and delete char
+            jsr     _OUTCH          ; Move cursor left and delete char
             lda     #' '            ;
-            jsr     KOUTCH          ;
+            jsr     _OUTCH          ;
             lda     #$08            ;
-            jsr     KOUTCH          ;
+            jsr     _OUTCH          ;
             jmp     GKLOOP          ; Continue processing the input line
 
-CHKCR:      cmp     $0D             ; Is it CR?
+CHKCR:      cmp     #$0D            ; Is it CR?
             bne     NONPRNT         ; Nope, go process non-prontable
             sta     (QLN),y         ; Save char into input line buffer
             jsr     CHARECHO
-            ldx     XSVKB           ; Meet return requirements: Restore X,
             tya                     ;    return number of characters in A
             ldy     #$00            ;    and make Y = 0
             rts

@@ -10,43 +10,43 @@
 
             ; MTU-130 (Monomeg) addresses
             ;
-SYS1VIA     =       $BFE0
-SYS1CTDAT   =       SYS1VIA
-SYS1KBDAT   =       SYS1VIA + 1
-SYS1CTDIR   =       SYS1VIA + 2
+SYS1VIA     =   $BFE0
+SYS1CTDAT   =   SYS1VIA
+SYS1KBDAT   =   SYS1VIA + 1
+SYS1CTDIR   =   SYS1VIA + 2
 
             ; CODOS 2.0 addresses
             ;
-WARMRST     =       $0300
+WARMRST     =   $0300
 
             ;   Disk Controller Registers
             ;
-HSRCW       =       $FFE8           ; Read  - Hardware Status Read
+HSRCW       =   $FFE8               ; Read  - Hardware Status Read
                                     ; Write - Hardware Control Write
-ADMA        =       $FFEA           ; Write - Set DMA Address Register
+ADMA        =   $FFEA               ; Write - Set DMA Address Register
 
             ;   uPD765 Registers
             ;
-MSTR        =       $FFEE           ; Read  - uPD765 Main Status Register
-DATR        =       $FFEF           ; R/W   - uPD765 Data Register
+MSTR        =   $FFEE               ; Read  - uPD765 Main Status Register
+DATR        =   $FFEF               ; R/W   - uPD765 Data Register
 
             ; Interrupt vectors
             ;
-IRQV        =       $02FA
-NMIV        =       $02FD           ; NOTE: $02FD in the docs, $FDFD in the dump!!!
+NMIV        =   $02FA
+IRQV        =   $02FD               ; NOTE: $02FD in the docs, $FDFD in the dump!!!
 
             ; Boot sector offsets
             ;
-FINALS      = $3C                   ; Final sector number for the load
-DMAPG       = $3D                   ; DMA Address code for loading of the first sector
-ENTRY       = $3E                   ; Address-1 of entry point into program
+FINALS      =   $3C                 ; Final sector number for the load
+DMAPG       =   $3D                 ; DMA Address code for loading of the first sector
+ENTRY       =   $3E                 ; Address-1 of entry point into program
 
             ; Bootstrap loader page 0 addresses
             ;
 
             .zeropage
 
-SCREEN      = $C000                 ; Address of MTU-130 screen
+SCREEN      =   $C000               ; Address of MTU-130 screen
 SCREENPTR:  .res    2
 
             ; $00C3-$00D6 : NEC-765 Command Strings
@@ -61,8 +61,8 @@ ENDSECT:    .res    1
             .res    2
             .res    1
 
-PG0CMDS     :=      SPECSTR
-CMDSSIZE    =       * - SPECSTR
+PG0CMDS     :=  SPECSTR
+CMDSSIZE    =   * - SPECSTR
 
             ; uPD765 command index
             ;
@@ -272,8 +272,10 @@ CPYRGHT:    .byte   "(C) 1981 MTU", 0
 
             ; Vectors
             ;
-            .addr   IRQV        ; NMI
+            .segment "vectors"
+
+            .addr   NMIV        ; NMI
             .addr   START       ; RESET
-            .addr   NMIV        ; IRQ
+            .addr   IRQV        ; IRQ
 
             .end

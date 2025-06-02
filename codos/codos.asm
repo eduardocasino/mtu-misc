@@ -1105,7 +1105,7 @@ PRCMD:      lda     (INPBUFP),y     ; Yes, print the command line
 GETCMDIDX:  jsr     OUTCR           ; New line
             ldy     CMDLIDX         ; Recover index in command line processing
             beq     OUTARROW        ; If it is at the beginning, skip
-            lda     #$20            ; Print spaces til the index position
+            lda     #' '            ; Print spaces til the index position
 PSPACE:     jsr     OUTCHAR         ;
             dey                     ;
             bne     PSPACE          ;
@@ -2832,9 +2832,10 @@ DESTOK2:    cmp     #>SYSRAM        ; Is it in SYSRAM (protected)
             ; Not reached
 DESTOK3:    nop                     ;
             ; Fall through
-.endproc
 
 .ifdef mtu
+
+.endproc
 
 ; Set destination bank config
 ;
@@ -2843,10 +2844,10 @@ DESTOK3:    nop                     ;
             and     #$03            ; Mask out non-bank bytes
             eor     DEFBNKCFG       ;
             sta     DSTBNKCFG       ; Store destination bank config
+.endif
             rts                     ;
 .endproc
 
-.endif
 
 ; Output MEMCOUNT characters from (MEMBUFF) to channel X
 ;
@@ -4954,7 +4955,7 @@ OUTB:       ldx     CHANNEL         ; Get channel
 ; Prepare read/write of "saved file" header
 ;
 .proc SVDRWPREP
-            lda     #SAVEDHDRLEN    ; At least, save header
+            lda     #SAVEDHDRLEN    ; Read length of the header
             sta     MEMCOUNT        ;
             lda     #$00            ;
             sta     MEMCOUNT+1      ;
@@ -5154,7 +5155,7 @@ RETURN:     rts                     ;
 ;
 .proc CIN
             jsr     JGETKEY         ; Get key
-            cmp     ETX             ; End of text?
+            cmp     ETX             ; Is it CTRL-C?
             beq     JCNTRLC         ; Yes, process CTRL-C
             cmp     EOF             ; End of file?
             beq     RETURN          ; Yes, return
