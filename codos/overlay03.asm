@@ -102,9 +102,17 @@ CONT:       sty     CMDLIDX         ; Update command line index
             lda     INPBUFP+1       ;
             sta     QLN+1           ;
             jsr     OUTSTR          ; Print prompt
+.ifdef mtu
             .byte   $0D, "CODOS 2.0   (C) 1981 MTU", $00
+.else
+            .byte   $0D, "M.T.U. CODOS V1.0", $00
+.endif
             jsr     OUTSTR
+.ifdef mtu
             .byte   $0D, "PLEASE ENTER DATE (EXAMPLE:04-JUL-76)?= ", $00
+.else
+            .byte   $0D, "ENTER DATE (EXAMPLE:04-JUL-76)?= ", $00
+.endif
             jsr     JINLINE         ; Input an entire line from the keyboard
             jsr     GETNEXTNB       ; Get next non blank from input buffer
             bne     SET             ; There are arguments, go set the date
