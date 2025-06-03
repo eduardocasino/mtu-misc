@@ -1,5 +1,6 @@
 ; KIM-1 ROM entry points
 
+MONITOR = $1c05  
 KOUTCH = $1ea0
 GETCH = $1e5a
 DELAY = $1ed4

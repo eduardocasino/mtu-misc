@@ -208,7 +208,7 @@ CODOS:
             ; Jump table (page 179)
             ;
 
-            .export JCOLDST, JOUTCH, JCPSEUDREGS, JERROR37, JINLINE
+            .export JCOLDST, JWARMST, JOUTCH, JCPSEUDREGS, JERROR37, JINLINE
 
 JCOLDST:    jmp     COLDST
 JWARMST:    jmp     WARMST

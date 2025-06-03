@@ -803,16 +803,27 @@ CMDNAMTBL:  .byte   "ASSIGN",   $07
             .byte   "BP",       $00
             .byte   "RESAVE",   $00
             .byte   "MSG",      $06
-
+.ifdef kim1
+            .byte   "KIM",      $0B
+.endif
             ; Reserved for new commands
 
-.ifndef mtu
-            .byte   $00
+.ifdef mtu  
+            .byte   $00, $00, $00, $00, $00, $00, $00, $00
+            .byte   $00, $00, $00, $00, $00, $00, $00, $00
+            .byte   $00, $00, $00, $00, $00, $00, $00, $00
+            
+.elseif .def(kim1)
+            .byte   $00, $00
+            .byte   $00, $00, $00, $00, $00, $00, $00, $00
+            .byte   $00, $00, $00, $00, $00, $00, $00, $00
+            .byte   $00, $00, $00, $00, $00, $00, $00, $00
+.else
+            .byte   $00, $00, $00, $00, $00, $00
+            .byte   $00, $00, $00, $00, $00, $00, $00, $00
+            .byte   $00, $00, $00, $00, $00, $00, $00, $00
+            .byte   $00, $00, $00, $00, $00, $00, $00, $00
 .endif
-            .byte   $00, $00, $00, $00, $00, $00, $00, $00
-            .byte   $00, $00, $00, $00, $00, $00, $00, $00
-            .byte   $00, $00, $00, $00, $00, $00, $00, $00
-
             ; Command function table
             ;
             ;       Entry point:
@@ -855,7 +866,10 @@ CMDFUNTBL:  .word   $0000
             .word   BREAKP
             .word   RESAVE
             .word   OVLORG+$B3      ; Msg
-.ifndef mtu
+.ifdef kim1
+            .word   OVLORG+$7F      ; Kim
+.endif
+.if .not (.defined(mtu) .or .defined(kim1))
             .word   $0000           ; Reserved
 .endif
             .word   $0000           ; Reserved
