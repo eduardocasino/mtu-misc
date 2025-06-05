@@ -28,7 +28,7 @@ UNKNWN17:   .res    1              ; $FF
 
 ; Scratch ram used by Console I-O and graphics drivers
 ;
-L02B0:      .res    1               ; $02B0
+ASVBP:      .res    1               ; $02B0 - Temporary storage for A in BEEP proc.
 TMPMASK:    .res    2               ; $02B1-$02B2 - Temporary storage for video masks
 L02B3:      .res    1               ; $02B3
 L02B4:      .res    2               ; $02B4
@@ -393,7 +393,7 @@ TRNSLTE:    inx                     ; Advance to next pos in table (key equivale
             jmp     KNORMAL         ; And continue as normal key
 .endproc
 
-; Local procedure: Handle ^B command (Recall a previously typed line)
+; Internal procedure: Handle ^B command (Recall a previously typed line)
 ;
 .proc SKSTX
             jsr     LC817
@@ -401,7 +401,7 @@ TRNSLTE:    inx                     ; Advance to next pos in table (key equivale
             jmp     _EDLINE::UPDSCRN
 .endproc
 
-; Local procedure: Handle ^E command (Turn off/on echo of keyboard characters to CRT)
+; Internal procedure: Handle ^E command (Turn off/on echo of keyboard characters to CRT)
 ;
 .proc SKENQ
             lda     NOLEKO          ; Get "No keyboard echo" flag
@@ -410,14 +410,14 @@ TRNSLTE:    inx                     ; Advance to next pos in table (key equivale
             jmp     _EDLINE::GKLOOP ; And continue processing the input line
 .endproc
 
-; Local procedure: Handle BEL special character
+; Internal procedure: Handle BEL special character
 ;
 .proc SKBEL
             jsr     RNGBEL          ; Ring the bell
             jmp     _EDLINE::GKLOOP ; And continue processing the input line
 .endproc
 
-; Local procedure: Handle ^H (BS) special character
+; Internal procedure: Handle ^H (BS) special character
 ;
 .proc SKBS
             cpy     CURPOS
@@ -433,7 +433,7 @@ LC6A8:      cpy     NUMCHRS         ; Are we at the end of the line?
             ; Fall through
 .endproc
 
-; Local procedure: Handle ^I (horizontal tabulator)
+; Internal procedure: Handle ^I (horizontal tabulator)
 ;
 .proc SKHT
             jsr     HORIZTAB
@@ -1688,7 +1688,7 @@ LCDFD:      jsr     LCF36
             sta     VRAMCNT+1
             ; Fall through
 
-; Local procedure: Clears VRAMCNT bytes of video RAM starting at VRAMORG
+; Internal procedure: Clears VRAMCNT bytes of video RAM starting at VRAMORG
 ;
 CLRVRAM:    jsr     SWTBANK1        ; Turns on I-O address space and switches to bank 1
             jsr     _CLRVRAM        ; Do the actual clearing
@@ -1798,7 +1798,7 @@ LCED7:      pla
             tay
             rts
 
-; Local procedure: Advance cursor position to the right and manage wrap
+; Internal procedure: Advance cursor position to the right and manage wrap
 ;
 CURSORR:    pha                     ; Save accumulator
             lda     COL             ; Get column
@@ -2207,31 +2207,31 @@ RETURN:     plp
             ; Fall through
 .endproc
 
-; Local procedure: Sets new video RAM origin at last video RAM destination
+; Internal procedure: Sets new video RAM origin at last video RAM destination
 ;
 .proc VDST2ORG
-            pha
-            lda     VRAMDST
-            sta     VRAMORG
-            lda     VRAMDST+1
-            sta     VRAMORG+1
-            pla
+            pha                     ; Preserves A
+            lda     VRAMDST         ; Get VRAMDST and store into VRAMORG
+            sta     VRAMORG         ;
+            lda     VRAMDST+1       ;
+            sta     VRAMORG+1       ;
+            pla                     ; Restore A
             rts
 .endproc
 
-; Local procedure: Go up one raster line, mantaining X position
+; Internal procedure: Go up one raster line, mantaining X position
 ;
 .proc RSTRLNUP   
-            lda     VRAMORG
-            sec
-            sbc     #VIDHRES/8
-            sta     VRAMORG
-            bcs     RETURN
-            dec     VRAMORG+1
+            lda     VRAMORG         ; Get current coordinates
+            sec                     ; Substract number of bytes per line
+            sbc     #VIDHRES/8      ;
+            sta     VRAMORG         ; Update coordinates
+            bcs     RETURN          ;
+            dec     VRAMORG+1       ;
 RETURN:     rts
 .endproc
 
-; Local procedure: Ring the bell
+; Internal procedure: Ring the bell
 ;
 ; Preserves registers
 ;
@@ -2265,8 +2265,9 @@ RETURN:     rts
             ; Fall through
 .endproc
 
-; Local procedure: Generates an audible beep of period Y, volume X and duration A
+; Internal procedure: Generates an audible beep of period Y, volume X and duration A
 ;
+; On entry, Y, X and A must be pushed into stack
 ; On exit, restores A, X and Y from the stack
 ;
 .proc MKSOUND
@@ -2281,46 +2282,64 @@ RETURN:     rts
 
 SNDONE:     rts                     ; Common return point for sound procedures
 
+; BEEP - Sound an audible beep. Generates a square wave of 2 x A amplitude
+;
+; Arguments: A = volume in range of $00 (silence) to $7F (maximum), $40 is normal
+;            X = duration in complete waveform cycles, 1-255, 0=256
+;            Y = waveform period in units of 200 microseconds
+;
+; Arguments returned: None, X and Y registers preserved (Manual says ALL, but A
+;                     is adjusted if was > $7F)
+;
 .proc _BEEP
-            cmp     #$00
-            bpl     LD18C
-            lsr     a
-LD18C:      sta     L02B0
-            txa
-            pha
-            jsr     _TIOON
-            lda     #$FF
-            sta     $BFF3
-LD199:      lda     L02B0
-            clc
-            adc     #$80
-            sta     $BFF1
-            jsr     LD1C2
-            lda     #$80
-            sec
-            sbc     L02B0
-            sta     $BFF1
-            jsr     LD1C2
-            dex
-            bpl     LD199
-            lda     #$80
-            sta     $BFF1
-            jsr     _IORES
-            pla
-            tax
-            lda     L02B0
+            cmp     #$00            ; Check if volume is within range
+            bpl     CONT            ; Under $80, continue
+            lsr     a               ; Over $80, adjust it into range
+CONT:       sta     ASVBP           ; Store volume temporarily
+            txa                     ; Preserve X
+            pha                     ;
+            jsr     _TIOON          ; Turn on I/O address space
+            lda     #$FF            ; Set audio port direction to OUT
+            sta     SVIA2ADIR       ;
+LOOP:       lda     ASVBP           ; Recover volume
+            clc                     ; Turn bit 7 on
+            adc     #$80            ;
+            sta     SVIA2APORT      ; Set level for higher half of the square wave
+            jsr     WAITHALF        ; Wait half waveform cycle
+            lda     #$80            ; Set level for lower half of the square wave
+            sec                     ;
+            sbc     ASVBP           ;
+            sta     SVIA2APORT      ;
+            jsr     WAITHALF        ; Wait the other half wafeform cycle
+            dex                     ; Repeat until duration is completed
+            bpl     LOOP            ;
+            lda     #$80            ; Mute
+            sta     SVIA2APORT      ;
+            jsr     _IORES          ; Restore RAM address space
+            pla                     ; Restore X
+            tax                     ;
+            lda     ASVBP           ; And restore adjusted A
             rts
+.endproc
 
-LD1C2:      tya
-            pha
-LD1C4:      lda     #$12
+; Internal procedure: Wait de duration of half a waveform period
+;
+; Arguments: Y contains the waveform period in units of 200 microseconds, so each
+;            loop must take 100 microseconds (as we are waiting the duration of
+;            half period)
+;
+.proc WAITHALF
+            tya                     ; Preserve Y (Period)
+            pha                     ;
+LOOP:       lda     #$12            ; Init 90 microseccons loop
             sec
-LD1C7:      sbc     #$01
-            bne     LD1C7
-            dey
-            bne     LD1C4
-            pla
-            tay
+WAIT90:     sbc     #$01            ; 90 microseconds loop (approx., could be up to
+                                    ; 108 if jump occurs between pages)
+            bne     WAIT90
+            dey                     ; Decrement count
+            bne     LOOP            ; And repeat until complete
+            pla                     ; Restore Y
+            tay                     ;
             rts
 .endproc
 

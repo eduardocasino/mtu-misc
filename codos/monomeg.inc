@@ -2,6 +2,11 @@ SVIA1PORT   = $BFE0         ; System 1 6522 System control port data register
 SVIA1DIR    := $BFE2        ; System 1 6522 System control port direction register
 BNKCTL      := SVIA1PORT    ; System 1 6522 (Bank control data register)
 
+SVIA2TPORT  = $BFF0         ; System 2 6522 MTUTAPE/cassette port data register
+SVIA2APORT  = $BFF1         ; System 2 6522 Audio DAC port data register
+SVIA2TDIR   = $BFF2         ; System 2 6522 MTUTAPE/cassette port direction register
+SVIA2ADIR   = $BFF3         ; System 2 6522 Audio DAC port direction register
+
 KSCCLR      = $BFC5         ; PORT TO CLEAR KEYBOARD SCAN COUNTER
 KBDATA      = $BFE1         ; DATA REGISTER FOR KEYBOARD PORT
 KBT1CH      = $BFE5         ; TIMER 1 COUNT HIGH REGISTER FOR KEYBOARD 6522
