@@ -19,5 +19,10 @@ VIDEOLEN    = $3C00         ; Display RAM length
 BCKTRBUF    := $FC50        ; Backtrack buffer (for lines recalled by CTRL-B)
 BCKTRLEN    = $0100         ; Backtrack buffer length
 
+LEGTSIZ     = $40           ; Size of legend table
+
 VIDHRES     = 480           ; Horizontal and vertical video display resolution
 VIDVRES     = 256           ;
+
+TXTHRES     = 80            ; Horizontal and vertical text display resolution
+TXTVRES     = 24            ;
