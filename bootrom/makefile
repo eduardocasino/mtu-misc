@@ -3,6 +3,7 @@ ARCH ?= mtu
 AS = $(CC65)ca65
 LD = $(CC65)ld65
 
+$(shell mkdir -p build/$(ver))
 
 ifeq ($(wildcard src/$(ARCH)),)
     $(error #### UNSUPPORTED ARCH >>> $(ARCH) <<< ####)
