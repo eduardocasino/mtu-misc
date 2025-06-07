@@ -190,8 +190,7 @@ RDLOOP:     lda     HSRCW           ; Wait for command completion
                                     ; +------------> End of cylinder
             cmp     #$80            ; If status is "End of cylinder", all good 
             bne     ERROR2          ; Otherwise, return error
-JUMP:       pha
-            rts                     ; If READSECT was called as a subroutine for reading sector 0,
+JUMP:       rts                     ; If READSECT was called as a subroutine for reading sector 0,
                                     ; just returns. If it was entered for reading the rest of the sectors,
                                     ; jumps to the entry point address, as address-1 was pushed onto the
                                     ; stack a few lines earlier
