@@ -547,7 +547,7 @@ int imd_write_data( image_t *image, void *buf, int sect, int count )
     uint8_t *buffer = (uint8_t *)buf;
     int sector_size = imd_get_sector_size( &image->current_track );
 
-    // assert( sect + count < image->current_track.imd.data.sectors );
+    assert( sect + count <= image->current_track.imd.data.sectors );
 
     for ( s= sect; s < sect + count; ++s )
     {
@@ -668,15 +668,13 @@ static void imd_init_sector_map( uint8_t *smap, uint8_t track, uint8_t nsects, u
         sect += interleave;
         if ( sect >= nsects )
         {
-            sect = 1;
+            sect %= (nsects-1);
         } 
     }
     
     return;
 }
 
-
-// TODO: 2 heads
 int imd_new(
     image_t *image,
     bool packed,
@@ -689,7 +687,7 @@ int imd_new(
     size_t bufsiz )
 {
     imd_data_t trinfo;
-    int cyl;
+    int cyl, head;
     size_t sectsiz;
 
     assert( image->file != NULL );
@@ -704,7 +702,6 @@ int imd_new(
     trinfo.mode     = 3;                    // 500 kbps MFM
     trinfo.sectors  = nsects;
     trinfo.size     = bps;                  // 256 bytes
-    trinfo.head     = 0;
 
     // Initialize first sector
 
@@ -726,21 +723,24 @@ int imd_new(
 
     for ( cyl = 0; cyl < image->cylinders; ++cyl )
     {
-        trinfo.cylinder = cyl;
-        
-        // Initialize sector map for each track
-
-        imd_init_sector_map( buffer, cyl, nsects, interleave, skew );
-
-
-        if ( imd_write_track_info( image->file, &trinfo, buffer ) )
+        for ( head = 0; head < image->heads; ++head )
         {
-            return -1;
-        }
+            trinfo.cylinder = cyl;
+            trinfo.head = head;
 
-        if ( imd_write_sectors( image->file, trinfo.sectors, &buffer[trinfo.sectors], sectsiz ) )
-        {
-            return -1;
+            // Initialize sector map for each track
+
+            imd_init_sector_map( buffer, cyl, nsects, interleave, skew );
+
+            if ( imd_write_track_info( image->file, &trinfo, buffer ) )
+            {
+                return -1;
+            }
+
+            if ( imd_write_sectors( image->file, trinfo.sectors, &buffer[trinfo.sectors], sectsiz ) )
+            {
+                return -1;
+            }
         }
     }
 

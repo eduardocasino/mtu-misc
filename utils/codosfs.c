@@ -145,20 +145,19 @@ static inline int to_codos_ascii( char *filename )
     return change_ascii( filename, HOST_NEWLINE, CODOS_NEWLINE );
 }
 
-// TODO: Support 2 sides!!!
-//
+
 static void get_block_sector( disk_t *disk, uint8_t block_num, uint8_t *track, uint8_t *sector )
 {
     uint16_t trk  = ((block_num-1)*disk->sectors_block)/disk->sectors_track;
     uint16_t sect = ((block_num-1)*disk->sectors_block)%disk->sectors_track;
-
+    
     if ( block_num > 39 )
     {
         sect += 18;
-        trk  += sect / CODOS_SECTORS_PER_TRACK_SIDE;
+        trk  += sect / disk->sectors_track;
     }
 
-    *sector = (uint8_t)(sect % CODOS_SECTORS_PER_TRACK_SIDE);
+    *sector = (uint8_t)(sect % disk->sectors_track);
     *track  = (uint8_t)trk;
 
     // printf( "Block: %d, Track: %d, Sector: %d\n", block_num, *track, *sector );
@@ -170,7 +169,7 @@ typedef enum { OP_READ, OP_WRITE } diskop_t;
 static int read_write_block( diskop_t diskop, disk_t *disk, uint8_t *buffer, uint8_t block, uint8_t nsect )
 {
     int ret = 0;
-    uint8_t track, sector, head;
+    uint8_t track, sector, head, imdsect, count;
 
     assert( nsect <= disk->sectors_block );
 
@@ -178,8 +177,10 @@ static int read_write_block( diskop_t diskop, disk_t *disk, uint8_t *buffer, uin
     
     while ( nsect )
     {
-        uint8_t count = ( nsect > disk->sectors_track/disk->image.heads - sector ) ? disk->sectors_track/disk->image.heads - sector : nsect;
         head = ( sector < CODOS_SECTORS_PER_TRACK_SIDE ) ? 0 : 1;
+        imdsect = sector % CODOS_SECTORS_PER_TRACK_SIDE;
+        count = ( nsect > CODOS_SECTORS_PER_TRACK_SIDE - imdsect ) ? CODOS_SECTORS_PER_TRACK_SIDE - imdsect : nsect;
+
 
         if ( imd_seek_track( &disk->image, head, track ) )
         {
@@ -196,11 +197,11 @@ static int read_write_block( diskop_t diskop, disk_t *disk, uint8_t *buffer, uin
 
         if ( diskop == OP_READ )
         {
-            ret = imd_read_data( &disk->image, buffer, sector, count );
+            ret = imd_read_data( &disk->image, buffer, imdsect, count );
         }
         else
         {
-            ret = imd_write_data( &disk->image, buffer, sector, count );
+            ret = imd_write_data( &disk->image, buffer, imdsect, count );
         }
 
         if ( ret )
@@ -611,7 +612,8 @@ static int copy_to_disk( disk_t *disk, uint8_t *buffer, char *filename, char *in
                             filename, strerror( errno ) );
                 ret = -1;
                 break;
-            }
+            }   
+
         }
 
         if ( ret )
@@ -668,7 +670,7 @@ static int write_system( disk_t *disk, uint8_t *buffer, char *codos, char *inter
 
 static int write_overlays( disk_t *disk, uint8_t *buffer, char *overlays )
 {
-    uint8_t track, sector;
+    uint8_t head, track, sector;
     struct stat fs;
     FILE *overlaysf;
 
@@ -708,21 +710,12 @@ static int write_overlays( disk_t *disk, uint8_t *buffer, char *overlays )
     }
     else
     {
-
         uint8_t last_block = CODOS_OVERLAYS_BLOCK + 3 - disk->image.heads;
 
         for ( uint8_t block = CODOS_OVERLAYS_BLOCK; block < last_block; ++block )
         {
-            // TODO: SUpport 2 sides!!
 
-            get_block_sector( disk, block, &track, &sector );
-       
-            if ( 0 != ( ret = imd_seek_track( &disk->image, 0, track ) ) )
-            {
-                break;
-            }
-
-            if ( 0 != ( ret = imd_write_data( &disk->image, buffer, sector, disk->sectors_block ) ) )
+            if ( 0 != ( ret = write_block( disk, buffer, block, disk->sectors_block ) ) )
             {
                 break;
             }
@@ -1233,7 +1226,7 @@ int format( disk_t *disk, uint8_t *buffer, size_t bufsiz, int argc, char **argv 
     bool pflag = false, yes = false, dmaf = false;
     int ret;
     uint16_t volid = 0;
-    uint8_t interleave = 1, skew = 0, dma = 0x98;
+    uint8_t heads = 1, interleave = 1, skew = 0, dma = 0x98;
     char *codos = NULL, *overlays = NULL, *date = NULL, *internal = NULL;
 
     int opt;
@@ -1241,6 +1234,7 @@ int format( disk_t *disk, uint8_t *buffer, size_t bufsiz, int argc, char **argv 
     static const struct option long_opts[] = {
         {"help",       no_argument,       0, 'h' },
         {"yes",        no_argument,       0, 'y' },
+        {"dualside",   no_argument,       0, '2' },
         {"packed",     no_argument,       0, 'p' },
         {"date",       required_argument, 0, 'd' },
         {"interleave", required_argument, 0, 's' },
@@ -1255,7 +1249,7 @@ int format( disk_t *disk, uint8_t *buffer, size_t bufsiz, int argc, char **argv 
 
     optind = 0;
 
-    while (( opt = getopt_long( argc, argv, "hypd:s:t:v:c:o:n:m:", long_opts, NULL)) != -1 )
+    while (( opt = getopt_long( argc, argv, "hy2pd:s:t:v:c:o:n:m:", long_opts, NULL)) != -1 )
     {
         switch( opt )
         {
@@ -1270,6 +1264,10 @@ int format( disk_t *disk, uint8_t *buffer, size_t bufsiz, int argc, char **argv 
                     fputs( "Interleave factor must be between 1 and 25\n", stderr );
                     return 1;
                 }
+                break;
+
+            case '2':
+                heads = 2;
                 break;
 
             case 't':
@@ -1368,7 +1366,7 @@ int format( disk_t *disk, uint8_t *buffer, size_t bufsiz, int argc, char **argv 
 
     disk->image.file = file;
     disk->image.cylinders = 77;
-    disk->image.heads = 1;
+    disk->image.heads = heads;
 
     ret = imd_new( &disk->image, pflag, 26, 1, 0x00, interleave, skew, buffer, bufsiz );
 

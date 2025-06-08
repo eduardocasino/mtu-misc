@@ -96,6 +96,7 @@ static void format_usage( char *myname )
     fputs( "Options:\n", stderr );
     fputs( "    --help|-h        Print this help\n", stderr );
     fputs( "    --yes|-y         Force. Used for scripts.\n", stderr );
+    fputs( "    --dualside|-2    Create a dual-side image\n", stderr );
     fputs( "    --packed|-p      Create a packed (compressed) IMD image\n", stderr );
     fputs( "    --interleave|-s  Sector interleave, from 1 to 25. Defaults to 0.\n", stderr );
     fputs( "    --skew|-t        Track skew, from 0 to 25. Defaults to 0.\n", stderr );
