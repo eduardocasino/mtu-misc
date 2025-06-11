@@ -10,21 +10,23 @@
 
 ; $F0 - $FF : Zero-page Scratch RAM for console I-0
 ;
-            .exportzp QLN
+            .exportzp QLN, VRAMDST, VRAMORG, CHARFNTP, VRAMCNT, IOTEMP1, IOTEMP2, BITDISPL
 
 QLN:        .res    2              ; $F0 Ptr to line-buffer used for INLINE AND EDLINE
 VRAMDST:    .res    2              ; $F2 - $F3 Video ram dest for graphic funcs
 VRAMORG:    .res    2              ; $F4 - $F5 Video ram origin for graphic funcs
 CHARFNTP:   .res    2              ; $F6 - $F7 Pointer to character font
 VRAMCNT:    .res    2              ; $F8 - $F9 Video ram count for graphic funcs
-TEMP1:      .res    1              ; $FA Temporary storage for keyboard routine
-TEMP2:      .res    1              ; $FB Temporary storage for screen routines
-CHRDISPL:   .res    1              ; $FC Horizontal displacement from the 8x5 char matrix
+IOTEMP1:    .res    1              ; $FA Temporary storage for keyboard routine
+IOTEMP2:    .res    1              ; $FB Temporary storage for screen routines
+BITDISPL:   .res    1              ; $FC Horizontal displacement of pixel
 NUMCHRS:    .res    1              ; $FD Number of chars in input buffer
 UNKNWN16:   .res    1              ; $FE
 UNKNWN17:   .res    1              ; $FF
 
             .segment "ioscratch"
+
+            .export ASVGR, XSVGR, YSVGR, ASVGR2, XSVGR2
 
 ; Scratch ram used by Console I-O and graphics drivers
 ;
@@ -36,14 +38,14 @@ L02B6:      .res    7               ; $02B6
 L02BD:      .res    1               ; $02BD
 L02BE:      .res    2               ; $02BE
 L02C0:      .res    7               ; $02C0
-L02C7:      .res    1               ; $02C7
-L02C8:      .res    1               ; $02C8
-L02C9:      .res    1               ; $02C9
+ASVGR:      .res    1               ; $02C7
+XSVGR:      .res    1               ; $02C8
+YSVGR:      .res    1               ; $02C9
 TCURS:      .res    2               ; $02CA
-L02CC:      .res    1               ; $02CC
+ASVGR2:     .res    1               ; $02CC
 XSVKB:      .res    1               ; $02CD
 YSVKB:      .res    1               ; $02CE
-L02CF:      .res    1               ; $02CF
+XSVGR2:     .res    1               ; $02CF
 FNBNK:      .res    1               ; $02D0 Bank of current character table
 L02D1:      .res    1               ; $02D1
 L02D2:      .res    1               ; $02D2
@@ -72,7 +74,7 @@ L02DF:      .res    1               ; $02DF
             .addr   COL             ; Load address
             .word   IODATA_SIZE     ; Memory image size
 
-            .export YLNLIM
+            .export LSTKEY, YLNLIM, NOCLIK, UNK15, UNK17
 
 COL:        .byte   $01             ; $0200 CURRENT COLUMN LOCATION OF TEXT CURSOR 1-80.
 LINE:       .byte   $01             ; $0201 CURRENT LINE NUMBER OF TEXT CURSOR. 1-NLINET.
@@ -1052,7 +1054,7 @@ WA1TST:     jsr     WA1MS           ; First wait for 1 millisecond
 ;
 KEYTST:     jsr     _TIOON
             sta     $BFC5
-            stx     TEMP1
+            stx     IOTEMP1
 LCA93:      bit     COLMKS
             beq     LCAA0
             sta     $BFE1
@@ -1065,7 +1067,7 @@ LCAA0:      lsr     a
             lsr     a
             tax
             lda     ROWMSK,x
-            ldx     TEMP1
+            ldx     IOTEMP1
             and     $BFE1
             jmp     _IORES
 
@@ -1094,7 +1096,7 @@ WA1MS1:     sbc    #$01             ; Always sets carry for next iteration
 ;        ARGUMENTS: X IS COMPLEMENT OF COLUMN NUMBER
 ;                   A IS COMPLEMENT OF ROW DATA AT THAT COLUMN
 ;
-;        ON RETURN: RESULT IN LSTKEY, Y PRESERVED, TEMP1 DESTROYED
+;        ON RETURN: RESULT IN LSTKEY, Y PRESERVED, IOTEMP1 DESTROYED
 ;                   DEBOUNCE DELAY LOADED INTO X
 ;
 CLCMXA:     ldx     #$05            ; CALCULATE MATRIX ADDRESS OF KEY
@@ -1107,8 +1109,8 @@ CLCMX2:     txa                     ; MULTIPLY ROW ADDRESS BY 16
             asl     a
             asl     a
             asl     a
-            sty     TEMP1
-            ora     TEMP1           ; ADD IN COMPLEMENT COLUMN ADDRESS
+            sty     IOTEMP1
+            ora     IOTEMP1         ; ADD IN COMPLEMENT COLUMN ADDRESS
             eor     #$0F            ; UNCOMPLEMENT COLUMN ADDRESS
             sta     LSTKEY          ; PUT RESULT IN LSTKEY
             ldx     DBCDLA          ; LOAD DEBOUNCE DELAY INTO X
@@ -1152,7 +1154,7 @@ KYSCN2:     rts
 ;
 ASCII:      ldx     LSTKEY          ; LOOKUP UNSHIFTED ASCII EQUIVALENT
             lda     USCODE,X
-            sta     TEMP1           ; SAVE RESULT
+            sta     IOTEMP1         ; SAVE RESULT
             sta     KSCCLR          ; ADDRESS KEYBOARD COLUMN 0
             lda     KBDATA          ; JUMP IF EITHER SHIFT KEY IS DOWN
             bit     LSHIFT
@@ -1161,9 +1163,9 @@ ASCII:      ldx     LSTKEY          ; LOOKUP UNSHIFTED ASCII EQUIVALENT
             beq     ASCII2
             and     #$10            ; TEST CAPS LOCK KEY
             beq     ASCII0          ; SKIP IF DOWN
-            lda     TEMP1           ; GET UNSHIFTED ASCII
+            lda     IOTEMP1         ; GET UNSHIFTED ASCII
             bne     ASCII7          ; GO TO FINAL OUTPUT
-ASCII0:     lda     TEMP1           ; TEST IF ASCII IS A LETTER
+ASCII0:     lda     IOTEMP1         ; TEST IF ASCII IS A LETTER
             cmp     #$61
             bcc     ASCII7          ; JUMP IF NOT
             cmp     #$7B
@@ -1172,7 +1174,7 @@ ASCII1:     sec                     ; CONVERT LOWER CASE TO UPPER CASE
             sbc     #$20
             bne     ASCII7          ; GO TO FINAL OUTPUT  (UNCOND JUMP)
 ASCII2:     cpx     #$3D            ; TEST IF KEY IS IN AUXILIARY KEYPADS
-            lda     TEMP1           ;    GET ASCII CODE
+            lda     IOTEMP1         ;    GET ASCII CODE
             bcc     ASCII3          ; JUMP IF NOT
             ora     #$10            ; OR IN bit 4 IF SO
             bcs     ASCII7          ; GO TO FINAL OUTPUT (UNCOND JUMP)
@@ -1189,7 +1191,7 @@ ASCII4:     cmp     #$5B            ; TEST IF ASCII IS ABOVE $5A
 ASCII5:     sec                     ; SUBTRACT $27
             sbc     #$27            ; SO THAT CHARACTERS NOT AFFECTED BY SHIFT
             bpl     ASCII6          ; ARE NEGATIVE, ALL OTHERS POSITIVE
-            lda     TEMP1           ; IS A CONTROL CHARACTER, RETRIEVE IT
+            lda     IOTEMP1         ; IS A CONTROL CHARACTER, RETRIEVE IT
             rts                     ; and RETURN WITH NO FURTHER PROCESSING
 ASCII6:     tax                     ; LOOKUP SHIFTED SPECIAL CHARACTER
             lda     SHCODE,X
@@ -1366,9 +1368,9 @@ AUTORL:     .byte   $0F             ; BACKSPACE
 ; DISPLAY CHARACTER THEN MOVE CURSOR
 ;
 _OUTCH:     cld
-            sta     L02C7
-            stx     L02C8
-            sty     L02C9
+            sta     ASVGR
+            stx     XSVGR
+            sty     YSVGR
             cmp     #$00
             bpl     LCBFC
             bit     EXTHI
@@ -1409,9 +1411,9 @@ LCC3D:      bit     RVIDEO
             bpl     LCC45
             jsr     LD0A7
 LCC45:      jsr     CURSORR
-LCC48:      ldy     L02C9
-            ldx     L02C8
-            lda     L02C7
+LCC48:      ldy     YSVGR
+            ldx     XSVGR
+            lda     ASVGR
             rts
 
 LCC52:      ldx     #$08
@@ -1876,7 +1878,7 @@ WRAP:       pha                     ; Preserve A
 ; Internal procedure: Get coordinates in video RAM of current COL and LINE
 ; of text window
 ;
-; Returns coordinates in VRAMDST, char displacement in CHRDISPL
+; Returns coordinates in VRAMDST, char displacement in BITDISPL
 ;
 .proc LNCOLCRDST
             ldx     COL             ; Current COL in text window
@@ -1900,32 +1902,32 @@ LCF31:      lda     #$01            ; Yes, wrap to LINE 1
 ;
 ; Arguments: A = Text line number
 ;            X = Character number
-; Returned:  Coordinates in VRAMDST, char displacement in CHRDISPL
+; Returned:  Coordinates in VRAMDST, char displacement in BITDISPL
 ;
 
 .proc CHRCOORD
             ; Calculate coordinates in video ram of text line
  
-            sta     TEMP1           ; Multiply by 10 (text line height)
+            sta     IOTEMP1         ; Multiply by 10 (text line height)
             asl     a               ;
             asl     a               ;
-            adc     TEMP1           ;
+            adc     IOTEMP1         ;
             asl     a               ;
             adc     YTDOWN          ; Add to Y coordinate of text window
             sec                     ;
             sbc     #$01            ; minus 1
-            jsr     TLINSTART       ; Calculates start address of text line
+            jsr     TLINSTART       ; Calculates start address of raster line
 
             dex                     ; Claculate horizonal len in pixels
             txa                     ; Char number minus 1 (base 0)
             inx                     ;
-            sta     TEMP1           ;
+            sta     IOTEMP1         ;
             asl     a               ; Multiply by 3
-            adc     TEMP1           ;
+            adc     IOTEMP1         ;
             pha                     ; And save
             asl     a               ; Total = x6 (character len)
             and     #$07            ; Module 8 to calculate displacement
-            sta     CHRDISPL        ; Set char displacement in bits from VRAMORG
+            sta     BITDISPL        ; Set char displacement in bits from VRAMORG
             pla                     ; Recover char number x 3
             lsr     a
             lsr     a
@@ -1937,35 +1939,37 @@ LCF31:      lda     #$01            ; Yes, wrap to LINE 1
 LCF60:      rts
 .endproc
 
-; Internal procedure - Invert text line number, then calculates start address
+; Internal procedure - Invert raster line number, then calculates start address
+;
+; Used by the GRAPHICS driver, as has the Y coordinates inverted
 ;
             .export NTLINSTART
 
 NTLINSTART: eor     #$FF
             ; Fall through
 
-; Internal procedure: Calculates a text line start address
+; Internal procedure: Calculates raster line start address
 ; Video res is 480x256 bits, or 60x256 bytes
 ; This routine multiplies the line number x 60 and then adds the base address to
 ; the result and stores it in VRAMDST
 ;
-; A = Y coordinate of the start of the text window
+; A = Y coordinate of the start of the raster line
 ;
 ; Returns strat address into VRAMDST
 ;
 .proc TLINSTART
             pha                     ; Preserve Y Coordinate
             lda     #$00            ; Init result variable
-            sta     TEMP2           ;
+            sta     IOTEMP2         ;
             pla                     ; Recover Y coordinate
-            asl     a               ; Multiply by 4, result goes into TEMP2:TEMP1
-            rol     TEMP2           ;
+            asl     a               ; Multiply by 4, result goes into IOTEMP2:IOTEMP1
+            rol     IOTEMP2         ;
             asl     a               ;
-            rol     TEMP2           ;
-            sta     TEMP1           ;
-            lda     TEMP2           ; Now, multiply by 16 (64 in total)
+            rol     IOTEMP2         ;
+            sta     IOTEMP1         ;
+            lda     IOTEMP2         ; Now, multiply by 16 (64 in total)
             sta     VRAMDST+1       ; and store result in VRAMDST
-            lda     TEMP1           ;
+            lda     IOTEMP1         ;
             asl     a               ;
             rol     VRAMDST+1       ;
             asl     a               ;
@@ -1975,10 +1979,10 @@ NTLINSTART: eor     #$FF
             asl     a               ;
             rol     VRAMDST+1       ;
             sec                     ; Substract the stored x4 nultiplication
-            sbc     TEMP1           ;
+            sbc     IOTEMP1         ;
             sta     VRAMDST         ;
             lda     VRAMDST+1       ;
-            sbc     TEMP2           ;
+            sbc     IOTEMP2         ;
             clc                     ;
             adc     #>VIDEORAM      ; And adds video ram origin
             sta     VRAMDST+1       ;
@@ -1993,17 +1997,17 @@ NTLINSTART: eor     #$FF
             sta     BNKCTL          ;
             ldy     #$06            ; Chars are seven pixels high
             ldx     #$00
-LCFA5:      stx     TEMP1
+LCFA5:      stx     IOTEMP1
             lda     (CHARFNTP),y    ; Get byte for char's pixel line (from bottom to top)
             and     #$F8            ; Mask-out three lower bits
-            ldx     CHRDISPL        ; Get char displacement in bits from VRAMORG
+            ldx     BITDISPL        ; Get char displacement in bits from VRAMORG
             beq     SKIP            ; If no displacement, skip
 LCFAF:      lsr     a
-            ror     TEMP1
+            ror     IOTEMP1
             dex
             bne     LCFAF
 SKIP:       sta     L02B4,y
-            lda     TEMP1
+            lda     IOTEMP1
             sta     L02BE,y
             dey
             bpl     LCFA5
@@ -2026,7 +2030,7 @@ LCFC8:      lda     L02B4,x
             ror     a
             bcc     LCFF2
             lda     #$20
-            ldx     CHRDISPL
+            ldx     BITDISPL
 LCFE8:      lsr     a
             ror     L02BE
             dex
@@ -2058,38 +2062,38 @@ LOOP:       sta     L02B3,x
 ;
 ; A contains character index to char table (ascii code - $20)
 ; VRAMORG is start location in video memory
-; CHRDISPL contains the char displacement in bits from VRAMORG
+; BITDISPL contains the char displacement in bits from VRAMORG
 ;
 ; On exit,
 ;
             .export PRNCHR
 
 .proc PRNCHR
-            sta     TEMP1           ; Save character index
-            ldx     #$00            ; Init TEMP2
-            stx     TEMP2           ;
+            sta     IOTEMP1         ; Save character index
+            ldx     #$00            ; Init IOTEMP2
+            stx     IOTEMP2         ;
 
-            ; Multiply character index by 7, result into TEMP2:A
+            ; Multiply character index by 7, result into IOTEMP2:A
             ; First, multiply by 8. Then, if result is not 0, substract
             ; character index to obtain the result.
 
             asl     a               ; Bigger char pos id 5F, so first shift never
                                     ; Generates carry
-            asl     a               ; Second shift, insert carry into TEMP2
-            rol     TEMP2           ;
-            asl     a               ; Third shift, insert carry into TEMP2
-            rol     TEMP2           ;
+            asl     a               ; Second shift, insert carry into IOTEMP2
+            rol     IOTEMP2         ;
+            asl     a               ; Third shift, insert carry into IOTEMP2
+            rol     IOTEMP2         ;
             sec                     ; Clear borrow
-            sbc     TEMP1           ; Substract char pos from accumulator to obtain x7
+            sbc     IOTEMP1         ; Substract char pos from accumulator to obtain x7
             bcs     SKIP            ; No borrow skip
-            dec     TEMP2           ; Borrow, decrement MSB
+            dec     IOTEMP2         ; Borrow, decrement MSB
 SKIP:       clc                     ; Clear carry for next addition
             bit     EXFONT          ; Use xsternal font table?
             bpl     INTERNAL        ; No, go set internal
             adc     QEXFNT          ; Add char index to external table addr
             sta     CHARFNTP        ; and set the address of char in font table
             lda     QEXFNT+1        ;
-            adc     TEMP2           ;
+            adc     IOTEMP2         ;
             sta     CHARFNTP+1      ;
             lda     EXFTBK          ; Get bank of external font table
             jmp     PRINT           ; And continue to print character
@@ -2097,14 +2101,14 @@ SKIP:       clc                     ; Clear carry for next addition
 INTERNAL:   adc     #<__CHARTBL     ; Set pointer to character into internal char table
             sta     CHARFNTP        ;
             lda     #>__CHARTBL     ;
-            adc     TEMP2           ;
+            adc     IOTEMP2         ;
             sta     CHARFNTP+1      ;
             lda     #$01            ; Bank of internal character table
 
 PRINT:      sta     FNBNK           ; Set bank of current character table
             jsr     LCF92
             jsr     SWTBANK1        ; Turns on I-O address space and switches to bank 1
-            ldx     CHRDISPL        ; Get window mask for the char displacement
+            ldx     BITDISPL        ; Get window mask for the char displacement
             lda     WMASKTHI,x      ;
             sta     TMPMASK+1       ; And store it
             lda     WMASKTLO,x      ;
@@ -2170,7 +2174,7 @@ _FLPTCR:    pha
 
 LD0A7:      jsr     VDST2ORG
             jsr     SWTBANK1        ; Turns on I-O address space and switches to bank 1
-            ldx     CHRDISPL
+            ldx     BITDISPL
             lda     LD0FE,x
             sta     TMPMASK+1
             lda     LD0F6,x
@@ -2192,7 +2196,7 @@ LD0BD:      ldy     #$01
 LD0D7:      jsr     VDST2ORG
             jsr     RSTRLNUP
             jsr     SWTBANK1        ; Turns on I-O address space and switches to bank 1
-            ldx     CHRDISPL
+            ldx     BITDISPL
             lda     LD0FE,x
             ldy     #$01
             eor     (VRAMORG),y
@@ -2280,7 +2284,7 @@ RETURN:     plp
 ; Internal procedure: Get coordinates in video RAM of current COL and LINE
 ; of text window
 ;
-; Returns coordinates in VRAMORG, char displacement in CHRDISPL
+; Returns coordinates in VRAMORG, char displacement in BITDISPL
 ;
 .proc LNCOLCRD
             jsr     LNCOLCRDST      ; Get coord in video RAM of current COL and LINE
@@ -2438,7 +2442,7 @@ WAIT90:     sbc     #$01            ; 90 microseconds loop (approx., could be up
             jsr     _CLRLEG         ; Clear the legend boxes area
             ldy     #$00            ; Init index to legends table
             lda     #$05            ; Horizontal displacement from the origin byte
-            sta     CHRDISPL        ;
+            sta     BITDISPL        ;
 
             ; Set origin of first legend (using dest because entering
             ; the loop, orig is set as last dest)
@@ -2459,14 +2463,14 @@ PRCHAR:     jsr     VDST2ORG        ; Make last dest the new orig
 DRBLNK:     lda     #$00            ; Yes, print a space instead
 CONT:       sty     VRAMCNT+1       ; Use VRAMCNT MSB to preserve legend table index
             jsr     PRNCHR          ; Print char
-            lda     CHRDISPL        ; Recover displacement of last char
+            lda     BITDISPL        ; Recover displacement of last char
             clc                     ;
             adc     #$06            ; Calculate next displacement adding char width
             cmp     #$08            ; If within the byte length
             bcc     STDISP          ;    continue
             and     #$07            ; MOD 8
             inc     VRAMDST         ; And increment char origin
-STDISP:     sta     CHRDISPL        ; Store new displacement
+STDISP:     sta     BITDISPL        ; Store new displacement
             ldy     VRAMCNT+1       ; Recover legend table index
             iny                     ; Next char in table
             dec     VRAMCNT         ; One less char of current legend left

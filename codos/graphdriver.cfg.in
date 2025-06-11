@@ -1,11 +1,13 @@
 MEMORY {
 
 # BANK 0
+    PARAMETERS   : start = __SYSTEM+$0002,    size = $B;
     GRAPHDRVJMP  : start = __SYSTEM+$0124-$A, size = $33+$A,  file="build/%%VERSION%%/graphdriver.z";
     GRAPHDRIVER  : start = __USRRAM-$A,       size = $5B0+$A, file="build/%%VERSION%%/graphdriver.z";
 }
 
 SEGMENTS {
+    parameters  : load = PARAMETERS,  type = bss;
     graphdrvjmp : load = GRAPHDRVJMP, type = rw;
     graphdriver : load = GRAPHDRIVER, type = ro;
 }
