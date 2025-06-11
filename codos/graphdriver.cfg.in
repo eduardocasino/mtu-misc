@@ -1,0 +1,11 @@
+MEMORY {
+
+# BANK 0
+    GRAPHDRVJMP  : start = __SYSTEM+$0124-$A, size = $33+$A,  file="build/%%VERSION%%/graphdriver.z";
+    GRAPHDRIVER  : start = __USRRAM-$A,       size = $5B0+$A, file="build/%%VERSION%%/graphdriver.z";
+}
+
+SEGMENTS {
+    graphdrvjmp : load = GRAPHDRVJMP, type = rw;
+    graphdriver : load = GRAPHDRIVER, type = ro;
+}

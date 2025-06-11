@@ -18,16 +18,23 @@ endif
 
 ifeq ($(ARCH),kim1)
   IODRIVER = kimiotty
+  SYSDEPS = kim1.inc
 else
   IODRIVER = iodriver
+  SYSDEPS = monomeg.inc
 endif
 
-FILESYSTEM = 	codos.z \
-				comdproc.z \
+# Explicitly exclude codos.z as it is copied differently into the disk image
+#
+FILESYSTEM = 	comdproc.z \
 				svcproc.z \
-				$(IODRIVER).z \
-				overlays.bin \
-				dir.c \
+				$(IODRIVER).z
+
+ifeq ($(ARCH),mtu)
+  FILESYSTEM += graphdriver.z
+endif				
+
+FILESYSTEM +=	dir.c \
 				kill.c \
 				format.c \
 				copyf.c \
@@ -71,20 +78,10 @@ ifeq ($(ARCH), mtu)
 			(md5sum --quiet -c ../../checksums$(ver).md5 && echo \"OK.\")";)
 endif
 
-$(foreach ver,$(VERSIONS),$(eval images/codos$(ver).imd: $(addprefix build/$(ver)/,$(FILESYSTEM)) \
+$(foreach ver,$(VERSIONS),$(eval images/codos$(ver).imd: build/$(ver)/codos.z build/$(ver)/overlays.bin $(addprefix build/$(ver)/,$(FILESYSTEM)) \
 	; echo "CODOSDSK $$@" \
 	; ../utils/codosdsk format -y -p -s 2 -t 12 -v $(ver) -c build/$(ver)/codos.z -o build/$(ver)/overlays.bin images/codos$(ver).imd \
-	; ../utils/codosdsk copy images/codos$(ver).imd build/$(ver)/comdproc.z 0:comdproc.z \
-	; ../utils/codosdsk copy -a images/codos$(ver).imd build/$(ver)/syserrmsg.z 0:syserrmsg.z \
-	; ../utils/codosdsk copy -a images/codos$(ver).imd build/$(ver)/startup.j 0:startup.j \
-	; ../utils/codosdsk copy images/codos$(ver).imd build/$(ver)/svcproc.z 0:svcproc.z \
-	; ../utils/codosdsk copy images/codos$(ver).imd build/$(ver)/$(IODRIVER).z 0:$(IODRIVER).z \
-	; ../utils/codosdsk copy images/codos$(ver).imd build/$(ver)/sysgendisk.c 0:sysgendisk.c \
-	; ../utils/codosdsk copy images/codos$(ver).imd build/$(ver)/dir.c 0:dir.c \
-	; ../utils/codosdsk copy images/codos$(ver).imd build/$(ver)/kill.c 0:kill.c \
-	; ../utils/codosdsk copy images/codos$(ver).imd build/$(ver)/format.c 0:format.c \
-	; ../utils/codosdsk copy images/codos$(ver).imd build/$(ver)/copyf.c 0:copyf.c \
-	; ../utils/codosdsk copy images/codos$(ver).imd build/$(ver)/copyf1drive.c 0:copyf1drive.c))
+	; for f in $(FILESYSTEM); do ../utils/codosdsk copy -a images/codos$(ver).imd build/$(ver)/$$$$f 0:$$$$f ; done))
 
 $(foreach ver,$(VERSIONS),$(eval $(addprefix build/$(ver)/,$(CODOSFILES)) &: $(addprefix build/$(ver)/,$(CODOSOBJS)) build/$(ver)/codos.cfg \
 	; echo "LD $$@" \
@@ -99,11 +96,11 @@ $(foreach ver,$(VERSIONS),$(eval build/$(ver)/%.cfg: system_$(ARCH).map %.cfg.in
 	; echo "## AUTOMATICALLY GENERATED, DO NOT MODIFY!!!!" > $$@ \
 	; cat $$^ | sed -e 's/%%VERSION%%/$(ver)/' -e 's/%%IODRIVER%%/$(IODRIVER)/' >> $$@))
 
-$(foreach ver,$(VERSIONS),$(eval build/$(ver)/codos.o: codos.asm build/$(ver)/k1013.inc codos.inc monomeg.inc \
+$(foreach ver,$(VERSIONS),$(eval build/$(ver)/codos.o: codos.asm build/$(ver)/k1013.inc codos.inc $(SYSDEPS) \
 	; echo "AS $$@" \
 	; $(AS) $(AFLAGS) -D CODOS2_VER=$(ver) -I build/$(ver) -l $(basename $$@).lst -o $$@ $$<))
 
-$(foreach ver,$(VERSIONS),$(eval build/$(ver)/comdproc.o: comdproc.asm build/$(ver)/k1013.inc codos.inc monomeg.inc \
+$(foreach ver,$(VERSIONS),$(eval build/$(ver)/comdproc.o: comdproc.asm build/$(ver)/k1013.inc codos.inc $(SYSDEPS) \
 	; echo "AS $$@" \
 	; $(AS) $(AFLAGS) -D CODOS2_VER=$(ver) -I build/$(ver) -l $(basename $$@).lst -o $$@ $$<))
 
@@ -111,9 +108,19 @@ $(foreach ver,$(VERSIONS),$(eval build/$(ver)/svcproc.o: svcproc.asm build/$(ver
 	; echo "AS $$@" \
 	; $(AS) $(AFLAGS) -D CODOS2_VER=$(ver) -I build/$(ver) -l $(basename $$@).lst -o $$@ $$<))
 
-$(foreach ver,$(VERSIONS),$(eval build/$(ver)/$(IODRIVER).o: $(IODRIVER).asm monomeg.inc \
+$(foreach ver,$(VERSIONS),$(eval build/$(ver)/$(IODRIVER).o: $(IODRIVER).asm $(SYSDEPS) \
 	; echo "AS $$@" \
 	; $(AS) $(AFLAGS) -D CODOS2_VER=$(ver) -I build/$(ver) -l $(basename $$@).lst -o $$@ $$<))
+
+ifeq ($(ARCH), mtu)
+$(foreach ver,$(VERSIONS),$(eval build/$(ver)/graphdriver.z: build/$(ver)/graphdriver.o build/$(ver)/graphdriver.cfg \
+	; echo "LD $$@" \
+	; $(LD) -C $$(@:.z=.cfg) -vm -m $(basename $$@).map -o $$@ $$<))
+
+$(foreach ver,$(VERSIONS),$(eval build/$(ver)/graphdriver.o: graphdriver.asm build/$(ver)/symbols.inc $(SYSDEPS) \
+	; echo "AS $$@" \
+	; $(AS) $(AFLAGS) -D CODOS2_VER=$(ver) -I build/$(ver) -l $(basename $$@).lst -o $$@ $$<))
+endif
 
 $(foreach ver,$(VERSIONS),$(eval build/$(ver)/overlays.bin: $(addprefix build/$(ver)/,$(OVERLAYS)) \
 	; echo "CAT $$@" \
@@ -123,7 +130,7 @@ $(foreach ver,$(VERSIONS),$(eval build/$(ver)/overlay%.bin: build/$(ver)/overlay
 	; echo "LD $$@" \
 	; $(LD) -C build/$(ver)/overlay.cfg -vm -m $(basename $$@).map -o $$@ $$<))
 
-$(foreach ver,$(VERSIONS),$(eval build/$(ver)/overlay%.o: overlay%.asm build/$(ver)/k1013.inc build/$(ver)/symbols.inc monomeg.inc \
+$(foreach ver,$(VERSIONS),$(eval build/$(ver)/overlay%.o: overlay%.asm build/$(ver)/k1013.inc build/$(ver)/symbols.inc $(SYSDEPS) \
 	; echo "AS $$@" \
 	; $(AS) $(AFLAGS) -D CODOS2_VER=$(ver) -I build/$(ver) -l $(basename $$@).lst -o $$@ $$<))
 

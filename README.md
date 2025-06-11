@@ -31,7 +31,8 @@ There are also some system utilities which make the OS minimally useful:
 
 * `CODOS.Z`, `COMDPROC.Z`, `SVCPROC.Z`, `OVERLAYS`, `STARTUP.J`, `SYSERRMSG.Z`, `DIR.C`, `KILL.C`, `FORMAT.C`, `COPYF.C` and `COPYF1DRIVE.C` are completed.
 * `IODRIVER.Z` is disassembled, partially annotated and builds from source, but it is far from complete. All the credit for `IODRIVER.Z` goes to [Michał Staręga](https://github.com/McGyverMauser98k/MTU-130-CODOS), who figured out the internal structure of the driver.
-* `GRAPHDRIVER.Z`, `SYSGENDEVICE.C` and `SYSGENPRINTR.C` are not even started.
+* `GRAPHDRIVER.Z` is disassembled, external symbols identified and builds from source, but that's it.
+* `SYSGENDEVICE.C` and `SYSGENPRINTR.C` are not even started.
 
 A backport for the KIM-1 is also working, using a simple TTY based IO driver, named `KIMIOTTY.Z`.
 
