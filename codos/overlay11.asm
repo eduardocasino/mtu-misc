@@ -8,9 +8,7 @@
 
             .include "symbols.inc"
             .include "codos.inc"
-.ifdef  kim1
-            .include "kim1.inc"
-.endif
+
             .segment "overlays"
 
             .byte   $0B             ; Overlay number
@@ -123,19 +121,5 @@ RENAMEDRV:  .byte   $00
             .byte   $BF, $B1, $C3, $AE, $FB, $FE, $8E, $E0
             .byte   $BF, $91, $C7, $AE, $D8, $E6, $8E, $E0
             .byte   $BF, $60, $7F, $7F, $60, $00, $00, $1E
-.elseif .defined(kim1)
-
-; KIM Command
-;
-; DESCRIPTION:  Exit the CODOS monitor and enter the KIM-1 Monitor
-;
-; SYNTAX:       KIM
-;
-; ARGUMENTS:    None
-;
-.proc KIM
-            jsr     MONITOR
-.endproc
-
 .endif
             .end

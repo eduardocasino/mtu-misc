@@ -6,6 +6,11 @@
 .ifdef mtu
             .include "monomeg.inc"
 .endif
+
+.ifdef  kim1
+            .include "kim1.inc"
+.endif
+
             .include "codos.inc"
 
             .importzp MEMBUFF, MEMCOUNT, TMPBUFP, INPBUFP, P0SCRATCH, DESTBUFF
@@ -761,6 +766,22 @@ NEXT:       ldy     CMDLIDX         ; Recover command line index
             jmp     BOOTP           ; Boot from PROM
 .endproc
 
+.ifdef kim1
+
+; KIM Command
+;
+; DESCRIPTION:  Exit the CODOS monitor and enter the KIM-1 Monitor
+;
+; SYNTAX:       KIM
+;
+; ARGUMENTS:    None
+;
+.proc KIMMON
+            jsr     MONITOR
+.endproc
+
+.endif
+
             ; Command name table
             ;
             ;       Name:       Overlay:
@@ -804,7 +825,7 @@ CMDNAMTBL:  .byte   "ASSIGN",   $07
             .byte   "RESAVE",   $00
             .byte   "MSG",      $06
 .ifdef kim1
-            .byte   "KIM",      $0B
+            .byte   "KIM",      $00
 .endif
             ; Reserved for new commands
 
@@ -812,18 +833,8 @@ CMDNAMTBL:  .byte   "ASSIGN",   $07
             .byte   $00, $00, $00, $00, $00, $00, $00, $00
             .byte   $00, $00, $00, $00, $00, $00, $00, $00
             .byte   $00, $00, $00, $00, $00, $00, $00, $00
-            
-.elseif .def(kim1)
-            .byte   $00, $00
-            .byte   $00, $00, $00, $00, $00, $00, $00, $00
-            .byte   $00, $00, $00, $00, $00, $00, $00, $00
-            .byte   $00, $00, $00, $00, $00, $00, $00, $00
-.else
-            .byte   $00, $00, $00, $00, $00, $00
-            .byte   $00, $00, $00, $00, $00, $00, $00, $00
-            .byte   $00, $00, $00, $00, $00, $00, $00, $00
-            .byte   $00, $00, $00, $00, $00, $00, $00, $00
 .endif
+
             ; Command function table
             ;
             ;       Entry point:
@@ -867,7 +878,7 @@ CMDFUNTBL:  .word   $0000
             .word   RESAVE
             .word   OVLORG+$B3      ; Msg
 .ifdef kim1
-            .word   OVLORG+$7F      ; Kim
+            .word   KIMMON          ; Kim
 .endif
 .if .not (.defined(mtu) .or .defined(kim1))
             .word   $0000           ; Reserved
