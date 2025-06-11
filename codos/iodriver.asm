@@ -12,7 +12,7 @@
 ;
             .exportzp QLN
 
-QLN:        .res    2              ; $F0 Ptr to line-buffer used for INLINE and EDLINE
+QLN:        .res    2              ; $F0 Ptr to line-buffer used for INLINE AND EDLINE
 VRAMDST:    .res    2              ; $F2 - $F3 Video ram dest for graphic funcs
 VRAMORG:    .res    2              ; $F4 - $F5 Video ram origin for graphic funcs
 CHARFNTP:   .res    2              ; $F6 - $F7 Pointer to character font
@@ -48,7 +48,7 @@ FNBNK:      .res    1               ; $02D0 Bank of current character table
 L02D1:      .res    1               ; $02D1
 L02D2:      .res    1               ; $02D2
 L02D3:      .res    1               ; $02D3
-TMPIDX:     .res    1               ; $02D4 Temporary storage for index caalculations
+SAVIDX:     .res    1               ; $02D4 Temporary storage for index caalculations
 CURPOS:     .res    1               ; $02D5 Cursor position in line buffer
 XSAVLI:     .res    1               ; $02D6 Save X in line editing functions
 INSFLAG:    .res    1               ; $02D7 Flag. It bit 7 = 1, insert enabled
@@ -150,7 +150,7 @@ IODATA_SIZE = * - COL
             .export SDRAW, SMOVE, SDRAWR, SMOVER, SVEC, SVECR, SDOT, SDOTR, SGRIN
             .export SLTPEN, SDRWCH, SISDOT, SOFFGC, SONGC, SINTLP, STSTLP, IFKEY
             .export INITTW, DEFTW, CLRHTW, HOMETW, CRLF, CLRTW, CLRLEG, CLRTLN
-            .export LINEFD, OFFTCR, ONTCR, FLPTCR, TIOON, IORES, BEEP
+            .export LINEFD, OFFTCR, ONTCR, FLPTCR, TIOON, IORES, BEEP, ERR37
 
 GETKEY:     jmp     _GETKEY     ; Wait until a keyboard key is struck and return character in A
 OUTCH:      jmp     _OUTCH      ; Display printable character or interpret control character
@@ -168,28 +168,28 @@ SDRAW:      jmp     ERR37       ; DRAW A SOLID VECTOR FROM THE CURSOR TO (XX,YY)
 SMOVE:      jmp     ERR37       ; MOVE GRAPHIC CURSOR TO (XX,YY) WITHOUT DRAWING
 SDRAWR:     jmp     ERR37       ; DRAW A SOLID WHITE VECTOR RELATIVE TO THE CURSOR
 SMOVER:     jmp     ERR37       ; MOVE THE GRAPHIC CURSOR RELATIVE TO ITS PRESENT POSITION
-SVEC:       jmp     ERR37       ; DRAW A VECTOR FROM THE CURSOR TO (XX,YY) ACCORDING TO GMODE and DSHPAT
-SVECR:      jmp     ERR37       ; DRAW A VECTOR RELATIVE TO THE CURSOR ACCORDING TO GMODE and DSHPAT
+SVEC:       jmp     ERR37       ; DRAW A VECTOR FROM THE CURSOR TO (XX,YY) ACCORDING TO GMODE AND DSHPAT
+SVECR:      jmp     ERR37       ; DRAW A VECTOR RELATIVE TO THE CURSOR ACCORDING TO GMODE AND DSHPAT
 SDOT:       jmp     ERR37       ; DRAW A SINGLE DOT (PIXEL) AT (XX,YY) ACCORDING TO GMODE
 SDOTR:      jmp     ERR37       ; DRAW A SINGLE DOT (PIXEL) AT A POSITION RELATIVE TO THE CURSOR ACCORDING TO GMODE
 SGRIN:      jmp     ERR37       ; ALLOW USER COORDINATE INPUT BY MANEUVERING A CURSOR WITH THE KEYBOAR CURSOR CONTROL KEYS
-SLTPEN:     jmp     ERR37       ; ACTIVATE LIGHT PEN FFOR ONE FRAME and RETURN COORDINATES OF HIT, IF ANY
+SLTPEN:     jmp     ERR37       ; ACTIVATE LIGHT PEN FFOR ONE FRAME AND RETURN COORDINATES OF HIT, IF ANY
             jmp     ERR37
 SDRWCH:     jmp     ERR37       ; DRAW A SINGLE CHARACTER AT (XX,YY)
 SISDOT:     jmp     ERR37       ; DETERMINE PIXEL AT (XX,YY) IS ON OR OFF
 SOFFGC:     jmp     ERR37       ; TURN OFF THE GRAPHIC CROSSHAIR CURSOR
 SONGC:      jmp     ERR37       ; TURN ON THE GRAPHIC CROSSHAIR CURSOR
-SINTLP:     jmp     ERR37       ; WAIT FOR END OF FRAME and THEN ACTIVATE THE LIGHT PEN
-STSTLP:     jmp     ERR37       ; TEST FOR LIGHT PEN HIT and RETURN COORDINATES IF A HIT
+SINTLP:     jmp     ERR37       ; WAIT FOR END OF FRAME AND THEN ACTIVATE THE LIGHT PEN
+STSTLP:     jmp     ERR37       ; TEST FOR LIGHT PEN HIT AND RETURN COORDINATES IF A HIT
             jmp     ERR37
             jmp     ERR37
             jmp     ERR37
 IFKEY:      jmp     _IFKEY      ; IFKEY - TEST IF A KEY IS PRESSED WITHOUT MULTIPLE RECOGNITION LOCKOUT
-INITTW:     jmp     _INITTW     ; INITTW - INITIALIZE THE TEXT WINDOW TO 24 LINES and CLEAR THE TEXT WINDOW ONLY
-DEFTW:      jmp     _DEFTW      ; DEFTW - SET THE POSITION and SIZE OF THE TEXT WINDOW
-CLRHTW:     jmp     _CLRHTW     ; CLRHTW - CLEAR THE TEXT WINDOW and HOME THE CURSOR.
+INITTW:     jmp     _INITTW     ; INITTW - INITIALIZE THE TEXT WINDOW TO 24 LINES AND CLEAR THE TEXT WINDOW ONLY
+DEFTW:      jmp     _DEFTW      ; DEFTW - SET THE POSITION AND SIZE OF THE TEXT WINDOW
+CLRHTW:     jmp     _CLRHTW     ; CLRHTW - CLEAR THE TEXT WINDOW AND HOME THE CURSOR.
 HOMETW:     jmp     _HOMETW     ; HOMETW - PLACE THE CURSOR IN THE HOME POSITION (COL=1, LINE=1)
-CRLF:       jmp     _CRLF       ; CRLF - MOVE CURSOR TO THE LEFT SCREEN EDGE and DOWN ONE LINE
+CRLF:       jmp     _CRLF       ; CRLF - MOVE CURSOR TO THE LEFT SCREEN EDGE AND DOWN ONE LINE
 CLRTW:      jmp     _CLRTW      ; CLRTW - CLEAR THE TEXT WINDOW WITHOUT MOVING THE CURSOR
 CLRLEG:     jmp     _CLRLEG     ; CLRLEG - CLEAR THE LEGEND DISPLAY AREA (BOTTOMMOST 16 SCAN LINES)
 CLRTLN:     jmp     _CLRTLN     ; CLRTLN - CLEAR A SPECIFIED TEXT LINE
@@ -364,7 +364,7 @@ SPECIAL:    beq     CHKSPCL         ; Char is $7F (DEL)
             cmp     #$88            ; Check id it is a function key
             bcs     CHKSPCL         ; No, check if special key
             jsr     FNKEY           ; Yes, manage it
-            cmp     #$0D            
+            cmp     #$0D
             bne     GKLOOP          ; And continue processing the input line
 CHKSPCL:    ldx     #SPKTBLSIZ-1    ; Search for the char into the SPKTBL
 CHKSPNX:    cmp     _SPKTBL,x       ; Found?
@@ -423,7 +423,7 @@ TRNSLTE:    inx                     ; Advance to next pos in table (key equivale
             cpy     CURPOS
             beq     LC6A8
             dey                     ; Decrement line index
-UPDC:       jsr     BSCOORD         ; Updates text window coordinates for a BS
+UPDC:       jsr     CURSORL         ; Move cursor left
                                     ; Clear insert flag and continue processing
             jmp     _EDLINE::CLRINSFLG
 
@@ -471,7 +471,7 @@ SKVT:       tya
             cmp     CURPOS
             bcc     LC6E1
             tay
-LC6DB:      jsr     LCF08
+LC6DB:      jsr     LINEUP
             jmp     _EDLINE::CLRINSFLG ; Clear insert flag and continue processing
 
 LC6E1:      cpy     NUMCHRS
@@ -551,8 +551,8 @@ SKINS:      sec                     ; Set insert flag
             jmp     _EDLINE::GKLOOP ; And continue processing the input line
 
 SKSCSRL:    lda     CURPOS
-            sta     TMPIDX
-            jsr     LC8A1
+            sta     SAVIDX
+            jsr     GOSAVIDX        ; Move cursor left from current pos in Y to SAVIDX
             jmp     _EDLINE::CLRINSFLG ; Clear insert flag and continue processing
 
 SKSCSRR:    cpy     NUMCHRS
@@ -597,7 +597,7 @@ NOECHO:     jmp     CURSORR         ; Advance cursor to the right and return
             beq     RETURN
             bit     INSFLAG
             bpl     LC7A4
-            jsr     BSCOORD         ; Updates text window coordinates for a BS
+            jsr     CURSORL         ; Move cursor left
             dey
             jmp     LC849
 
@@ -605,23 +605,23 @@ LC7A4:      cpy     NUMCHRS
             bcc     LC7AA
             dec     NUMCHRS
 LC7AA:      dey
-            jsr     BSCOORD         ; Updates text window coordinates for a BS
+            jsr     CURSORL         ; Move cursor left
             lda     #$20
             sta     (QLN),y
             jsr     OUTCIFEON
-            jsr     BSCOORD         ; Updates text window coordinates for a BS
+            jsr     CURSORL         ; Move cursor left
 RETURN:     rts
 .endproc
 
 .proc DELTOEOL
-            sty     TMPIDX          ; STore current index to temp variable (never used?)
+            sty     SAVIDX          ; Store current index to temp variable
 LOOP:       cpy     NUMCHRS         ; Have we reached end of line?
             bcs     LC7C8           ; Yes, ...
             lda     #' '            ; No, overwrite with blank
             jsr     OUTCIFEON       ;
             iny                     ; Advance position
             bne     LOOP            ; And repeat (will always jump)
-LC7C8:      jsr     LC8A1
+LC7C8:      jsr     GOSAVIDX        ; Move cursor left from current pos to SAVIDX
             sty     NUMCHRS
             rts
 .endproc
@@ -629,29 +629,29 @@ LC7C8:      jsr     LC8A1
 ; Internal procedure: Advance to next tabulator stop
 ;
 .proc HORIZTAB
-            sty     TMPIDX          ; Save index to temporary var
+            sty     SAVIDX          ; Save index to temporary var
             ldx     #$00            ; Find next tab stop position
 LOOP:       lda     TABTBL,x        ; Get tab stop
             beq     UPDIDRET        ; If 0, no more
             tay                     ; Transfer to Y
             dey                     ; And decrement to compare with current position
-            cpy     TMPIDX          ; If current pos >= tab stop, check next tabstop
+            cpy     SAVIDX          ; If current pos >= tab stop, check next tabstop
             beq     NEXT            ;
             bcc     NEXT            ;
             cpy     YLNLIM          ; Is tab stop past the line limit?
             bcs     UPDIDRET        ; Go update index and return
             tya                     ; Get current index into Y
-            ldy     TMPIDX          ;  then update TMPIDX with tab stop
-            sta     TMPIDX          ;  position
+            ldy     SAVIDX          ;  then update SAVIDX with tab stop
+            sta     SAVIDX          ;  position
 ADVPOS:     cpy     NUMCHRS         ; Compare current index with number of chars
             bcs     PRTAB           ;   at or beyond number of chars, go print spaces
-            cpy     TMPIDX          ; Compare current index with tab stop position
+            cpy     SAVIDX          ; Compare current index with tab stop position
             bcs     RETURN          ;   at or beyond tab stop, just return
             jsr     CURSORR         ;   before, advance 1 pos right
             iny                     ; Increment current index
             bne     ADVPOS          ; And repeat (will always jump)
 PRTAB:      lda     #' '            ; Print spaces until tab stop
-            cpy     TMPIDX          ; Have we reached the tab stop position?
+            cpy     SAVIDX          ; Have we reached the tab stop position?
             bcs     UPDNCRET        ; Go update number of chars and return
             jsr     OUTCIFEON       ; Output to screen if echo enable
             sta     (QLN),y         ; Store into buffer
@@ -663,21 +663,21 @@ RETURN:     rts
 NEXT:       inx                     ; Next tab stop
             cpx     #TABTBL_SIZE    ; Repeat until end of table
             bcc     LOOP            ;
-UPDIDRET:   ldy     TMPIDX          ; Set index to new value and return
+UPDIDRET:   ldy     SAVIDX          ; Set index to new value and return
             rts
 .endproc
 
 .proc LC817
             lda     CURPOS          ; Get current char position
-            sta     TMPIDX          ; and store it
-            jsr     LC8A1
+            sta     SAVIDX          ; and store it
+            jsr     GOSAVIDX        ; Move cursor left from current pos in Y to SAVIDX
             lda     #' '
 LOOP:       cpy     NUMCHRS
             bcs     LC82C           ; If we've reached the end of line
             jsr     OUTCIFEON
             iny
             bne     LOOP
-LC82C:      jsr     LC8A1
+LC82C:      jsr     GOSAVIDX        ; Move cursor left from current pos in Y to SAVIDX
             ldy     #$00
             sty     CURPOS
             sty     NUMCHRS
@@ -700,7 +700,7 @@ RETURN:     rts
 
 LC849:      cpy     NUMCHRS
             bcs     LC86B
-            sty     TMPIDX
+            sty     SAVIDX
 LC850:      iny
             cpy     NUMCHRS
             bcs     LC861
@@ -714,18 +714,18 @@ LC850:      iny
 LC861:      lda     #$20
             jsr     OUTCIFEON
             dec     NUMCHRS
-            jsr     LC8A1
+            jsr     GOSAVIDX        ; Move cursor left from current pos in Y to SAVIDX
 LC86B:      rts
 
 INSCHAR:    sta     L02D3           ; Save char
-            sty     TMPIDX           ; And current index
+            sty     SAVIDX          ; And current index
             ldy     NUMCHRS         ; Get number of chars in buffer
             cpy     YLNLIM          ; Line full?
             bcc     LC87F           ; No, continue
             jsr     RNGBEL          ; Yes, ring the bell
-            jmp     LC8AF           ; Restore index and return
+            jmp     RSTRIDX         ; Restore index and return
 
-LC87F:      cpy     TMPIDX
+LC87F:      cpy     SAVIDX
             beq     LC88D
             dey
             lda     (QLN),y
@@ -741,23 +741,25 @@ LC894:      lda     (QLN),y
             iny
             cpy     NUMCHRS
             bcc     LC894
-            inc     TMPIDX
+            inc     SAVIDX
             ; Fall through
 
-.proc LC8A1
+; Internal procedure: Move cursor left from current pos in Y to SAVIDX
+;
+.proc GOSAVIDX
             tya                     ; Transfer current index to A
             sec                     ; Clear borrow for substraction
-            sbc     TMPIDX          ; Substract initial index pos
+            sbc     SAVIDX          ; Substract initial index pos
             tax                     ; Transfer to X
-            beq     LC8AF           ; If same pos, go to restore index and return
-LC8A9:      jsr     BSCOORD         ; Updates text window coordinates for a BS
-            dex
-            bne     LC8A9
+            beq     RSTRIDX         ; If same pos, go to restore index and return
+LEFT:       jsr     CURSORL         ; Move cursor left X positions
+            dex                     ;
+            bne     LEFT            ;
             ; Fall through
 .endproc
 
-.proc LC8AF
-            ldy     TMPIDX
+.proc RSTRIDX
+            ldy     SAVIDX
             rts
 .endproc
 
@@ -802,7 +804,7 @@ LC8F7:      jsr     LC91B
 LC8FC:      iny
             lda     (QLN),y
             tax
-            sty     TMPIDX
+            sty     SAVIDX
             ldy     UNK23
             iny
             jsr     SWTBANK1        ; Turns on I-O address space and switches to bank 1
@@ -810,7 +812,7 @@ LC8FC:      iny
             sta     (VRAMDST),y
             jsr     RSTBANK0        ; Restores Bank 0 and turns on RAM at BE00-BFFF
             sty     UNK23
-            ldy     TMPIDX
+            ldy     SAVIDX
             cpy     NUMCHRS
             bne     LC8FC
             rts
@@ -822,7 +824,7 @@ LC91B:      lda     #$50
             ldy     #$FF
             rts
 
-LC926:      sty     TMPIDX
+LC926:      sty     SAVIDX
             jsr     LC91B
             ldy     L02DA
 LC92F:      dey
@@ -846,13 +848,13 @@ LC951:      iny
             tax
             jsr     RSTBANK0        ; Restores Bank 0 and turns on RAM at BE00-BFFF
             sty     L02DB
-            ldy     TMPIDX
+            ldy     SAVIDX
             txa
             sta     (QLN),y
             cmp     #$0D
             beq     LC972
             iny
-            sty     TMPIDX
+            sty     SAVIDX
             ldy     L02DB
             jmp     LC951
 
@@ -1380,14 +1382,14 @@ LCBFC:      sec
 
 LCC04:      pha
             asl     CRSRWRAP
-            jsr     LD13B
+            jsr     LNCOLCRD        ; Get coord. in video RAM of current COL and LINE
             pla
             cmp     #$5F
             bne     LCC23
             bit     SHODEL
             bmi     LCC32
-            jsr     BSCOORD         ; Updates text window coordinates for a BS
-            jsr     LD13B
+            jsr     CURSORL         ; Move cursor left
+            jsr     LNCOLCRD
             lda     #$00
             jsr     PRNCHR
             jmp     LCC48
@@ -1419,7 +1421,7 @@ LCC54:      cmp     LCCFF,x
             bpl     LCC54
             cmp     #$A0
             bne     LCC66
-            jsr     LCF08
+            jsr     LINEUP
             jmp     LCC48
 
 LCC66:      cmp     #$A2
@@ -1455,7 +1457,7 @@ LCC9A:      cmp     #$0A
 
 LCCA4:      cmp     UNK19
             bne     LCCAF
-            jsr     BSCOORD         ; Updates text window coordinates for a BS
+            jsr     CURSORL         ; Move cursor left
             jmp     LCC48
 
 LCCAF:      cmp     UNK22
@@ -1579,14 +1581,19 @@ _CLRHTW:    jsr     _CLRTW          ; Clear the text window without moving the c
 
 ; HOMETW - PLACE THE CURSOR IN THE HOME POSITION (COL=1, LINE=1)
 ;
-_HOMETW:    pha                     ; Preserve A
+.proc _HOMETW
+            pha                     ; Preserve A
             lda     #$01            ; Set LINE and COL
             sta     LINE            ;
             sta     COL             ;
             pla                     ; Restore A
             rts
+.endproc
 
-_CRLF:      pha
+; CRLF - MOVE CURSOR TO THE LEFT SCREEN EDGE AND DOWN ONE LINE
+;
+.proc _CRLF
+            pha
             lda     #$01
             sta     COL
             bit     NOLFCR
@@ -1602,24 +1609,28 @@ _CRLF:      pha
             tax
 LCD93:      pla
             rts
+.endproc
 
-_CLRDSP:    pha
-            txa
-            pha
-            lda     #$00
-            sta     VRAMORG
-            lda     #$C0
-            sta     VRAMORG+1
-            lda     #$00
-            sta     VRAMCNT
-            lda     #$3C
-            sta     VRAMCNT+1
-            jsr     CLRVRAM
-            pla
-            tax
-            pla
+; CLRDSP - Clear the entire VIDHRES by VIDVRES display
+;
+.proc _CLRDSP
+            pha                     ; Preserve A and X
+            txa                     ;
+            pha                     ;
+            lda     #<VIDEORAM      ; Set origin in video RAM start
+            sta     VRAMORG         ;
+            lda     #>VIDEORAM      ;
+            sta     VRAMORG+1       ;
+            lda     #<VIDEOLEN      ; Set count to video RAM length
+            sta     VRAMCNT         ;
+            lda     #>VIDEOLEN      ;
+            sta     VRAMCNT+1       ;
+            jsr     CLRVRAM         ; And cleat display area
+            pla                     ; Restore X and A
+            tax                     ;
+            pla                     ;
             rts
-
+.endproc
 
 ; CLRTW - CLEAR THE TEXT WINDOW WITHOUT MOVING THE CURSOR
 ;
@@ -1628,25 +1639,25 @@ _CLRDSP:    pha
             txa                     ;
             pha                     ;
             lda     YTDOWN          ; Get coordinate of top of text window
-            jsr     VLINSTART       ; Calculate where it starts at video memory
+            jsr     TLINSTART       ; Calculate where it starts at video memory
             jsr     VDST2ORG        ; Move it into VRAMORG
             lda     NLINET          ; Get number of text lines in the text window
-            ldx     #$50
-            jsr     LCF36
-            lda     VRAMDST
-            sec
-            sbc     VRAMORG
-            sta     VRAMCNT
-            lda     VRAMDST+1
-            sbc     VRAMORG+1
-            sta     VRAMCNT+1
-            inc     VRAMCNT
-            bne     LCDD6
-            inc     VRAMCNT+1
-LCDD6:      jsr     CLRVRAM
-            pla
-            tax
-            pla
+            ldx     #TXTHRES        ; Last character of line
+            jsr     CHRCOORD        ; Calculate video ram coords. of last char
+            lda     VRAMDST         ; Calculate number of bytes from orig to dest
+            sec                     ;
+            sbc     VRAMORG         ;
+            sta     VRAMCNT         ;
+            lda     VRAMDST+1       ;
+            sbc     VRAMORG+1       ;
+            sta     VRAMCNT+1       ;
+            inc     VRAMCNT         ;
+            bne     SKIP            ;
+            inc     VRAMCNT+1       ;
+SKIP:       jsr     CLRVRAM         ; Clear VRAMCNT bytes from VRAMORG
+            pla                     ; Restore registers
+            tax                     ;
+            pla                     ;
             rts
 .endproc
 
@@ -1667,30 +1678,45 @@ _CLRLEG:    lda     #<(VIDEORAM+VIDHRES*(VIDVRES-16)/8)
             sta     VRAMCNT+1
             jmp     CLRVRAM         ; Jump to clear the video ram and return
 
-LCDF0:      lda     NLINET
-            ; Fall through
-
-_CLRTLN:    ldx     #$50
-            cmp     NLINET
-            bcc     LCDFD
+; Internal procedure: Clear the last text line
+;
+.proc CLRLSTLN
             lda     NLINET
-LCDFD:      jsr     LCF36
-            lda     VRAMDST
-            sec
-            sbc     #$57
-            sta     VRAMORG
-            lda     VRAMDST+1
-            sbc     #$02
-            sta     VRAMORG+1
-            lda     #$58
-            sta     VRAMCNT
-            lda     #$02
-            sta     VRAMCNT+1
             ; Fall through
+.endproc
+
+; CLRTLN - CLEAR A SPECIFIED TEXT LINE
+;
+; Arguments: A : Line number
+;
+.proc _CLRTLN
+            ldx     #TXTHRES        ; Number of chars per line
+            cmp     NLINET          ; Is line number past number of lines in text win?
+            bcc     SKIP            ; No, skip
+            lda     NLINET          ; Yes, set line as last line
+SKIP:       jsr     CHRCOORD        ; Get video ram coords. of last char in text line
+
+            ; Calculate orig of video ram to clear. Each line is 60 bytes (80 6-pixel
+            ; wide characters ), text line height is 10 pixels, so 60*10 = 600 ($258)
+            ;
+            lda     VRAMDST         ; Calculate video ram origin (dest - 600 bytes)
+            sec                     ;
+            sbc     #$57            ;
+            sta     VRAMORG         ;
+            lda     VRAMDST+1       ;
+            sbc     #$02            ;
+            sta     VRAMORG+1       ;
+            lda     #$58            ; Set byte count
+            sta     VRAMCNT         ;
+            lda     #$02            ;
+            sta     VRAMCNT+1       ;
+            ; Fall through to clear RAM
+.endproc
 
 ; Internal procedure: Clears VRAMCNT bytes of video RAM starting at VRAMORG
 ;
-CLRVRAM:    jsr     SWTBANK1        ; Turns on I-O address space and switches to bank 1
+.proc CLRVRAM
+            jsr     SWTBANK1        ; Turns on I-O address space and switches to bank 1
             jsr     _CLRVRAM        ; Do the actual clearing
             jmp     RSTBANK0        ; Restores Bank 0 and turns on RAM at BE00-BFFF
 
@@ -1716,7 +1742,7 @@ CLRVREML:   dey
 CLRVDONE:   pla                     ; Restore Y and return
             tay                     ;
             rts
-
+.endproc
 
 _LINEFD:    lda     LINE
             cmp     NLINET
@@ -1733,13 +1759,13 @@ LCE5A:      lda     NLINET
             cmp     #$02
             bcc     LCE9A
             ldx     #$50
-            jsr     LCF36
+            jsr     CHRCOORD        ; Calculate video ram coords. of char in text line
             lda     VRAMDST
             sta     VRAMCNT
             lda     VRAMDST+1
             sta     VRAMCNT+1
             lda     YTDOWN
-            jsr     VLINSTART
+            jsr     TLINSTART
             jsr     VDST2ORG
             lda     VRAMORG
             clc
@@ -1759,7 +1785,7 @@ LCE5A:      lda     NLINET
             bne     LCE97
             inc     VRAMCNT+1
 LCE97:      jsr     LCE9D
-LCE9A:      jmp     LCDF0
+LCE9A:      jmp     CLRLSTLN
 
 LCE9D:      jsr     SWTBANK1        ; Turns on I-O address space and switches to bank 1
             jsr     LCEA6
@@ -1800,7 +1826,8 @@ LCED7:      pla
 
 ; Internal procedure: Advance cursor position to the right and manage wrap
 ;
-CURSORR:    pha                     ; Save accumulator
+.proc CURSORR
+            pha                     ; Save accumulator
             lda     COL             ; Get column
             cmp     #$50            ; Have we reached pos 80?
             bcs     WRAP            ; Yes,
@@ -1813,10 +1840,11 @@ WRAP:       jsr     _CRLF           ; Cursor wrap (first col and down one line)
             ror     CRSRWRAP        ;
             pla                     ; Recover accumulator and return
             rts
+.endproc
 
-; Internal procedure: Updates text window coordinates for a BS
+; Internal procedure: Move cursor left
 ;
-.proc BSCOORD
+.proc CURSORL
             dec     COL             ; Decrement column number
             bne     RETURN          ; If 1 or greater, we're done
             pha                     ; Nope, preserve A
@@ -1830,55 +1858,75 @@ DONE:       pla                     ; Restore A and return
 RETURN:     rts
 .endproc
 
-LCF08:      dec     LINE
-            beq     LCF0E
-            rts
-
-LCF0E:      pha
-            lda     NLINET
-            sta     LINE
-            pla
-            rts
-
-LCF17:      ldx     COL
-            beq     LCF20
-            cpx     #$51
-            bcc     LCF25
-LCF20:      ldx     #$01
-            stx     COL
-LCF25:      lda     LINE
-            beq     LCF31
-            cmp     NLINET
-            bcc     LCF36
-            beq     LCF36
-LCF31:      lda     #$01
-            sta     LINE
-            ; Fall through
-
-; X=Characters per line?
-; A=Number of text lines
+; Internal procedure: Decrement text Y coordinate and wrap to bottom if at first line
 ;
-.proc LCF36
-            sta     TEMP1           ; Save number of text lines to temporary variable
-            asl     a               
-            asl     a
-            adc     TEMP1
-            asl     a
-            adc     YTDOWN
-            sec
-            sbc     #$01
-            jsr     VLINSTART
-            dex
-            txa
-            inx
-            sta     TEMP1
-            asl     a
-            adc     TEMP1
-            pha
-            asl     a
-            and     #$07
-            sta     CHRDISPL
-            pla
+.proc LINEUP
+            dec     LINE            ; Up one line
+            beq     WRAP            ; If past first line, jump
+            rts                     ; No, we're done
+
+WRAP:       pha                     ; Preserve A
+            lda     NLINET          ; Wrap cursor to end of text screen
+            sta     LINE            ;
+            pla                     ; Recover A and return
+            rts                     ;
+.endproc
+
+
+; Internal procedure: Get coordinates in video RAM of current COL and LINE
+; of text window
+;
+; Returns coordinates in VRAMDST, char displacement in CHRDISPL
+;
+.proc LNCOLCRDST
+            ldx     COL             ; Current COL in text window
+            beq     SETCOL1         ; 0? Can't be, set to 1
+            cpx     #TXTHRES+1      ; Past last column?
+            bcc     LCF25           ; No, continue
+SETCOL1:    ldx     #$01            ; Yes, wrap to COL 1
+            stx     COL             ;
+LCF25:      lda     LINE            ; Get current line
+            beq     LCF31           ; 0? Can't be, set to 1
+            cmp     NLINET          ; Are we past the last line?
+            bcc     CHRCOORD        ;   No (less)
+            beq     CHRCOORD        ;   No (equal)
+LCF31:      lda     #$01            ; Yes, wrap to LINE 1
+            sta     LINE            ;
+            ; Fall through
+.endproc
+
+
+; Internal procedure: Calculate video ram coordinates of character in text line
+;
+; Arguments: A = Text line number
+;            X = Character number
+; Returned:  Coordinates in VRAMDST, char displacement in CHRDISPL
+;
+
+.proc CHRCOORD
+            ; Calculate coordinates in video ram of text line
+ 
+            sta     TEMP1           ; Multiply by 10 (text line height)
+            asl     a               ;
+            asl     a               ;
+            adc     TEMP1           ;
+            asl     a               ;
+            adc     YTDOWN          ; Add to Y coordinate of text window
+            sec                     ;
+            sbc     #$01            ; minus 1
+            jsr     TLINSTART       ; Calculates start address of text line
+
+            dex                     ; Claculate horizonal len in pixels
+            txa                     ; Char number minus 1 (base 0)
+            inx                     ;
+            sta     TEMP1           ;
+            asl     a               ; Multiply by 3
+            adc     TEMP1           ;
+            pha                     ; And save
+            asl     a               ; Total = x6 (character len)
+            and     #$07            ; Module 8 to calculate displacement
+            sta     CHRDISPL        ; Set char displacement in bits from VRAMORG
+            pla                     ; Recover char number x 3
             lsr     a
             lsr     a
             clc
@@ -1889,18 +1937,23 @@ LCF31:      lda     #$01
 LCF60:      rts
 .endproc
 
-            eor     #$FF            ; 0xDEAD 0xC0DE?
+; Internal procedure - Invert text line number, then calculates start address
+;
+            .export NTLINSTART
 
-; Internal procedure: Calculates a video line start address
+NTLINSTART: eor     #$FF
+            ; Fall through
+
+; Internal procedure: Calculates a text line start address
 ; Video res is 480x256 bits, or 60x256 bytes
 ; This routine multiplies the line number x 60 and then adds the base address to
 ; the result and stores it in VRAMDST
-; 
+;
 ; A = Y coordinate of the start of the text window
 ;
 ; Returns strat address into VRAMDST
 ;
-.proc VLINSTART
+.proc TLINSTART
             pha                     ; Preserve Y Coordinate
             lda     #$00            ; Init result variable
             sta     TEMP2           ;
@@ -1926,29 +1979,30 @@ LCF60:      rts
             sta     VRAMDST         ;
             lda     VRAMDST+1       ;
             sbc     TEMP2           ;
-            clc                     ; 
+            clc                     ;
             adc     #>VIDEORAM      ; And adds video ram origin
             sta     VRAMDST+1       ;
             rts
 .endproc
 
-LCF92:      jsr     LCFFD
-            jsr     _TIOON
-            lda     BNKCTL
-            eor     FNBNK
-            sta     BNKCTL
-            ldy     #$06
+.proc LCF92
+            jsr     LCFFD
+            jsr     _TIOON          ; Turn on I-O address space
+            lda     BNKCTL          ; Switch to font bank
+            eor     FNBNK           ;
+            sta     BNKCTL          ;
+            ldy     #$06            ; Chars are seven pixels high
             ldx     #$00
 LCFA5:      stx     TEMP1
-            lda     (CHARFNTP),y
-            and     #$F8
-            ldx     CHRDISPL
-            beq     LCFB5
+            lda     (CHARFNTP),y    ; Get byte for char's pixel line (from bottom to top)
+            and     #$F8            ; Mask-out three lower bits
+            ldx     CHRDISPL        ; Get char displacement in bits from VRAMORG
+            beq     SKIP            ; If no displacement, skip
 LCFAF:      lsr     a
             ror     TEMP1
             dex
             bne     LCFAF
-LCFB5:      sta     L02B4,y
+SKIP:       sta     L02B4,y
             lda     TEMP1
             sta     L02BE,y
             dey
@@ -1982,14 +2036,21 @@ LCFF2:      lda     BNKCTL
             ora     #$03
             sta     BNKCTL
             jmp     _IORES
+.endproc
 
-LCFFD:      lda     #$00
+.proc LCFFD
+            lda     #$00
             ldx     #$09
-LD001:      sta     L02B3,x
+            ; Fall through
+.endproc
+
+.proc LD001
+LOOP:       sta     L02B3,x
             sta     L02BD,x
             dex
-            bpl     LD001
+            bpl     LOOP
             rts
+.endproc
 
 ;
 ; Internal procedure: Print character to screen at address VRAMORG
@@ -1997,9 +2058,12 @@ LD001:      sta     L02B3,x
 ;
 ; A contains character index to char table (ascii code - $20)
 ; VRAMORG is start location in video memory
+; CHRDISPL contains the char displacement in bits from VRAMORG
 ;
 ; On exit,
 ;
+            .export PRNCHR
+
 .proc PRNCHR
             sta     TEMP1           ; Save character index
             ldx     #$00            ; Init TEMP2
@@ -2095,7 +2159,7 @@ _FLPTCR:    pha
             pha
             tya
             pha
-            jsr     LD13B
+            jsr     LNCOLCRD        ; Get coord. in video RAM of current COL and LINE
             jsr     LD0A7
             pla
             tay
@@ -2160,7 +2224,10 @@ LD0FE:      .byte   $00
 
 ; Turns on I-O address space and switches to bank 1
 ;
-SWTBANK1:   jsr     _TIOON          ; Turn on I-O address space
+            .export SWTBANK1
+
+.proc SWTBANK1
+            jsr     _TIOON          ; Turn on I-O address space
             lda     BNKCTL          ; Switch to bank 1
             ora     #$03            ;
             eor     #$01            ;
@@ -2169,19 +2236,26 @@ SWTBANK1:   jsr     _TIOON          ; Turn on I-O address space
             ora     #$03            ;
             sta     SVIA1DIR        ;
             rts
+.endproc
 
 ; Turn on I-O address space
 ;
-_TIOON:     php                     ; Save IRQ enable flag
+            .export _TIOON
+
+.proc _TIOON
+            php                     ; Save IRQ enable flag
             sec
             sei
             ror     SEEIO           ; Set I-O enable flag
             sta     IOENABLE        ; Enable I/O space from $BE00 to $BFFF
             plp                     ; Restore IRQ enable flag
             rts
+.endproc
 
 ; Switches back to Bank 0 and turns on RAM at BE00-BFFF
 ;
+            .export RSTBANK0
+
 .proc RSTBANK0
             lda     BNKCTL          ; Switch to bank 0
             ora     #$03
@@ -2191,6 +2265,8 @@ _TIOON:     php                     ; Save IRQ enable flag
 
 ; Turn RAM on at BEOO-BFFF
 ;
+            .export _IORES
+
 .proc _IORES
             php                     ; Save IRQ enable flag
             sei
@@ -2201,9 +2277,13 @@ RETURN:     plp
             rts
 .endproc
 
-
-.proc LD13B
-            jsr     LCF17
+; Internal procedure: Get coordinates in video RAM of current COL and LINE
+; of text window
+;
+; Returns coordinates in VRAMORG, char displacement in CHRDISPL
+;
+.proc LNCOLCRD
+            jsr     LNCOLCRDST      ; Get coord in video RAM of current COL and LINE
             ; Fall through
 .endproc
 
@@ -2221,7 +2301,7 @@ RETURN:     plp
 
 ; Internal procedure: Go up one raster line, mantaining X position
 ;
-.proc RSTRLNUP   
+.proc RSTRLNUP
             lda     VRAMORG         ; Get current coordinates
             sec                     ; Substract number of bytes per line
             sbc     #VIDHRES/8      ;
@@ -2251,6 +2331,8 @@ RETURN:     rts
 
 ; GENERATE A CLICK
 ;
+            .export CLICK
+
 .proc CLICK
             bit     NOCLIK          ; If no click is set
             bmi     SNDONE          ; Just return
@@ -2390,9 +2472,9 @@ STDISP:     sta     CHRDISPL        ; Store new displacement
             dec     VRAMCNT         ; One less char of current legend left
             bne     PRCHAR          ; Go print char until no more left
             inc     VRAMDST         ; Legend complete. Advance to next box
-            
+
             ; There are 8 legends, each legend is 8 bytes long, so half of the
-            ; table is at 4 * 8 = 32 ($20) 
+            ; table is at 4 * 8 = 32 ($20)
             ;
             cpy     #LEGTSIZ/2      ; Half of the table?
             bne     CHKEND          ; No, check if end
@@ -2445,7 +2527,7 @@ LOOP:       jsr     DRWBOX          ; Draw box
             jsr     DRHRBOXLN       ; Draw a horizontal 48 pixel long line
             jsr     DRVRBOXLN       ; Draw a vertical 13 pixel line going up
                                     ; At this point, VRAMORG is 13 lines up, so
-                                    ; next procedure will print the top line 
+                                    ; next procedure will print the top line
             ; Fall through
 .endproc
 
@@ -2471,7 +2553,7 @@ LOOP:       sta     (VRAMORG),y     ; Draw segment
 LOOP:       jsr     RSTRLNUP        ; Go up one raster line
 START:      lda     (VRAMORG),y     ; Get current byte value
             ora     #$80            ; Turns on first pixel (most significant bit)
-            sta     (VRAMORG),y     ; 
+            sta     (VRAMORG),y     ;
             dex                     ; Next pixel
             bne     LOOP            ; Loop until no more
             rts
