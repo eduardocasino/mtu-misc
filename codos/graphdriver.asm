@@ -9,19 +9,6 @@
             .include "symbols.inc"
             .include "monomeg.inc"
 
-            .segment "parameters"
-
-            ; Arguments to the graphics routines 
-            ;
-XC:         .res    2               ; ($0202) - X coordinate of the graphic cursor pos.
-YC:         .res    2               ; ($0204) - Y coordinate of the graphic cursor pos.
-XX:         .res    2               ; ($0206) - X graphic coordinate "register"
-YY:         .res    2               ; ($0208) - Y graphic coordinate "register"
-GMODE:      .res    1               ; ($020A) - Graphic drawing mode, $00=move, $40=erase,
-                                    ;           $80=draw, $C0=flip. Add $20 for dashed lines
-DSHPAT:     .res    2               ; ($020B) - Recirculating dashed line pattern,
-                                    ;           each 1 bit=dot on
-
             .segment "graphdrvjmp"
 
             ; Loadable file data
@@ -47,7 +34,7 @@ JMPTBL:     jmp     _SDRAW          ; DRAW A SOLID VECTOR FROM THE CURSOR TO (XX
             jmp     ERR37
             jmp     _SDRWCH         ; DRAW A SINGLE CHARACTER AT (XX,YY)
             jmp     _SISDOT         ; DETERMINE PIXEL AT (XX,YY) IS ON OR OFF
-            jmp     _SOFFGC         ; TTURN OFF THE GRAPHIC CROSSHAIR CURSOR
+            jmp     _SOFFGC         ; TURN OFF THE GRAPHIC CROSSHAIR CURSOR
             jmp     _SONGC          ; TURN ON THE GRAPHIC CROSSHAIR CURSOR
             jmp     _SINTLP         ; WAIT FOR END OF FRAME AND THEN ACTIVATE THE LIGHT PEN
             jmp     _STSTLP         ; TEST FOR LIGHT PEN HIT AND RETURN COORDINATES IF A HIT
@@ -212,80 +199,84 @@ YCALC:      clc                     ; Clear carry for addition
 ; Internal procedure: Draw a vector. Same arguments as above, assumes that A
 ;                     was preserved in ASVGR
 ;
+; NOTE: Uses CHARFNTP as storage for distance between XC and XX
+;
 .proc DRAWVECT
-            stx     XSVGR
-            sty     YSVGR
-            bit     GMODE
-            bmi     LC079
-            bvs     LC079
-            jsr     VALXXYY
+            stx     XSVGR           ; Preserve X and Y
+            sty     YSVGR           ;
+            bit     GMODE           ; Chech graphic mode
+            bmi     DRAW            ; Draw or flip
+            bvs     DRAW            ; Erase
+            jsr     VALXXYY         ; Just move. Validate dest coordinates
             jsr     MOVECSR         ; Move graphic cursor to (XX,YY)
             jmp     REGSRET         ; Restore registers and return
 
-LC079:      jsr     VALXCYC
-            jsr     VALXXYY
-            ldx     #$03
-            stx     $02D1
-            lda     GMODE
-            asl     a
-            asl     a
-            sta     $02D2
-LC08C:      lda     XX
-            sec
-            sbc     XC
-            sta     CHARFNTP
-            lda     XX+1
-            sbc     XC+1
-            bcs     LC0B2
-LC09D:      ldy     XX,x
-            lda     XC,x
-            sta     XX,x
-            tya
-            sta     XC,x
-            dex
-            bpl     LC09D
-            stx     $02D1
-            bmi     LC08C
-LC0B2:      sta     CHARFNTP+1
+DRAW:       jsr     VALXCYC         ; Validate orig
+            jsr     VALXXYY         ;  and dest coordinates
+            ldx     #$03            ; Init index for coordinate swap
+            stx     XHNGED          ; Use also as a flag: If bit 7 = 1, coords are xchanged
+            lda     GMODE           ; Get mode
+            asl     a               ; Shift the "dashed" flag bit to the msb
+            asl     a               ;
+            sta     DASHED          ; Store flag
+XDIST:      lda     XX              ; Calculate horizontal distance form orig
+            sec                     ; to dest coordinates
+            sbc     XC              ;
+            sta     CHARFNTP        ;   and store into CHARFNTP
+            lda     XX+1            ;
+            sbc     XC+1            ;
+            bcs     CONT            ; If positive or 0, skip coord exchange
+XCHNG:      ldy     XX,x            ; Exchange orig and dest X,Y coordinates
+            lda     XC,x            ;
+            sta     XX,x            ;
+            tya                     ;
+            sta     XC,x            ;
+            dex                     ;
+            bpl     XCHNG           ;
+            stx     XHNGED          ; X is now $FF, so flag is true
+            bmi     XDIST           ; Try again (always jump)
+            ; Not reached
+
+CONT:       sta     CHARFNTP+1      ; Finish store horiz distance into CHARFNTP
             jsr     PIXLADDR        ; Gets address in video memory of (XC,YC)
             jsr     SWTBANK1        ; Turns on I-O address space and switches to bank 1
-            jsr     LC1AC
-            ldx     #$80
-            lda     YY
-            sec
-            sbc     YC
-            bcs     LC0D1
-            ldx     #$00
-            lda     YC
-            sec
-            sbc     YY
-LC0D1:      stx     IOTEMP2
-            bne     LC0D8
-            jmp     LC224
+            jsr     PIXEL           ; Draw pixel at XC,YC
+            ldx     #$80            ; Flag we are going bottom to top
+            lda     YY              ; Get vertical distance in pixels
+            sec                     ;
+            sbc     YC              ;
+            bcs     STDIR           ; If positive or zero, skip
+            ldx     #$00            ; Flag we are going top to bottom
+            lda     YC              ; Recalculate Y distance from dest to orig
+            sec                     ;
+            sbc     YY              ;
+STDIR:      stx     IOTEMP2         ; Store direction flag
+            bne     CKDIAGNL        ; Jump if there is Y displacement
+            jmp     HORIZ           ; No Y displacement, draw a horizontal line
 
-LC0D8:      sta     IOTEMP1
-            lda     CHARFNTP+1
-            bne     LC0E6
-            lda     CHARFNTP
-            tax
-            bne     LC13E
-            jmp     LC209
+CKDIAGNL:   sta     IOTEMP1         ; Store Y distance between orig and dest
+            lda     CHARFNTP+1      ; Get horizontal distance MSB
+            bne     LC0E6           ; If non-zero, more than one byte apart
+            lda     CHARFNTP        ; Get LSB
+            tax                     ; Transfer to X
+            bne     LC13E           ; If non-zero, less than one byte apart
+            jmp     VERTICAL        ; No horizontal displacement, draw vertical line
 
-LC0E6:      lda     CHARFNTP
-            tax
-            sec
-            sbc     IOTEMP1
-            sta     VRAMDST
-            lda     CHARFNTP+1
-            sbc     #$00
-            sta     VRAMDST+1
-            lda     CHARFNTP+1
-            lsr     a
-            sta     VRAMCNT+1
-            txa
-            ror     a
-            sta     VRAMCNT
-LC0FD:      lda     VRAMCNT+1
+LC0E6:      lda     CHARFNTP        ; Get horizontal distance
+            tax                     ; Save it into X
+            sec                     ; Cear borrow for substract
+            sbc     IOTEMP1         ; Substract vertical distance between orig and dest
+            sta     VRAMDST         ; And store it into VRAMDST
+            lda     CHARFNTP+1      ;
+            sbc     #$00            ;
+            sta     VRAMDST+1       ;
+            lda     CHARFNTP+1      ; Divide horizontal distance by 2
+            lsr     a               ;
+            sta     VRAMCNT+1       ; And store into VRAMCNT
+            txa                     ; Recover LSB
+            ror     a               ;
+            sta     VRAMCNT         ;
+LC0FD:      lda     VRAMCNT+1       ;
             bne     LC112
             lda     VRAMCNT
             sec
@@ -318,17 +309,17 @@ LC134:      dex
             bne     LC0FD
             dec     CHARFNTP+1
             bpl     LC0FD
-            jmp     LC269
+            jmp     UPDCRD          ; Update coordinates and return
 
-LC13E:      sec
-            sbc     IOTEMP1
+LC13E:      sec                     ; Clear borrow for substraction
+            sbc     IOTEMP1         ;
             bcs     LC154
             lda     IOTEMP1
             stx     IOTEMP1
             sta     CHARFNTP
             tax
             lda     IOTEMP2
-            ora     #$40
+            ora     #$40            ; Set horizotal direction???
             sta     IOTEMP2
             txa
             sec
@@ -346,7 +337,7 @@ LC15A:      lda     VRAMCNT
             jsr     LC1DE
             dex
             bne     LC15A
-            jmp     LC269
+            jmp     UPDCRD          ; Update coordinates and return
 
 LC16E:      clc
 LC16F:      lda     VRAMCNT
@@ -355,94 +346,117 @@ LC16F:      lda     VRAMCNT
             jsr     LC17E
             dex
             bne     LC15A
-            jmp     LC269
+            jmp     UPDCRD          ; Update coordinates and return
 
 LC17E:      bit     IOTEMP2
             bmi     LC18F
             lda     VRAMORG
             clc
-            adc     #$3C
+            adc     #VIDHRES/8
             sta     VRAMORG
-            bcc     LC19A
+            bcc     NXTPIXEL
             inc     VRAMORG+1
-            bcs     LC19A
+            bcs     NXTPIXEL
 LC18F:      lda     VRAMORG
             sec
-            sbc     #$3C
+            sbc     #VIDHRES/8
             sta     VRAMORG
-            bcs     LC19A
+            bcs     NXTPIXEL
             dec     VRAMORG+1
             ; Fall through
 .endproc
 
-.proc LC19A
-            inc     BITDISPL
-            ldy     BITDISPL
-            cpy     #$08
-            bcc     LC1AC
-            ldy     #$00
-            sty     BITDISPL
-            inc     VRAMORG
-            bne     LC1AC
-            inc     VRAMORG+1
+; Internal procedure: Advance horizontal position and draw pixel
+;
+; ARGUMENTS: DASHED  = Flag. If bit 7 = 1, follow the dash pattern in DSHPAT
+;            GMODE   = Graphics mode
+;            VRAMORG = Visual memory address of the pixel 
+;            BITDISPL = bit displacement at VRAMORG
+;
+; ARGUMENTS RETURNED: DSHPAT, VRAMORG and BITDISPL are updated
+;
+.proc NXTPIXEL
+            inc     BITDISPL        ; Increment and get bit displacement
+            ldy     BITDISPL        ;
+            cpy     #$08            ; Past last bit?
+            bcc     PIXEL           ; No, go draw pixel
+            ldy     #$00            ; Yes, zero it, increment video address and draw
+            sty     BITDISPL        ;
+            inc     VRAMORG         ;
+            bne     PIXEL           ;
+            inc     VRAMORG+1       ;
             ; Fall through
 .endproc
 
-.proc LC1AC
-            bit     $02D2
-            bpl     LC1C1
-            asl     DSHPAT+1
-            rol     DSHPAT
-            bcc     LC1DD
-            lda     #$01
-            ora     DSHPAT+1
-            sta     DSHPAT+1
-LC1C1:      lda     DISPTBL,y
+; Internal procedure: Draw pixel at VRAMORG + BITDISPL
+;
+; ARGUMENTS: DASHED  = Flag. If bit 7 = 1, follow the dash pattern in DSHPAT
+;            GMODE   = Graphics mode
+;            VRAMORG = Visual memory address of the pixel 
+;            Y       = BITDISPL (bit displacement at VRAMORG)
+;
+; ARGUMENTS RETURNED: DSHPAT is updated
+;
+.proc PIXEL
+            bit     DASHED          ; Check if dashed mode
+            bpl     CONT            ; Skip if not set
+            asl     DSHPAT+1        ; Get bit from pattern
+            rol     DSHPAT          ;
+            bcc     RETURN          ; If 0, nothing to draw
+            lda     #$01            ; Re-inject bit into the pattern
+            ora     DSHPAT+1        ;
+            sta     DSHPAT+1        ;
+CONT:       lda     DISPTBL,y       ; Get mask for bit displacement
             ldy     #$00
-            bit     GMODE
-            bvs     LC1D0
-            ora     (VRAMORG),y
-            sta     (VRAMORG),y
+            bit     GMODE           ; Check graphics mode
+            bvs     ERASE           ; If erase or flip, skip
+            ora     (VRAMORG),y     ; Draw it
+            sta     (VRAMORG),y     ;
             rts
 
-LC1D0:      bmi     LC1D9
-            eor     #$FF
-            and     (VRAMORG),y
-            sta     (VRAMORG),y
+ERASE:      bmi     FLIP            ; If flip, skip
+            eor     #$FF            ; Invert the mask
+            and     (VRAMORG),y     ; And erase bit
+            sta     (VRAMORG),y     ;
             rts
 
-LC1D9:      eor     (VRAMORG),y
-            sta     (VRAMORG),y
-LC1DD:      rts
+FLIP:       eor     (VRAMORG),y     ; Flip bit
+            sta     (VRAMORG),y     ;
+RETURN:     rts
 .endproc
 
 .proc LC1DE
-            lda     IOTEMP2
-            asl     a
-            bpl     LC19A
-            bcc     LC1F3
+            lda     IOTEMP2         ; Clear direction flag (set top to bottom) and
+            asl     a               ;    move flag to carry flag
+            bpl     NXTPIXEL        ; If set the XXX bit, go right and draw
+            bcc     DNPIXEL         ; If not and vert direction was clear, go down and draw
+                                    ; If yes, go up and draw
             ; Fall through
 .endproc
 
-.proc LC1E5
-            ldy     BITDISPL
-            lda     VRAMORG
-            sbc     #$3C
-            sta     VRAMORG
-            bcs     LC1AC
-            dec     VRAMORG+1
-            bcc     LC1AC
-            ; Fall through
+; Internal procedure: Go up one raster line and draw pixel
+;
+.proc UPPIXEL
+            ldy     BITDISPL        ; Get bit displacement
+            lda     VRAMORG         ; Get current position
+            sbc     #VIDHRES/8      ; Up one raster line
+            sta     VRAMORG         ; Store it
+            bcs     PIXEL           ; No borrow, go print pixel
+            dec     VRAMORG+1       ; Borrow, decrement MSB
+            bcc     PIXEL           ; and print pixel (always jump)
+            ; Not reached
 .endproc
 
-.proc LC1F3
-            ldy     BITDISPL
-            lda     VRAMORG
-            adc     #$3C
-            sta     VRAMORG
-            bcc     LC1AC
-            inc     VRAMORG+1
-            bcs     LC1AC           ; Always jump
+; Internal procedure: Go down one raster line and draw pixel
+;
+.proc DNPIXEL
+            ldy     BITDISPL        ; Get bit displacement
+            lda     VRAMORG         ; Get current position
+            adc     #VIDHRES/8      ; Down one raster line
+            sta     VRAMORG         ; Store it
+            bcc     PIXEL           ; No carry, go print pixel
+            inc     VRAMORG+1       ; Carry, increment MSB
+            bcs     PIXEL           ; and print pixel (always jump)
             ; Not reached
 .endproc
 
@@ -450,86 +464,105 @@ LC1DD:      rts
             ;
 DISPTBL:    .byte   $80, $40, $20, $10, $08, $04, $02, $01
 
-.proc LC209
-            ldx     IOTEMP1
-            beq     LC269
-            bit     IOTEMP2
-            bpl     LC21B
-LC211:      sec
-            jsr     LC1E5
-            dex
-            bne     LC211
-            jmp     LC269
+; Internal procedure: Draw an certical line of IOTEMP1 pixels from current
+;                     coordinates +/- 1 (depending on direction flag IOTEMP2)
+;
+.proc VERTICAL
+            ldx     IOTEMP1         ; Get vertical distance
+            beq     UPDCRD          ; If none, update coordinates and return
+            bit     IOTEMP2         ; Check direction flag
+            bpl     TOP2BTM         ; Top to bottom
 
-LC21B:      clc
-            jsr     LC1F3
-            dex
-            bne     LC21B
-            beq     LC269
-            ; Fall through
+BTM2TOP:    sec                     ; Clear borrow
+            jsr     UPPIXEL         ; Go up one raster line and draw pixel
+            dex                     ; Decrement count
+            bne     BTM2TOP         ; Repeat until done
+            jmp     UPDCRD          ; Update coordinates and return
+
+TOP2BTM:    clc                     ; Clear carry
+            jsr     DNPIXEL         ; Go down one raster line and draw pixel
+            dex                     ; Decrement count
+            bne     TOP2BTM         ; Repeat until done
+            beq     UPDCRD          ; Update coordinates and return
+            ; Not reached
 .endproc
 
-.proc LC224
-            ldx     CHARFNTP
-            beq     LC234
-LC228:      ldy     BITDISPL
-            cpy     #$07
-            beq     LC23B
-LC22E:      jsr     LC19A
-            dex
-            bne     LC228
-LC234:      dec     CHARFNTP+1
-            bpl     LC228
-            jmp     LC269
+; Internal procedure: Draw an horizontal line of CHARFNTP pixels from current
+;                     coordinates + 1
+;
+.proc HORIZ
+            ldx     CHARFNTP        ; Get count
+            beq     DCMSB           ; If LSB is 0, go decrement MSB
+LOOP:       ldy     BITDISPL        ; Get displacement
+            cpy     #$07            ; Last bit?
+            beq     ATBIT0          ; Yes, check if we can go byte by byte
+NEXTP:      jsr     NXTPIXEL        ; Draw next pixel
+            dex                     ; Decrement count
+            bne     LOOP            ; And repeat until no more
+DCMSB:      dec     CHARFNTP+1      ; 
+            bpl     LOOP            ;
+            jmp     UPDCRD          ; Update coordinates and return
 
-LC23B:      cpx     #$08
-            bcc     LC22E
-            bit     $02D2
-            bmi     LC22E
-            inc     VRAMORG
-            bne     LC24A
-            inc     VRAMORG+1
-LC24A:      ldy     #$00
-            lda     #$FF
-            bit     GMODE
-            bvs     LC25E
-LC253:      sta     (VRAMORG),y
-            txa
-            sec
-            sbc     #$08
-            tax
-            bne     LC23B
-            beq     LC234
-LC25E:      bmi     LC264
-            lda     #$00
-            beq     LC253
-LC264:      eor     (VRAMORG),y
-            jmp     LC253
+ATBIT0:     cpx     #$08            ; If count < 8   
+            bcc     NEXTP           ; Draw next pixel
+            bit     DASHED          ; Count >= 8. Dashed line?
+            bmi     NEXTP           ; Yes, draw next pixel
+
+            ; Count is > 8 and we are at bit 0 and no dashed mode, so
+            ; we can go faster byte by byte
+
+            inc     VRAMORG         ; Increment vram position
+            bne     SETBYT          ;
+            inc     VRAMORG+1       ;
+SETBYT:     ldy     #$00
+            lda     #$FF            ; Solid line
+            bit     GMODE           ; Check mode
+            bvs     ERASE           ; If flip or erase, skip
+DRBYT:      sta     (VRAMORG),y     ; Draw entire byte
+            txa                     ; Get count
+            sec                     ; Clear borrow for substraction
+            sbc     #$08            ; Advance one byte
+            tax                     ;
+            bne     ATBIT0          ; Repeat until no more bytes
+            beq     DCMSB           ; Always jump to decrement the count MSB
+            ; Not reached
+
+ERASE:      bmi     FLIP            ; If flip, skip
+            lda     #$00            ; Set to erase
+            beq     DRBYT           ; Always jump to draw byte
+            ; Not reached
+
+FLIP:       eor     (VRAMORG),y     ; Get flipped value
+            jmp     DRBYT           ; And jump to draw byte
 .endproc
 
-.proc LC269
+; Internal procedure: Update coordinate, restore registers and return
+;
+.proc UPDCRD
             jsr     RSTBANK0        ; Restores Bank 0 and turns on RAM at BE00-BFFF
-            ldx     #$03
-            bit     $02D1
-            bmi     LC27E
-LC273:      lda     XX,x
-            sta     XC,x
-            dex
-            bpl     LC273
-            bmi     REGSRET         ; Restore registers and return
-LC27E:      lda     XC,x
-            sta     XX,x
-            dex
-            bpl     LC27E
+            ldx     #$03            ; 4 bytes per register set
+            bit     XHNGED          ; Check if orig and dest were exchanged
+            bmi     UPDDST          ; Yes, jump to update destinations
+UPDORG:     lda     XX,x            ; Set orig with dest value
+            sta     XC,x            ;
+            dex                     ;
+            bpl     UPDORG          ;
+            bmi     REGSRET         ; Restore registers and return (always jump)
+            ; Not reached
+
+UPDDST:     lda     XC,x            ; Set dest with orig value
+            sta     XX,x            ;
+            dex                     ;
+            bpl     UPDDST          ;
             ; Fall through
 .endproc
 
 ; Restore registers and return
 ;
 .proc REGSRET
-            ldy     YSVGR
-            lda     ASVGR
-            ldx     XSVGR
+            ldy     YSVGR           ; Restore Y, A, X
+            lda     ASVGR           ;
+            ldx     XSVGR           ;
             rts
 .endproc
 
@@ -566,12 +599,12 @@ LC27E:      lda     XC,x
             jsr     VALXXYY         ; Validate and correct XX,YY coordinates
             jsr     MOVECSR         ; Move graphic cursor to (XX,YY)
             bit     GMODE           ; Check graphic mode
-            bmi     LC2AC           ; Draw or flip
+            bmi     DRAW            ; Draw or flip
             bvc     RETURN          ; Not erase (so no valid mode)
-LC2AC:      lsr     $02D2
+DRAW:       lsr     DASHED          ; Disable dashed mode, if active
             jsr     PIXLADDR        ; Gets address in video memory of (XC,YC)
             jsr     SWTBANK1        ; Turns on I-O address space and switches to bank 1
-            jsr     LC1AC
+            jsr     PIXEL           ; Draw pixel
             jsr     RSTBANK0        ; Restores Bank 0 and turns on RAM at BE00-BFFF
 RETURN:     jmp     REGSRET         ; Restore registers and return
 .endproc
@@ -793,80 +826,88 @@ RETURN:     rts
 ;                     XC, YC, X and Y are preserved
 ;
 .proc _SGRIN
-            txa
-            pha
-            tya
-            pha
-            sec
-            ror     NOCLIK
-            ldx     #$03
-LC3B8:      lda     XC,x
-            sta     XX,x
-            dex
-            bpl     LC3B8
-            bmi     LC3C8
-LC3C3:      lda     #$00
-            sta     LSTKEY
-LC3C8:      jsr     _SONGC
-            jsr     TSTKEY
-            php
-            jsr     _SOFFGC
-            plp
-            bcc     LC3C8
-            ldy     #$01
-            ldx     #$00
-            cmp     #$A0
-            bcc     LC421
-            cmp     #$A4
-            bcc     LC3EC
-            cmp     #$B0
-            bcc     LC421
-            cmp     #$B4
-            bcs     LC421
-            ldy     UNK17
-LC3EC:      sty     IOTEMP1
-            and     #$03
-            beq     LC419
-            cmp     #$02
-            beq     LC409
-            bcs     LC41D
-LC3F8:      sec
-            lda     XC,x
-            sbc     IOTEMP1
-            sta     XC,x
-            bcs     LC3C3
-            dec     XC+1,x
-            jmp     LC3C3
+            txa                     ; Preserve X and Y
+            pha                     ;
+            tya                     ;
+            pha                     ;
+            sec                     ; Disable audible click
+            ror     NOCLIK          ;
+            ldx     #$03            ; Copy XC,YC to XX,YY
+CPYCRD:     lda     XC,x            ;
+            sta     XX,x            ;
+            dex                     ;
+            bpl     CPYCRD          ; Repeat until done
+            bmi     WAITKEY         ; Always jump
+            ; Not reached
 
-LC409:      tya
-            clc
-            adc     XC,x
-            sta     XC,x
-            bcc     LC3C3
-            inc     XC+1,x
-            jmp     LC3C3
+CLRKEY:     lda     #$00            ; Clear last key
+            sta     LSTKEY          ;
 
-LC419:      ldx     #$02
-            bne     LC409
-LC41D:      ldx     #$02
-            bne     LC3F8
-LC421:      sta     IOTEMP1
-            ldx     #$03
-LC425:      lda     XX,x
-            tay
-            lda     XC,x
-            sta     XX,x
-            tya
-            sta     XC,x
-            dex
-            bpl     LC425
-            asl     NOCLIK
-            jsr     CLICK
-            pla
-            tay
-            pla
-            tax
-            lda     IOTEMP1
+WAITKEY:    jsr     _SONGC          ; Turn on the graphic crosshair cursor
+            jsr     TSTKEY          ; Test if a key is pressed
+            php                     ; Preserve flags
+            jsr     _SOFFGC         ; Turn off the graphic crosshair cursor
+            plp                     ; Restore flags
+            bcc     WAITKEY         ; Repeat until key presssed
+            ldy     #$01            ; Init cursor mivement step to 1 pixel
+            ldx     #$00            ; Init coordinate index to XC
+            cmp     #$A0            ; 'CURSOR UP'
+            bcc     TRMNT           ; Key is below cursor keys, terminate input
+            cmp     #$A4            ; 'HOME'
+            bcc     NORMAL          ; Key is one of cursor jeys
+            cmp     #$B0            ; 'SHIFT/CURSOR UP'
+            bcc     TRMNT           ; Key is betwwen cursor and shift cursor, terminate
+            cmp     #$B4            ; 'SHIFT/ HOME
+            bcs     TRMNT           ; Key equal or above shift-home, terminate
+            ldy     SCSTEP          ; It is a shift+cursor, get step number
+NORMAL:     sty     IOTEMP1         ; Store step into IOTEMP1
+            and     #$03            ; Mask-out higer bits
+            beq     UP              ; 0 = Cursor up
+            cmp     #$02            ; 2 = Cursor right
+            beq     FRWRD           ; Advance forward (X=0, horizontal move)
+            bcs     DOWN            ; 3 = Cursor down 
+                                    ; 1 = Cursor left
+BACK:       sec                     ; Clear borrow for substraction
+            lda     XC,x            ; Get coordinate
+            sbc     IOTEMP1         ; Substract step
+            sta     XC,x            ; Update it, clear last key and get next
+            bcs     CLRKEY          ;
+            dec     XC+1,x          ;
+            jmp     CLRKEY          ;
+
+FRWRD:      tya                     ; Transfer step to A
+            clc                     ; Clear carry for addition
+            adc     XC,x            ; Add step to coordinate, clear last key and get next
+            sta     XC,x            ;
+            bcc     CLRKEY          ;
+            inc     XC+1,x          ;
+            jmp     CLRKEY          ;
+
+UP:         ldx     #$02            ; Index to vertial coordinates
+            bne     FRWRD           ; And advance forward (always jump)
+            ; Not reached
+
+DOWN:       ldx     #$02            ; Index to vertical coordinates
+            bne     BACK            ; And advance backwards (always jump)
+            ; Not reached
+
+TRMNT:      sta     IOTEMP1         ; Save pressed key
+            ldx     #$03            ; Exchange XX,YY and XC,YC
+XCHGREG:    lda     XX,x            ;
+            tay                     ;
+            lda     XC,x            ;
+            sta     XX,x            ;
+            tya                     ;
+            sta     XC,x            ;
+            dex                     ;
+            bpl     XCHGREG         ; Repeat until done
+            asl     NOCLIK          ; Enable audible click
+            jsr     CLICK           ; And make it
+            pla                     ; Restore Y and X
+            tay                     ;
+            pla                     ;
+            tax                     ;
+            lda     IOTEMP1         ; Return key in A
             rts
 .endproc
 
@@ -877,8 +918,8 @@ LC425:      lda     XX,x
 ; ARGUMENTS RETURNED: None, A, X, and Y are preserved
 ;
 .proc _SOFFGC
-            asl     UNK15
-            bcs     LC44D
+            asl     CRSHAIR         ; Clear crosshair flag
+            bcs     DRAWGC          ; If it was activated, delete from screen
             rts
 .endproc
 
@@ -889,19 +930,21 @@ LC425:      lda     XX,x
 ; ARGUMENTS RETURNED: None, A, X, and Y are preserved
 ;
 .proc _SONGC
-            sec
-            ror     UNK15
+            sec                     ; Enable crosshair flag
+            ror     CRSHAIR         ;
             ; Fall through
 .endproc
 
-.proc LC44D
-            pha
-            txa
-            pha
-            tya
-            pha
-            jsr     VALXCYC
-            lda     YC
+; Internal procedure: draw/delete graphic cursor (crosshair) into screen
+;
+.proc DRAWGC
+            pha                     ; Preserve registers
+            txa                     ;
+            pha                     ;
+            tya                     ;
+            pha                     ;
+            jsr     VALXCYC         ; Validate coordinates
+            lda     YC              ; Get current Y coordinate
             jsr     NTLINSTART      ; Invert raster line num and calculates start address
             jsr     SWTBANK1        ; Turns on I-O address space and switches to bank 1
             lda     $BFFC
@@ -923,8 +966,8 @@ LC474:      lda     (VRAMDST),y
             lda     #$FB
             sta     VRAMDST+1
             jsr     HPIXLADDR       ; Gets address of pixel in raster line
-            lda     DISPTBL,y
-            sta     IOTEMP1
+            lda     DISPTBL,y       ; Get mask for bit displacement
+            sta     IOTEMP1         ; Save it temporarily 
             ldx     #$00
             ldy     #$00
 LC491:      lda     (VRAMORG),y
@@ -932,7 +975,7 @@ LC491:      lda     (VRAMORG),y
             sta     (VRAMORG),y
             lda     VRAMORG
             sec
-            sbc     #$3C
+            sbc     #VIDHRES/8
             sta     VRAMORG
             bcs     LC4A2
             dec     VRAMORG+1
@@ -954,7 +997,7 @@ LC4A2:      inx
 ; ARGUMENTS RETURNED: None, X and Y are preserved
 ;
 .proc _SINTLP
-            jsr     _TIOON
+            jsr     _TIOON          ; Turn on I/O address space
             lda     $BFFC
             and     #$F1
             sta     $BFFC
@@ -963,7 +1006,7 @@ LC4BC:      lda     $BFFD
             and     #$01
             beq     LC4BC
             sta     $BFC4
-            jmp      _IORES
+            jmp     _IORES          ; Restore RAM address space
 .endproc
 
 ; SLTPEN - Activate light pen for one frame and return coordinates of hit, if any
@@ -975,19 +1018,19 @@ LC4BC:      lda     $BFFD
 ;                     XX, YY, X and Y are preserved only if no hit
 ;
 .proc _SLTPEN
-            jsr     _SINTLP
-            jsr     _TIOON
+            jsr     _SINTLP         ; Wait for end of frame and activate the light pen
+            jsr     _TIOON          ; Turn on I/O address space
             lda     $BFFC
             ora     #$04
             sta     $BFFC
             lda     $BFF1
-LC4DA:      jsr     _STSTLP
+LC4DA:      jsr     _STSTLP         ; Test for light pen hit and return coords if a hit
             bcs     LC4E7
             lda     $BFFD
             and     #$01
             beq     LC4DA
             clc
-LC4E7:      jmp      _IORES
+LC4E7:      jmp     _IORES          ; Restore RAM address space
 .endproc
 
 ; STSTLP - Test for light pen hit and return coordinates if a hit
@@ -999,7 +1042,7 @@ LC4E7:      jmp      _IORES
 ;                     XX, YY, X and Y are preserved only if no hit
 ;
 .proc _STSTLP
-            jsr     _TIOON
+            jsr     _TIOON          ; Turn on I/O address space
             lda     $BFC0
             and     #$08
             bne     LC4F6
@@ -1019,9 +1062,9 @@ LC4F6:      lda     $BFC0
             ldy     #$08
             asl     YY
 LC513:      rol     a
-            cmp     #$3C
+            cmp     #VIDHRES/8
             bcc     LC51A
-            sbc     #$3C
+            sbc     #VIDHRES/8
 LC51A:      rol     YY
             dey
             bne     LC513
@@ -1062,7 +1105,7 @@ LC567:      lda     YY
             lda     #$00
             sta     YY+1
             sec
-            jmp      _IORES
+            jmp     _IORES          ; Restore RAM address space
 .endproc
 
 LC578:      .byte   $00, $00, $00, $03, $0F, $00, $00, $3F

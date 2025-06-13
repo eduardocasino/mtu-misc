@@ -26,7 +26,7 @@ UNKNWN17:   .res    1              ; $FF
 
             .segment "ioscratch"
 
-            .export ASVGR, XSVGR, YSVGR, ASVGR2, XSVGR2
+            .export ASVGR, XSVGR, YSVGR, ASVGR2, XSVGR2, XHNGED, DASHED
 
 ; Scratch ram used by Console I-O and graphics drivers
 ;
@@ -47,8 +47,8 @@ XSVKB:      .res    1               ; $02CD
 YSVKB:      .res    1               ; $02CE
 XSVGR2:     .res    1               ; $02CF
 FNBNK:      .res    1               ; $02D0 Bank of current character table
-L02D1:      .res    1               ; $02D1
-L02D2:      .res    1               ; $02D2
+XHNGED:     .res    1               ; $02D1 Flag. If bit 7 = 1, orig and dest are exchanged
+DASHED:     .res    1               ; $02D2 Flag. If bit 7 = 1, dashed graphic mode
 L02D3:      .res    1               ; $02D3
 SAVIDX:     .res    1               ; $02D4 Temporary storage for index caalculations
 CURPOS:     .res    1               ; $02D5 Cursor position in line buffer
@@ -74,21 +74,22 @@ L02DF:      .res    1               ; $02DF
             .addr   COL             ; Load address
             .word   IODATA_SIZE     ; Memory image size
 
-            .export LSTKEY, YLNLIM, NOCLIK, UNK15, UNK17
+            .export XC, YC, XX, YY, GMODE, DSHPAT, LSTKEY, YLNLIM, NOCLIK, CRSHAIR, SCSTEP
 
 COL:        .byte   $01             ; $0200 CURRENT COLUMN LOCATION OF TEXT CURSOR 1-80.
 LINE:       .byte   $01             ; $0201 CURRENT LINE NUMBER OF TEXT CURSOR. 1-NLINET.
-UNK0:       .byte   $00
-UNK1:       .byte   $00
-UNK2:       .byte   $00
-UNK3:       .byte   $00
-UNK4:       .byte   $00
-UNK5:       .byte   $00
-UNK6:       .byte   $00
-UNK7:       .byte   $00
-UNK8:       .byte   $80             ; $020A
-UNK9:       .byte   $F0             ; $020B
-UNK10:      .byte   $F0             ; $020C
+
+            ; Arguments to the graphics routines 
+            ;
+XC:         .word   $00             ; $0202 X coordinate of the graphic cursor position
+YC:         .word   $00             ; $0204 Y coordinate of the graphic cursor position
+XX:         .word   $00             ; $0206 X graphic coordinate "register"
+YY:         .word   $00             ; $0208 Y graphic coordinate "register"
+GMODE:      .byte   $80             ; $020A Graphic drawing mode, $00=move, $40=erase,
+                                    ;       $80=draw, $C0=flip. Add $20 for dashed lines
+DSHPAT:     .word   $F0F0           ; $020B Recirculating dashed line pattern,
+                                    ;       each 1 bit=dot on
+
 LSTKEY:     .byte   $00             ; $020D KEYBOARD KEY LAST DOWN
 RPTFLG:     .byte   $00             ; $020E FLAG USED BY AUTO REPEAT ALGORITHM
 KBECHO:     .byte   $00             ; $020F IF BIT 7=1 THEN "ECHO" EACH KEY TO THE DISPLAY.
@@ -104,14 +105,14 @@ EXCCP:      .byte   $00             ; $0218 IF BIT 7=1 THEN CALL USER CONTROL CH
 EXTHI:      .byte   $00             ; $0219 IF BIT 7=1 THEN CALL USER RUTINE TO PROCESS ALL CHARACTERS WHEN BIT 7 SET.
 EXFONT:     .byte   $00             ; $021A    IF BIT 7=1 THEN USE EXTERNAL FONT TABLE.
 CURVIS:     .byte   $00             ; $021B FLAG INDICATING PRESENT STATE OF CURSOR
-UNK15:      .byte   $00             ; $021C
+CRSHAIR:    .byte   $00             ; $021C Flag. If Bit 7 = 1, the crosshair is activated
 CRSRWRAP:   .byte   $00             ; $021D FLAG INDICATING IF A CURSOR WRAP OCCURRED
 NLINET:     .byte   $18             ; $021E NUMBER OF TEXT LINES IN THE TEXT WINDOW.
 YTDOWN:     .byte   $00             ; $021F 255-(Y COORDINATE OF TOP OF THE TEXT WINDOW).
 DBCDLA:     .byte   $05             ; $0220 WAIT TIME IN MILLISECONDS ALLOWED FOR CONTACT BOUNCE.
 RPTRAT:     .byte   $C3             ; $0221 INTERCHARACTER REPEAT DELAY IN 256uS UNITS.
 CURDLA:     .byte   $06             ; $0222 DETERMINES CURSOR BLINK SPEED, 0=NO BLINK.
-UNK17:      .byte   $05             ; $0223
+SCSTEP:     .byte   $05             ; $0223 SHift+cursor step (pixels to advance)
 CLKPER:     .byte   $05             ; $0224 CLICK WAVEFORM PERIOD IN UNITS OF 200 MICROSECONDS.
 CLKVOL:     .byte   $20             ; $0225 CLICK VOLUME, $00 = MINIMUM, $7F = MAXIMUM.
 CLKCY:      .byte   $02             ; $0226 CLICK DURATION IN UNITS OF COMPLETE WAVEFORM CYCLES
@@ -2088,7 +2089,7 @@ LOOP:       sta     L02B3,x
             bcs     SKIP            ; No borrow skip
             dec     IOTEMP2         ; Borrow, decrement MSB
 SKIP:       clc                     ; Clear carry for next addition
-            bit     EXFONT          ; Use xsternal font table?
+            bit     EXFONT          ; Use external font table?
             bpl     INTERNAL        ; No, go set internal
             adc     QEXFNT          ; Add char index to external table addr
             sta     CHARFNTP        ; and set the address of char in font table
