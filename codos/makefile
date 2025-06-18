@@ -43,6 +43,10 @@ FILESYSTEM +=	dir.c \
 				startup.j \
 				syserrmsg.z
 
+ifeq ($(ARCH),mtu)
+  FILESYSTEM += cpuid.c
+endif
+
 CODOSOBJS = codos.o comdproc.o svcproc.o $(IODRIVER).o
 
 CODOSFILES = $(CODOSOBJS:.o=.z) $(CODOSOBJS:.o=.z.map)

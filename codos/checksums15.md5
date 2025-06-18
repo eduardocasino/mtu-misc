@@ -11,3 +11,4 @@ f40946fa877148e7e4b57efc2714756e  copyf.c
 6c5d47b66751335702c3852e85da6e8f  copyf1drive.c
 02fd7e53f8bf17a183e307f3e94b13e5  iodriver.z
 cbdee72c5046dac0a88fdb7fda24ac5c  graphdriver.z
+aa4951228b8ce4b703f1d483af2176f4  cpuid.c

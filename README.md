@@ -26,10 +26,11 @@ There are also some system utilities which make the OS minimally useful:
 * SYSGENDISK.C: Generates a customised boot disk adapted to the system capabilities (like number of floppy drives)
 * SYSGENDEVICE.C: Adds new Input-Output devices to CODOS.
 * SYSGENPRINTR.C: Generates a machine language printer driver routine.
+* CPUID.C: Prints the system identification numbers
 
 ## Current status
 
-* `CODOS.Z`, `COMDPROC.Z`, `SVCPROC.Z`, `OVERLAYS`, `STARTUP.J`, `SYSERRMSG.Z`, `DIR.C`, `KILL.C`, `FORMAT.C`, `COPYF.C` and `COPYF1DRIVE.C` are completed.
+* `CODOS.Z`, `COMDPROC.Z`, `SVCPROC.Z`, `OVERLAYS`, `STARTUP.J`, `SYSERRMSG.Z`, `DIR.C`, `KILL.C`, `FORMAT.C`, `COPYF.C`, `COPYF1DRIVE.C` and `CPUID.C` are completed.
 * `IODRIVER.Z` is disassembled, partially annotated and builds from source, but it is far from complete. All the credit for `IODRIVER.Z` goes to [Michał Staręga](https://github.com/McGyverMauser98k/MTU-130-CODOS), who figured out the internal structure of the driver.
 * `GRAPHDRIVER.Z` is disassembled and partially annotated.
 * `SYSGENDEVICE.C` and `SYSGENPRINTR.C` are not even started.

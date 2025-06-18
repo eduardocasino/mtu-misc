@@ -1,3 +1,6 @@
+SPREGREN    := $BFC7        ; Special registers read enable
+SPREGREAD   := $BFC3        ; Special registers read byte
+
 SVIA1PORT   = $BFE0         ; System 1 6522 System control port data register
 SVIA1DIR    := $BFE2        ; System 1 6522 System control port direction register
 BNKCTL      := SVIA1PORT    ; System 1 6522 (Bank control data register)
