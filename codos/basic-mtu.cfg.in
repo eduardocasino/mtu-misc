@@ -1,0 +1,23 @@
+MEMORY {
+    ZEROPAGE: start = $0,                 size = $100;
+    PROGRAM:  start = __APPSADDR+$2F9-$A, size = $2E12+$A, file="build/%%VERSION%%/basic.c";
+    SYSTEMIF: start = __SYSTEM+$1A1-$A,   size = $55+$A,   file="build/%%VERSION%%/basic.c";
+    JMPTABLE: start = __APPSADDR-$A,      size = $7E+$A,   file="build/%%VERSION%%/basic.c";
+    BSS:      start = __APPSADDR+$100,    size = $100,     file="";
+    BSS2:     start = __APPSADDR+$200,    size = $EF,      file="";
+	DUMMY:    start = $0000,              size = $00FF,    file="";
+}
+
+SEGMENTS {
+    systemif: load = SYSTEMIF, type = ro;
+    jmptable: load = JMPTABLE, type = ro;
+    ZEROPAGE: load = ZEROPAGE, type = zp;
+    CODE:     load = PROGRAM,  type = rw;
+	VECTORS:  load = PROGRAM,  type = ro;
+	KEYWORDS: load = PROGRAM,  type = ro;
+	ERROR:    load = PROGRAM,  type = ro;
+    CODOSERR: load = PROGRAM,  type = ro;
+    BSS:      load = BSS,      type = bss;
+    BSS2:     load = BSS2,     type = bss;
+	DUMMY:    load = DUMMY; # don't include
+}

@@ -47,6 +47,8 @@ ifeq ($(ARCH),mtu)
   FILESYSTEM += cpuid.c
 endif
 
+FILESYSTEM +=	basic.c
+
 CODOSOBJS = codos.o comdproc.o svcproc.o $(IODRIVER).o
 
 CODOSFILES = $(CODOSOBJS:.o=.z) $(CODOSOBJS:.o=.z.map)
@@ -145,6 +147,10 @@ $(foreach ver,$(VERSIONS),$(eval build/$(ver)/%.c: build/$(ver)/%.o build/$(ver)
 $(foreach ver,$(VERSIONS),$(eval build/$(ver)/%.o: %.asm build/$(ver)/k1013.inc build/$(ver)/symbols.inc  \
 	; echo "AS $$@" \
 	; $(AS) $(AFLAGS) -D CODOS2_VER=$(ver) -I build/$(ver) -l $(basename $$@).lst -o $$@ $$<))
+
+$(foreach ver,$(VERSIONS),$(eval build/$(ver)/basic.c: build/$(ver)/basic.o build/$(ver)/basic-$(ARCH).cfg \
+	; echo "LD $$@" \
+	; $(LD) -C $$(@:.c=-$(ARCH).cfg) -vm -m $(basename $$@).map -o $$@ $$<))
 
 $(foreach ver,$(VERSIONS),$(eval build/$(ver)/%: fs/$(ARCH)/% \
 	; echo "CP $$@" \

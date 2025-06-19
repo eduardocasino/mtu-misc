@@ -44,7 +44,7 @@ YSVKB:      .res    1               ; Saved Y reg
             .addr   COL             ; Load address
             .word   IODATA_SIZE     ; Memory image size
 
-            .export YLNLIM
+            .export LSTKEY, YLNLIM, BSPACE, CANCEL
 
 COL:        .byte   $01             ; $0200 CURRENT COLUMN LOCATION OF TEXT CURSOR 1-80.
 LINE:       .byte   $01             ; $0201 CURRENT LINE NUMBER OF TEXT CURSOR. 1-NLINET.
@@ -89,10 +89,10 @@ BELPER:     .byte   $05             ; $0227 BELL SOUND WAVEFORM PERIOD IN UNITS 
 BELVOL:     .byte   $40             ; $0228    BELL SOUND VOLUME, $00 = MINIMUM, $7F MAXIMUM.
 BELCY:      .byte   $0C             ; $0229    BELL SOUND DURATION IN UNITS OF COMPLETE WAVEFORM CYCLES.
 UNK18:      .byte   $07             ; $022A
-UNK19:      .byte   $08             ; $022B
+BSPACE:     .byte   $08             ; $022B CTRL-H
 UNK20:      .byte   $09             ; $022C
 UNK21:      .byte   $0C             ; $022D
-UNK22:      .byte   $18             ; $022E
+CANCEL:     .byte   $18             ; $022E CTRL-X
 QEXCC:      .word   ERR37           ; $022F ADDRESS OF EXTERNAL CONTROL CHARACTER PROCESSOR IF USED.
 QEXFNT:     .word   ERR37           ; $0231 ADDRESS OF EXTERNAL FONT TABLE IF USED.
 QEXHI7:     .word   ERR37           ; $0233    ADDRESS OF EXTERNAL PROCESSOR FOR CHARACTERS WITH BIT 7=1
@@ -134,7 +134,7 @@ DRWLEG:     jmp     ERR37       ; Draw legends
 ERR37:      jmp     JERROR37    ; Skips graphic routines if no graphic driver was loaded.
                                 ; If so appropriate JMPs are automatically updated.
 INLINE:     jmp     _INLINE     ; Input an entire line from the keyboard
-EDLINE:     jmp     ERR37       ; EDIT AN ENTIRE LINE USING THE KEYBOARD
+EDLINE:     jmp     _EDLINE     ; EDIT AN ENTIRE LINE USING THE KEYBOARD
 SDRAW:      jmp     ERR37       ; DRAW A SOLID VECTOR FROM THE CURSOR TO (XX,YY)
 SMOVE:      jmp     ERR37       ; MOVE GRAPHIC CURSOR TO (XX,YY) WITHOUT DRAWING
 SDRAWR:     jmp     ERR37       ; DRAW A SOLID WHITE VECTOR RELATIVE TO THE CURSOR
@@ -453,7 +453,18 @@ FINISH:     lda     TPTR+1          ; Push new PC to the stack
 ;
 .proc _INLINE
             ldy     #$00            ; Init character count
+            ; Fall through
+.endproc
 
+; EDLINE - Edit an entire line using the keyboard
+;
+; Arguments: Y=indexes the implied CR at the end of the line to be edited
+;            QLN (address $00F) points to start of line to be edited
+;
+; Arguments returned: A = number of characters in the line, Y = 0, X preserved
+;                     QLN points to the complted line
+;
+.proc _EDLINE
 GKLOOP:     jsr     _GETKEY         ; Get key
             cmp     #$7F            ; Printable?
             bcs     NONPRNT         ; Nope

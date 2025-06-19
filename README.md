@@ -28,11 +28,17 @@ There are also some system utilities which make the OS minimally useful:
 * SYSGENPRINTR.C: Generates a machine language printer driver routine.
 * CPUID.C: Prints the system identification numbers
 
+And, of course, some programming interpreters/compilers/assemblers:
+
+* BASIC.C
+* ...
+
 ## Current status
 
 * `CODOS.Z`, `COMDPROC.Z`, `SVCPROC.Z`, `OVERLAYS`, `STARTUP.J`, `SYSERRMSG.Z`, `DIR.C`, `KILL.C`, `FORMAT.C`, `COPYF.C`, `COPYF1DRIVE.C` and `CPUID.C` are completed.
 * `IODRIVER.Z` is disassembled, partially annotated and builds from source, but it is far from complete. All the credit for `IODRIVER.Z` goes to [Michał Staręga](https://github.com/McGyverMauser98k/MTU-130-CODOS), who figured out the internal structure of the driver.
 * `GRAPHDRIVER.Z` is disassembled and partially annotated.
+* `BASIC.C` is dissassembled and matched to the msbasic sources at [https://github.com/mist64/msbasic]( https://github.com/mist64/msbasic), and some of the CODOS specific code has been annotated, though not much.
 * `SYSGENDEVICE.C` and `SYSGENPRINTR.C` are not even started.
 
 A backport for the KIM-1 is also working, using a simple TTY based IO driver, named `KIMIOTTY.Z`.

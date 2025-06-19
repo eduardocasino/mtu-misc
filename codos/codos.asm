@@ -591,7 +591,7 @@ SAVENTRYPF: .byte   $00             ; Flag. If bit 7 = 1, then an entry point ad
 ; The following six flags are set by the command processor or the SVC proc. and
 ; are used during error recovery to display the right messages
 
-            .export INTCMDERR, ISCMDFLG, PRBPREGS, SVC13FLG, PERRPFLG
+            .export INTCMDERR, ISCMDFLG, PRBPREGS, NOPRREGS, SVC13FLG, PERRPFLG
 
 INTCMDERR:  .byte   $00             ; Flag. If bit 7 = 1, then error was produced
                                     ;   during an internal command processing.
@@ -613,7 +613,7 @@ ASSIGNFLAG: .byte   $00             ; Flag. If bit 6 = 1, it is file
                                     ;       If bit 6 = 0, it is adevice
                                     ;       If bit 7 = 1, it is an existing file
   
-            .export ULINE, SCOLON, COLON, QUOTE, CARET, DEFAULTEXT, NUMOVL
+            .export XOFF, ULINE, SCOLON, COLON, QUOTE, CARET, DEFAULTEXT, NUMOVL
 
 SCANFLG:    .byte   $00             ; Flag for SVC #29 (FSCAN)
                                     ; If the name was a device name (Cy set) then:
@@ -748,6 +748,14 @@ CONT:       jmp     WARMST          ; Continue to warm start
 .else
             jsr     CLEARBRK
 .endif
+            ; Fall through
+.endproc
+
+; Init jump tables
+;
+            .export INIJMPTBL
+
+.proc INIJMPTBL
             lda     #$EA            ; Init the JPOSTERR jump with NOPs
             ldx     #$02            ;
 LOOP1:      sta     JPOSTERR,x      ;
