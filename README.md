@@ -31,6 +31,7 @@ There are also some system utilities which make the OS minimally useful:
 And, of course, some programming interpreters/compilers/assemblers:
 
 * BASIC.C
+* CODOS BASIC libraries: CIL.Z, CILB.Z, IGL.Z, FGL.Z and KGL.Z
 * ...
 
 ## Current status
@@ -38,10 +39,11 @@ And, of course, some programming interpreters/compilers/assemblers:
 * `CODOS.Z`, `COMDPROC.Z`, `SVCPROC.Z`, `OVERLAYS`, `STARTUP.J`, `SYSERRMSG.Z`, `DIR.C`, `KILL.C`, `FORMAT.C`, `COPYF.C`, `COPYF1DRIVE.C` and `CPUID.C` are completed.
 * `IODRIVER.Z` is disassembled, partially annotated and builds from source, but it is far from complete. All the credit for `IODRIVER.Z` goes to [Michał Staręga](https://github.com/McGyverMauser98k/MTU-130-CODOS), who figured out the internal structure of the driver.
 * `GRAPHDRIVER.Z` is disassembled and partially annotated.
-* `BASIC.C` is dissassembled and matched to the msbasic sources at [https://github.com/mist64/msbasic]( https://github.com/mist64/msbasic), and some of the CODOS specific code has been annotated, though not much.
-* `SYSGENDEVICE.C` and `SYSGENPRINTR.C` are not even started.
+* `BASIC.C` is dissassembled and matched to the msbasic sources at [https://github.com/mist64/msbasic]( https://github.com/mist64/msbasic), and some of the CODOS specific code has been annotated, mostly the library management part.
+* `CIL.Z` and `CILB.Z` disassembled and minimally annotated.
+* `IGL.Z`, `FGL.Z`, `KGL.Z`, `SYSGENDEVICE.C` and `SYSGENPRINTR.C` are not even started.
 
-A backport for the KIM-1 is also working, using a simple TTY based IO driver, named `KIMIOTTY.Z`.
+A backport for the KIM-1 is also working, including BASIC and the libraries, using a simple TTY based IO driver, named `KIMIOTTY.Z`.
 
 ## Why?
 

@@ -1,0 +1,18 @@
+MEMORY {
+    HEADER:   start = $BE00-SIZE-$A, size = $A,                file="build/%%VERSION%%/cil.z";
+    PROGRAM:  start = $BE00-SIZE,    size = SIZE,  fill = yes, file="build/%%VERSION%%/cil.z";
+	DUMMY:    start = $0000,         size = $00FF,             file="";
+}
+
+SEGMENTS {
+    HEADER:   load = HEADER,   type = ro;
+    CODE:     load = PROGRAM,  type = rw;
+	KEYWORDS: load = PROGRAM,  type = ro;
+	VECTORS:  load = PROGRAM,  type = ro;
+	ERROR:    load = PROGRAM,  type = ro;
+	DUMMY:    load = DUMMY; # don't include
+}
+
+SYMBOLS {
+    SIZE: type = export, value = $1300;
+}

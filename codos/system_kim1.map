@@ -22,7 +22,7 @@ SYMBOLS {
 
     # Available RAM for Applications
     __APPSLOW   : type = export, value = __LOWRAM+$0300;
-    __APPSLSIZE : type = export, value = $1400 - __APPSLOW;
+    __APPSLSIZE : type = export, value = $1700 - __APPSLOW;
     __APPSADDR  : type = export, value = $2000;
     __APPSSIZE  : type = export, value = __SYSUTILS + __SYSUSIZE - __APPSADDR;
 

@@ -47,7 +47,7 @@ ifeq ($(ARCH),mtu)
   FILESYSTEM += cpuid.c
 endif
 
-FILESYSTEM +=	basic.c
+FILESYSTEM +=	basic.c cil.z cilb.z syslibnam.z
 
 CODOSOBJS = codos.o comdproc.o svcproc.o $(IODRIVER).o
 
@@ -151,6 +151,30 @@ $(foreach ver,$(VERSIONS),$(eval build/$(ver)/%.o: %.asm build/$(ver)/k1013.inc 
 $(foreach ver,$(VERSIONS),$(eval build/$(ver)/basic.c: build/$(ver)/basic.o build/$(ver)/basic-$(ARCH).cfg \
 	; echo "LD $$@" \
 	; $(LD) -C $$(@:.c=-$(ARCH).cfg) -vm -m $(basename $$@).map -o $$@ $$<))
+
+$(foreach ver,$(VERSIONS),$(eval build/$(ver)/basic.o: basic.asm macros.inc monomeg.inc build/$(ver)/symbols.inc  \
+	; echo "AS $$@" \
+	; $(AS) $(AFLAGS) -D CODOS2_VER=$(ver) -I build/$(ver) -l $(basename $$@).lst -o $$@ $$<))
+
+$(foreach ver,$(VERSIONS),$(eval build/$(ver)/basic.inc: build/$(ver)/basic.c.map \
+	; echo "SYMBOLS $$@" \
+	; ./symbols.py --mapfile $$< > $$@))
+
+$(foreach ver,$(VERSIONS),$(eval build/$(ver)/cil.z: build/$(ver)/cil.o build/$(ver)/cil-$(ARCH).cfg \
+	; echo "LD $$@" \
+	; $(LD) -C $$(@:.z=-$(ARCH).cfg) -vm -m $(basename $$@).map -o $$@ $$<))
+
+$(foreach ver,$(VERSIONS),$(eval build/$(ver)/cilb.z: build/$(ver)/cilb.o build/$(ver)/cilb-$(ARCH).cfg \
+	; echo "LD $$@" \
+	; $(LD) -C $$(@:.z=-$(ARCH).cfg) -vm -m $(basename $$@).map -o $$@ $$<))
+
+$(foreach ver,$(VERSIONS),$(eval build/$(ver)/cil.o: cil.asm macros.inc codos.inc build/$(ver)/basic.inc build/$(ver)/symbols.inc  \
+	; echo "AS $$@" \
+	; $(AS) $(AFLAGS) -D CODOS2_VER=$(ver) -I build/$(ver) -l $(basename $$@).lst -o $$@ $$<))
+
+$(foreach ver,$(VERSIONS),$(eval build/$(ver)/cilb.o: cil.asm macros.inc codos.inc build/$(ver)/basic.inc build/$(ver)/symbols.inc  \
+	; echo "AS $$@" \
+	; $(AS) $(AFLAGS) -D CODOS2_VER=$(ver) -D cilb -I build/$(ver) -l $(basename $$@).lst -o $$@ $$<))
 
 $(foreach ver,$(VERSIONS),$(eval build/$(ver)/%: fs/$(ARCH)/% \
 	; echo "CP $$@" \

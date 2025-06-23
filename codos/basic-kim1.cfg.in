@@ -3,9 +3,10 @@ MEMORY {
     PROGRAM:  start = __APPSLOW+$2F9-$A, size = __APPSLSIZE-$2F9+$A, file="build/%%VERSION%%/basic.c";
     PROGRAM2: start = __APPSADDR-$A,     size = __APPSSIZE+$A,       file="build/%%VERSION%%/basic.c";
     SYSTEMIF: start = __SYSTEM+$1A1-$A,  size = $55+$A,              file="build/%%VERSION%%/basic.c";
-    JMPTABLE: start = __APPSLOW-$A,      size = $7E+$A,              file="build/%%VERSION%%/basic.c";
+    JMPTABLE: start = __APPSLOW-$A,      size = $8E+$A,              file="build/%%VERSION%%/basic.c";
     BSS:      start = __APPSLOW+$100,    size = $100,                file="";
     BSS2:     start = __APPSLOW+$200,    size = $EF,                 file="";
+    BSS3:     start = __APPSLOW+$80,     size = $80,                 file="";
 	DUMMY:    start = $0000,             size = $00FF,               file="";
 }
 
@@ -21,5 +22,6 @@ SEGMENTS {
     CODE2:    load = PROGRAM2, type = rw;
     BSS:      load = BSS,      type = bss;
     BSS2:     load = BSS2,     type = bss;
+    BSS3:     load = BSS3,     type = bss;
 	DUMMY:    load = DUMMY; # don't include
 }

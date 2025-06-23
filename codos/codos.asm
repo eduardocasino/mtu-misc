@@ -2083,6 +2083,8 @@ LOOP:       lda     CURFINFO,x      ; From current FINFO structure
 ; Compares CURFINFO+FINFO::FPOS and CURFINFO+FINFO::FSIZE
 ; Carry set if CURFINFO+FINFO::FPOS > CURFINFO+FINFO::FSIZE
 ;
+            .export FEOF
+
 .proc FEOF
             lda     CURFINFO+FINFO::FPOS    ;
             cmp     CURFINFO+FINFO::FSIZE   ;

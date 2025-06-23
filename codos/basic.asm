@@ -18,10 +18,8 @@
             .include "monomeg.inc"
 
 MEMORY_TOP  = $BE00
-CHECKSUM    = $006C
 .else
 MEMORY_TOP  = $C000
-CHECKSUM    = $003E
 .endif
 
             .scope msbasic
@@ -51,6 +49,10 @@ ZP_START5 = $99
 
             .zeropage
 
+            .exportzp   VALTYP, ARGTYP, NUMTYP, Z14, LINNUM, INDEX, PRGTXT, SMPVAR, ARYVAR, STRBTM
+            .exportzp   MEMTOP, CURLIN, VARLOC, FLTACC, FLTARG, STATUS, CHRGET, CHRGOT, CHRPTR, STRNG1
+            .exportzp   STREND, VARNAM, FRESPC, FACSIGN
+
 GORESTART:	.res    3               ; $00
 GOSTROUT:   .res    3               ; $03
 GOAYINT:    .res    2               ; $06
@@ -59,7 +61,9 @@ CHARAC:     .res    1               ; $0A
 ENDCHR:     .res    1               ; $0B
 EOLPNTR:    .res    1               ; $0C
 DIMFLG:     .res    1               ; $0D
-VALTYP:     .res    2               ; $0E-$0F
+VALTYP:                             ; $0E-$0F
+ARGTYP:     .res    1               ; $0E Indicates if arg is numeric (zero) or string (non-zero)
+NUMTYP:     .res    1               ; $0F Indicates if a numeric arg is flota (zero) or int (non-zero) 
 DATAFLG:    .res    1               ; $10
 SUBFLG:     .res    1               ; $11
 INPUTFLG:   .res    1               ; $12
@@ -80,12 +84,17 @@ INDEX:      .res    2               ; $26
 DEST:       .res    2               ; $28
 RESULT:     .res    BYTES_FP        ; $2A
 RESULT_LAST = RESULT + BYTES_FP-1
-TXTTAB:     .res    2               ; $2F
-VARTAB:     .res    2               ; $31
-ARYTAB:     .res    2               ; $33
+PRGTXT:
+TXTTAB:     .res    2               ; $2F Pointer to the beginning of the BASIC prog in memory
+SMPVAR:
+VARTAB:     .res    2               ; $31 Pointer to the beginning of the simple variable space
+ARYVAR:
+ARYTAB:     .res    2               ; $33 Pointer to the beginning of the array variable space
 STREND:     .res    2               ; $35
-FRETOP:     .res    2               ; $37
+STRBTM:
+FRETOP:     .res    2               ; $37 Pointer to the bottom of string storage space
 FRESPC:     .res    2               ; $39
+MEMTOP:
 MEMSIZ:     .res    2               ; $3B
 CURLIN:     .res    2               ; $3D
 OLDLIN:     .res    2               ; $3F
@@ -94,7 +103,9 @@ Z43:        .res    2               ; $43
 DATPTR:     .res    2               ; $45
 INPTR:      .res    2               ; $47
 VARNAM:     .res    2               ; $49
-VARPNT:     .res    2               ; $4B
+VARLOC:
+VARPNT:     .res    2               ; $4B Pointer to the content of a variable. It will contain a valid
+                                    ;     pointer after the GETVAR routine is executed
 FORPNT:     .res    2               ; $4D
 LASTOP:     .res    2               ; $4F
 CPRTYP:     .res    1               ; $51
@@ -116,25 +127,32 @@ EXPON:      .res    1               ; $62
 LOWTR:
 LOWTRX:     .res    1               ; $63
 EXPSGN:     .res    1               ; $64
-FAC:        .res    BYTES_FP        ; $65
+FLTACC:
+FAC:        .res    BYTES_FP        ; $65 Floating point accumulator
 FAC_LAST = FAC + BYTES_FP-1
 FACSIGN:    .res    1               ; $6A
 SERLEN:     .res    1               ; $6B
 SHIFTSIGNEXT:
             .res    1               ; $6C
-ARG:        .res    BYTES_FP        ; $6D
+FLTARG:
+ARG:        .res    BYTES_FP        ; $6D Floating point argument
 ARG_LAST = ARG + BYTES_FP-1
 ARGSIGN:    .res    1               ; $72
 STRNG1:     .res    2               ; $73
 SGNCPR = STRNG1
 FACEXTENSION = STRNG1+1
 STRNG2:     .res    2               ; $75
-Z77:        .res    1               ; $77
+STATUS:     .res    1               ; $77 The status byte read by the ST variable
 
-CHRGET:                             ; $78
-TXTPTR  = <(GENERIC_TXTPTR-GENERIC_CHRGET + CHRGET)
+CHRGET:                             ; $78 Routine used to fetch the next non-blank character
+                                    ;     in the currently executing BASIC statement
 CHRGOT  = <(GENERIC_CHRGOT-GENERIC_CHRGET + CHRGET)
+                                    ; $7E Routine used to fetch the current character in
+                                    ;     the current executing BASIC statement
 CHRGOT2 = <(GENERIC_CHRGOT2-GENERIC_CHRGET + CHRGET)
+TXTPTR  = <(GENERIC_TXTPTR-GENERIC_CHRGET + CHRGET)
+CHRPTR  = TXTPTR                    ; $7F Pointer to the current character in the currently
+                                    ;     executing BASIC statement
 RNDSEED = <(GENERIC_RNDSEED-GENERIC_CHRGET + CHRGET)
 
             .org    ZP_START5
@@ -149,24 +167,40 @@ STACK2      := STACK
 
             .bss
 
-L0800:      .res    1
-L0801:      .res    1
-L0802:      .res    1
-ICHANNEL:   .res    1
-SCHANNEL:   .res    1
-OCHANNEL:   .res    1
+            .export CNIFLG, FCHTYP, RETTYP, SYSCHN, INCHN, OUTCHN, DFLSIZ, MAXILEN, FRSTLIN, INPUTBUFFER
+
+CNIFLG:     .res    1               ; FLAG: Action taken if an INPUT command receives only a CR
+                                    ; as a response. Bit 7 = 0 - Program halts
+                                    ;                Bit 7 = 1 - Null string or zero is returned
+FCHTYP:     .res    1               ; Used by the UFPARM routine. Indicates what types of
+                                    ; expressions are to be accepted when fetching an argument
+                                    ; from BASIC. Bit 7 = 1 - Floating point expression is acceptable
+                                    ;             Bit 6 = 1 - Integer expression is acceptable
+                                    ;             Bit 5 = 1 - String expression is acceptable
+RETTYP:     .res    1               ; Used by the UFPARM routine. Indicates the type of the argument
+                                    ; to be returned to the machine language program fetching the
+                                    ; argument.   Bit 7 = 1 - Return argument in floating point format
+                                    ;             Bit 6 = 1 - Return as an integer
+                                    ;             Bit 5 = 1 - Return as a string
+                                    ;             Bit 4 = 1 - Return as the same type as fetched
+SYSCHN:     .res    1               ; Channel used to SAVE, LOAD, LIST an ENTER programs. Normally 0
+INCHN:      .res    1               ; Channel used as input channel. Normally 1 (console)
+OUTCHN:     .res    1               ; Channel used as output channel. Normally 2 (console)
 L0806:      .res    1
 L0807:      .res    1
-TOPMEM:     .res    2               ; Top of memory
+DFLSIZ:     .res    2               ; Default memory top
 L080A:      .res    1
 L080B:      .res    3
 L080E:      .res    1
 L080F:      .res    3
 L0812:      .res    1
-L0813:      .res    1
+MAXILEN:    .res    1               ; Maximum input line length
 L0814:      .res    2               ; Points to buffer below
             .res    2               ; Size of buffer below (10)
-L0818:      .res    8          
+L0818:      .res    2
+L081A:      .res    2
+FRSTLIN:    .res    2               ; First line of basic program in memory
+L081E:      .res    2
 L0820:      .res    2
 L0822:      .res    1
             .res    20
@@ -176,44 +210,43 @@ L0839:      .res    1
 L083A:      .res    1
 L083B:      .res    1
 INPUTBUFFER:
-L083C:      .res    1
-L083D:      .res    1
+            .res    192             ; Starting location of MTU BASIC's 192 char input buf
+
 
             .segment "BSS2"
 
-L0900:      .res    8
-L0908:      .res    16
-L0918:      .res    16
-L0928:      .res    16
-L0938:      .res    8
-L0940:      .res    16
-L0950:      .res    $60         
-L09B0:      .res    2               ; Points to buffer below
+LIBIDTBL:   .res    8               ; Loaded LIBs ID table
+LIBTKNTBL:  .res    16              ; Loaded LIBs token name table pointers
+LIBTKFTBL:  .res    16              ; Loaded LIBs token function table pointers
+LIBHNDTBL:  .res    16              ; Loaded LIBs handler function table pointers
+LIBFTKTBL:  .res    8               ; Loaded LIBs first token table
+LIBNAMTBL:  .res    16              ; Loaded LIBs library name pointers table
+LIBPMAP:    .res    $60             ; Libraries page map. Each byte represents a page offset
+                                    ; in the library ram space. Each byte contains the ID of the library
+                                    ; that occupies that page, 0 if none
+LIBHDRP:    .res    2               ; Points to buffer below
             .res    2               ; Size of buffer below (21)
-L09B4:      .res    4
-L09B8:      .res    2
-L09BA:      .res    1
-L09BB:      .res    1
-L09BC:      .res    1
-L09BD:      .res    1
-L09BE:      .res    1
-L09BF:      .res    1
-L09C0:      .res    2
-            .res    2
-            .res    2
-L09C6:      .res    1
-L09C7:      .res    1
-            .res    1
+LIBHDR:     .res    4               ; First 4 bytes of lib SAVED file (Usually $58, $00, $00, $00) - Unused
+LIBENTRY:   .res    2               ; Entry point
+LIBLOAD:    .res    2               ; Load address
+LIBSIZE:    .res    2               ; Size
+LIBMAGIC:   .res    1               ; First byte of LIB header. Must be $CC ($80+'L')
+LIBID:      .res    1               ; LIB identifier
+LIBITOKT:   .res    2               ; Token name table
+            .res    2               ; Token vector table
+            .res    2               ; Function handler
+LIBFIRST:   .res    1               ; First token
+LIBNAME:    .res    2               ; Pointer to library name
 
-L09C9:      .res    1
-L09CA:      .res    1
-L09CB:      .res    1
-L09CC:      .res    1
-L09CD:      .res    1
-L09CE:      .res    1
-L09CF:      .res    1
+LIBBPGMIN:  .res    1               ; Library space bottom page
+LIBSPOFF:   .res    1               ; Offset of first library page
+LIBEPOFF:   .res    1               ; Offset of first page after library end
+LIBUNOFF:   .res    1               ; Offset of first unavailable page
+LIBFPOS:    .res    3               ; Library file position pointer
+
 L09D0:      .res    1
-            .res    $1C
+L09D1:      .res    5
+L09D6:      .res    $17
 L09ED:      .res    1
 L09EE:      .res    1
 
@@ -227,22 +260,22 @@ L09EE:      .res    1
             .byte   $00             ; Memory bank
             .byte   $00             ; Reserved
             .addr   ENTRY           ; Entry point
-            .addr   START           ; Load address
+            .addr   INILIBSPC       ; Load address
             .word   CODE_SIZE       ; Memory image size
 
-; 0x09F9
-START:
-
-L09F9:      sec
+; CODOS: Init library space
+;
+INILIBSPC:  sec
             ror     L09D0
-
-L09FD:      jmp     L18FA
+            jmp     GETLIBSPC       ; Get available space for libraries
 
 ENTRY:      jmp     INIT
 L0A03:      jmp     L0E65
 L0A06:      jmp     L2792+1         ; Seems not valid
 L0A09:      jmp     L3133
 L0A0C:      jmp     L1D09+2         ; Seems not valid...
+
+            .export TOKEN_ADDRESS_TABLE
 
             init_token_tables
 
@@ -269,7 +302,7 @@ L0A0C:      jmp     L1D09+2         ; Seems not valid...
             keyword_rts "SAVE", SAVE
             keyword_rts "DEF", DEF
             keyword_rts "POKE", POKE
-            keyword_rts "PRINT", PRINT
+            keyword_rts "PRINT", PRINT, TOKEN_PRINT
             keyword_rts "CONT", CONT
             keyword_rts "LIST", LIST
             keyword_rts "CLEAR", CLEAR
@@ -287,9 +320,7 @@ L0A0C:      jmp     L1D09+2         ; Seems not valid...
             keyword_rts "TONE", TONE
 .endif
             keyword_rts "NEW", NEW
-            keyword_rts "\"\"\"\"\"\"", ERRUNDEF    ; """""" RESERVED
-
-            count_tokens
+            keyword_rts "\"\"\"\"\"\"", ERRUNDEF, TOKEN_LAST    ; """""" RESERVED
 
             keyword "TAB(", TOKEN_TAB
             keyword "TO", TOKEN_TO
@@ -314,7 +345,7 @@ UNFNC:
             keyword_addr "SGN", SGN, TOKEN_SGN
             keyword_addr "INT", INT
             keyword_addr "ABS", ABS
-            keyword_addr "USR", USR, TOKEN_USR
+            keyword_addr "USR", USR, TOKEN_USR  ; B8
             keyword_addr "FRE", FRE
             keyword_addr "POS", POS
             keyword_addr "SQR", SQR
@@ -416,7 +447,11 @@ MATHTBL:    .byte   $79
             define_codos_error ERR_CODOS_NOTLIB, "NOT A LIBRARY FILE"
             define_codos_error ERR_CODOS_INTEGRITY, "INTEGRITY"
 
+.ifdef mtu
+            ; User lock stuff
+
 L0D3D:      .byte   $0B
+.endif
 
 QT_ERROR:   .byte   " ERROR", $00
 QT_IN:      .byte   " IN ", $00
@@ -574,7 +609,7 @@ L0E07:      rts
 CODOS_ERROR:
             lda     #<CODOS_ERROR_MESSAGES
             ldy     #>CODOS_ERROR_MESSAGES
-            bne     ERROR2          ; Always jump
+            bne     ERREXIT         ; Always jump
 
 MEMERR:     ldx     #ERR_MEMFULL
 
@@ -587,13 +622,16 @@ MEMERR:     ldx     #ERR_MEMFULL
 ; ----------------------------------------------------------------------------
 ERROR:      lda     #<ERROR_MESSAGES
             ldy     #>ERROR_MESSAGES
-ERROR2:     sta     LOWTR
+
+            .export ERREXIT
+
+ERREXIT:    sta     LOWTR
             sty     LOWTR+1
             lsr     Z14             ; Clear the no output flag
             lda     #$01
-            sta     SCHANNEL
+            sta     INCHN
             lda     #$02
-            sta     OCHANNEL
+            sta     OUTCHN
             jsr     CRDO
             jsr     OUTQUES
             txa
@@ -611,7 +649,7 @@ L0E3A:
             jsr     TONE2
 .endif
             jsr     L03E9
-            jsr     L1129
+            jsr     CLEAR2
             lda     #<QT_ERROR
             ldy     #>QT_ERROR
 
@@ -622,9 +660,9 @@ L0E3A:
 ; ----------------------------------------------------------------------------
 PRINT_ERROR_LINNUM:
             ldx     #$01
-            stx     SCHANNEL
+            stx     INCHN
             ldx     #$02
-            stx     OCHANNEL
+            stx     OUTCHN
             jsr     STROUT
             ldy     CURLIN+1
             iny
@@ -740,7 +778,7 @@ L0F04:      lda     INPUTBUFFER-4,y
 FIX_LINKS:
             jsr     SETPTRS
             jsr     L0F30
-            ldx     SCHANNEL
+            ldx     INCHN
             cpx     #$01
             beq     L0F21
             jsr     ISCNTC
@@ -786,17 +824,17 @@ INLIN:      lda     #<INPUTBUFFER
             sta     INPBUFP
             lda     #>INPUTBUFFER
             sta     INPBUFP+1
-            jsr     L03D1
-            ldx     SCHANNEL
+            jsr     _UNPROTECT
+            ldx     INCHN
             jsr     _GETLINE
             bcc     L0F91
             jsr     _FREECH
-            ldx     SCHANNEL
+            ldx     INCHN
             cpx     #$01
             beq     L0F5D
             lda     #$01
-            sta     SCHANNEL
-            cpx     ICHANNEL
+            sta     INCHN
+            cpx     SYSCHN
             bne     INLIN
             lda     #<QT_OK
             ldy     #>QT_OK
@@ -810,23 +848,23 @@ L0F91:      tay
             sta     INPBUFP
             lda     L03DF+1
             sta     INPBUFP+1
-            jsr     L03CE
+            jsr     _PROTECT
 L0FA3:      ldx     #<L083B
             ldy     #>L083B
             rts
 
 L0FA8:      stx     Z99
             sty     Z99+1
-            jsr     L03D1
-            ldx     SCHANNEL
+            jsr     _UNPROTECT
+            ldx     INCHN
             jsr     _GETCHAR
             bcc     L0FC4
             jsr     _FREECH
             jsr     _SETINPBCH
             ldx     #$01
-            stx     SCHANNEL
+            stx     INCHN
             lda     #$00
-L0FC4:      jsr     L03CE
+L0FC4:      jsr     _PROTECT
             ldx     Z99
             ldy     Z99+1
             rts
@@ -842,7 +880,7 @@ PARSE_INPUT_LINE:
             ldx     TXTPTR
 L0FD3:      lda     #$08
             sta     Z9E
-            lda     L0800,x
+            lda     CNIFLG,x        ; Why? Should be INPUTBUFFER!
             cmp     #$20
             beq     L1028
             sta     ENDCHR
@@ -852,7 +890,7 @@ L0FD3:      lda     #$08
             bvs     L1028
             cmp     #$3F
             bne     L0FF0
-            lda     #$97
+            lda     #TOKEN_PRINT
             bne     L1028
 L0FF0:      cmp     #$30
             bcc     L0FF8
@@ -866,7 +904,7 @@ L0FF8:      sty     STRNG2
             beq     L1007
 L1005:      iny
             inx
-L1007:      lda     L0800,x
+L1007:      lda     CNIFLG,x
             sec
             sbc     (Z9C),y
             beq     L1005
@@ -876,7 +914,7 @@ L1007:      lda     L0800,x
             ldy     Z9E
             bmi     L1026
             pha
-            lda     L0900,y
+            lda     LIBIDTBL,y
             ldy     STRNG2
             iny
             sta     L0837,y
@@ -902,7 +940,7 @@ L1041:      sec
             bit     Z9E
             bpl     L0FD3
             sta     ENDCHR
-L104C:      lda     L0800,x
+L104C:      lda     CNIFLG,x
             beq     L1028
             cmp     ENDCHR
             beq     L1028
@@ -936,7 +974,7 @@ L107E:      jsr     L1098
             sty     EOLPNTR
             jmp     L1007
 
-L108A:      lda     L0800,x
+L108A:      lda     CNIFLG,x
             bpl     L1026
 L108F:      sta     L0839,y
             lda     #$3B
@@ -953,14 +991,14 @@ L1098:      ldy     Z9E
 L109E:      dey
             sty     Z9E
             bmi     L10BB
-            lda     L0900,y
+            lda     LIBIDTBL,y
             bpl     L109E
             tya
             asl     a
             tay
-            lda     L0908,y
+            lda     LIBTKNTBL,y
             sta     Z9C
-            lda     L0908+1,y
+            lda     LIBTKNTBL+1,y
             sta     Z9C+1
 L10B5:      ldy     #$00
             lda     (Z9C),y
@@ -1047,7 +1085,9 @@ CLEAR1:     lda     MEMSIZ
             sty     STREND+1
 L1126:      jsr     RESTORE2
 ; ----------------------------------------------------------------------------
-L1129:      ldx     #TEMPST
+            .export CLEAR2
+
+CLEAR2:     ldx     #TEMPST
             stx     TEMPPT
             pla
             tay
@@ -1065,6 +1105,8 @@ L113C:      rts
 ; ----------------------------------------------------------------------------
 ; SET TXTPTR TO BEGINNING OF PROGRAM
 ; ----------------------------------------------------------------------------
+            .export STXTPT
+
 STXTPT:     clc
             lda     TXTTAB
             adc     #$FF
@@ -1083,13 +1125,13 @@ L1150:      lda     TXTTAB
             sta     LOWTR+1
             jsr     CHRGOT
             beq     L1178
-            cmp     #$AE
+            cmp     #TOKEN_MINUS
             beq     L1170
             jsr     LINGET
             jsr     FNDLIN
             jsr     CHRGOT
             beq     L117E
-            cmp     #$AE
+            cmp     #TOKEN_MINUS
             bne     L117F
 L1170:      jsr     CHRGET
             beq     L1178
@@ -1105,22 +1147,25 @@ L117F:      jmp     SYNERR
 ; ----------------------------------------------------------------------------
 ; "LIST" STATEMENT
 ; ----------------------------------------------------------------------------
-LIST:       beq     L11A5
-            bcc     L11A5
+LIST:       beq     LIST2
+            bcc     LIST2
             cmp     #TOKEN_MINUS
-            beq     L11A5
+            beq     LIST2
             jsr     L15E0
-            ldx     ICHANNEL
-            stx     OCHANNEL
+            ldx     SYSCHN
+            stx     OUTCHN
             jsr     CHRGOT
-            beq     L11A5
+            beq     LIST2
             cmp     #$2C
             beq     L11A2
-            jsr     L1735
+            jsr     CLOSESCHN
             jmp     SYNERR
 
 L11A2:      jsr     CHRGET
-L11A5:      jsr     L1150
+
+            .export LIST2
+
+LIST2:      jsr     L1150
             pla
             pla
 L11AA:      ldy     #$01
@@ -1156,17 +1201,17 @@ L11D2:      jsr     OUTDO
             stx     LOWTR
             sta     LOWTR+1
             bne     L11AA
-L11E9:      ldx     OCHANNEL
+L11E9:      ldx     OUTCHN
             cpx     #$02
             beq     L1207
             jsr     CRDO
-            jsr     L03D1
-            ldx     OCHANNEL
+            jsr     _UNPROTECT
+            ldx     OUTCHN
             jsr     L03F3
-            ldx     OCHANNEL
+            ldx     OUTCHN
             jsr     _FREECH
             ldx     #$02
-            stx     OCHANNEL
+            stx     OUTCHN
 L1207:      lda     LOWTR+1
             beq     L120E
             jmp     RESTART
@@ -1179,18 +1224,30 @@ L1213:      lda     #>DATPTR
             lda     #<DATPTR
             sta     LOWTR
             bne     L11E9
-L121D:      jmp     L1BCA
+L121D:      jmp     ERRNLOAD
 
             .byte   $A0                 ; Dead code
 
-L1221:      ldy     L0A0C+1
-            and     #$25
-L1226:      ldx     #$E5
-            eor     $BEDE,x
-            ora     #$C6
-            dey
-            bne     L1226
+.ifdef mtu
+; CODOS: In a obfuscated way, prepares the reading of the user number from the special registers,
+;        discarding the 11 bytes that precede this number
+;
+PREPARE_ULCK:      
+
+            ; This is part of the user lock routine and, although trying to hide it,
+            ; basically prepares reading the user number from the Monomeg spacial registers
+            ;
+            ldy     L0A0C+1             ; This loads $0B into y (So skips the first 11 bytes)
+                                        ; from the registers, so the next read will be the user number 
+            and     #$25                ; Irrelevant, just here as a diversion
+L1226:      ldx     #$E5                ; Tries to hide the real address
+            eor     SPREGREAD-$E5,x     ; Reads one byte and doea an eor. Again, a diversion
+                                        ; Could have been done with LDAs as well
+            ora     #$C6                ; More diversion
+            dey                         ; Next byte
+            bne     L1226               ; Until we are in pos
             rts
+.endif
 
 L1231:      pha
             lda     #<TOKEN_NAME_TABLE
@@ -1200,6 +1257,7 @@ L1231:      pha
             pla
             rts
 
+; L123C y L1251
 L123C:      bpl     L11D2
             jsr     L1251
             bcs     L121D
@@ -1216,20 +1274,25 @@ L1251:      cmp     #$D0
             jsr     L1231
             bne     L126A
 L125A:      sty     FORPNT
-            jsr     L1324
+            jsr     GETLNTKTBL
             bcs     L1272
             ldy     FORPNT
             iny
+.ifdef mtu
+            ; Integrity checks stuff
             beq     L1273
             lda     (LOWTR),y
             bpl     L1273
+.endif
 L126A:      sty     FORPNT
             jsr     L1276
             lda     FORPNT
             clc
 L1272:      rts
 
+.ifdef mtu
 L1273:      jmp     L1932
+.endif
 
 L1276:      sec
             sbc     #$7F
@@ -1271,13 +1334,15 @@ L1295:      iny
 ; ----------------------------------------------------------------------------
 FOR:        lda     #$80
             sta     SUBFLG
+.ifdef mtu
             lda     #$20            ; $20 = JSR
             cmp     L16D1           ; It is always $20, so comparison is always true!
-            beq     L12AF           ; Always jump
+            beq     L12AF           ; Always jump     
             ldx     #<L31E2         ; Never executed
             txa                     ;
             jsr     L270C           ;
-            
+.endif
+
 L12AF:      jsr     LET
             jsr     GTFORPNT
             bne     L12BC
@@ -1336,46 +1401,63 @@ L1308:      jsr     SIGN
             pha
             bne     NEWSTT  ; Always jump
 
-L1319:      ldy     #$07
-L131B:      cmp     L0900,y
+; CODOS: Get library index. Searches the loaded LIBs table for a match for ID in A
+;        and return index in Y. Z set if found, Z clear and Y = $FF if not
+FINDLIB:    ldy     #$07
+L131B:      cmp     LIBIDTBL,y
             beq     L1323
             dey
             bpl     L131B
 L1323:      rts
 
-L1324:      jsr     L1319
-            bne     L1338
-            tya
-            asl     a
-            tay
-            lda     L0908,y
-            sta     Z9C
-            lda     L0908+1,y
-            sta     Z9C+1
-            clc
+; CODOS: Get pointer to LIBs token name table
+;
+; Arguments: LIB id in A
+;
+; Arguments returned: CY clear ans pointer in Z9C if found
+;                     CY set if library is not loaded
+;
+GETLNTKTBL:  jsr     FINDLIB         ; Search for lib id in A
+            bne     L1338           ; Not found, return with Cy set
+            tya                     ; Calculate index into LIBs token name table
+            asl     a               ;
+            tay                     ;
+            lda     LIBTKNTBL,y     ; Store pointer to token name table intp Z9C
+            sta     Z9C             ;
+            lda     LIBTKNTBL+1,y   ;
+            sta     Z9C+1           ;
+            clc                     ; And return with Cy clear
+            rts                     ;
+L1338:      sec                     ; Cy set if LIB not loaded
             rts
 
-L1338:      sec
-            rts
-
-L133A:      jsr     L1319
+; CODOS: Get pointer to LIBs token vector table
+;
+; Arguments: LIB id in A
+;
+; Arguments returned: Library's first token number in Z9E
+;                     Pointer to table pointer in Z9C
+;                     Error if not loaded
+;
+GETLFTKTBL: jsr     FINDLIB         ; Search for lib id in A
             beq     L1342
-            jmp     L1BCA
-
-L1342:      lda     L0938,y
-            sta     Z9E
-            tya
-            asl     a
-            tay
-            lda     L0918,y
-            sta     Z9C
-            lda     L0918+1,y
-            sta     Z9C+1
-            jmp     CHRGET
+            jmp     ERRNLOAD        ; Error if not loaded
+L1342:      lda     LIBFTKTBL,y     ; Get library's first token number
+            sta     Z9E             ; And store into Z9E
+            tya                     ; Calculate index into LIBs token vector table
+            asl     a               ;
+            tay                     ; 
+            lda     LIBTKFTBL,y     ; Store pointer to token vector table into Z9C
+            sta     Z9C             ;
+            lda     LIBTKFTBL+1,y   ;
+            sta     Z9C+1           ;
+            jmp     CHRGET          ;
 
 ; ----------------------------------------------------------------------------
 ; PERFORM NEXT STATEMENT
 ; ----------------------------------------------------------------------------
+            .export NEWSTT
+    
 NEWSTT:     jsr     ISCNTC
             lda     TXTPTR
             ldy     TXTPTR+1
@@ -1417,6 +1499,8 @@ L1397:      jmp     NEWSTT
 ; (A) IS FIRST CHAR OF STATEMENT
 ; CARRY IS SET
 ; ----------------------------------------------------------------------------
+            .export EXECUTE_STATEMENT
+
 EXECUTE_STATEMENT:
             bne     EXECUTE_STATEMENT1
             jmp     L1415
@@ -1424,12 +1508,12 @@ EXECUTE_STATEMENT:
 EXECUTE_STATEMENT1:
             cmp     #$80            ; Check if a token
             bcc     LET1            ; No, it should be a variable assignment
-            cmp     #$D0            ; Check if over last token
+            cmp     #$D0            ; Check if not identified, but there are libraries loaded
             bcs     L13B8           ; Yes, maybe that is a library command?
-            ldy     #$A5
-            sty     Z9E
+            ldy     #TOKEN_LAST     ; Last statement
+            sty     Z9E             ; Save it for comparison and to do user lock stuff
 .ifdef mtu
-            sta     SPREGREN-$A5,y  ; $A5+$22 = $C7
+            sta     SPREGREN-TOKEN_LAST,y  ; Enable special registers reading
 .endif
 
                                     ; Search for token in token table
@@ -1439,23 +1523,25 @@ L13AE:      ldy     #<TOKEN_ADDRESS_TABLE
             sty     Z9C+1
             bne     L13BB           ; Always jump
 
-L13B8:      jsr     L133A
+L13B8:      jsr     GETLFTKTBL      ; Get pointer to LIB's token name table 
 
 L13BB:      cmp     #$80            ; Check if a token
             bcc     SYNERR1         ; Should be, so syntax error
-            cmp     Z9E 
-            bcs     L13DD
-            sec
-            sbc     #$80
-            asl     a
-            tay
-            iny
-            lda     (Z9C),y
-            pha
-            dey
-            lda     (Z9C),y
-            pha
-            jmp     CHRGET
+            cmp     Z9E             ; Past TOKEN_LAST?
+            bcs     L13DD           ; Yes, error
+            sec                     ; Clear borrow for substraction
+            sbc     #$80            ; Get index to vector table
+            asl     a               ;
+            tay                     ;
+            iny                     ;
+            lda     (Z9C),y         ; Push vector onto the stack   
+            pha                     ;
+            dey                     ;
+            lda     (Z9C),y         ;
+            pha                     ;
+            jmp     CHRGET          ; And jump to CHARGET to get the first char of arguments
+                                    ; CHRGET will return to vector+1, as we have pushed vector
+                                    ; onto the stack
 
 LET1:       jmp     LET
 
@@ -1464,7 +1550,7 @@ COLON:      cmp     #$3A
 
 SYNERR1:    jmp     SYNERR
 
-L13DD:      ldy     #>TOKEN_ADDRESS_TABLE       ; May be $0A directly...
+L13DD:      ldy     #>TOKEN_ADDRESS_TABLE
             cpy     Z9C+1
             bne     SYNERR1
             cmp     #TOKEN_GO
@@ -1473,24 +1559,6 @@ L13DD:      ldy     #>TOKEN_ADDRESS_TABLE       ; May be $0A directly...
             lda     #TOKEN_TO
             jsr     SYNCHR
             jmp     GOTO
-
-.ifdef kim1
-
-CODE_SIZE = * - START
-
-            .segment "CODE2"
-
-            ; Loadable file data
-            ;
-            .byte   $58             ; CODOS loadable file header byte
-            .byte   $00             ; Memory overlay
-            .byte   $00             ; Memory bank
-            .byte   $00             ; Reserved
-            .addr   ENTRY           ; Entry point
-            .addr   RESTORE         ; Load address
-            .word   CODE2_SIZE      ; Memory image size
-
-.endif
 
 ; ----------------------------------------------------------------------------
 ; "RESTORE" STATEMENT
@@ -1540,7 +1608,7 @@ END2:       bne     RET1
 L142F:      lda     TXTPTR
             ldy     TXTPTR+1
             php
-            cpy     #$08
+            cpy     #>INPUTBUFFER
             bne     L143C
             plp
             jmp     END4
@@ -1613,21 +1681,21 @@ L148B:      ldy     #$03
             ldx     #$00
 L14A1:      lda     STACK,y
             beq     L14AD
-            sta     L083C,x
+            sta     INPUTBUFFER,x
             iny
             inx
             bne     L14A1
 L14AD:      lda     #$20
-            sta     L083C,x
+            sta     INPUTBUFFER,x
             inx
             ldy     #$04
 L14B5:      lda     (LOWTR),y
             beq     L14F0
             bmi     L14C7
-            sta     L083C,x
+            sta     INPUTBUFFER,x
             iny
             inx
-            cpx     L0813
+            cpx     MAXILEN
             bne     L14B5
             beq     L14F0
 L14C7:      stx     INDX
@@ -1637,55 +1705,58 @@ L14C7:      stx     INDX
             ldx     INDX
 L14D2:      lda     (Z9C),y
             bmi     L14E2
-            sta     L083C,x
+            sta     INPUTBUFFER,x
             iny
             inx
-            cpx     L0813
+            cpx     MAXILEN
             bne     L14D2
             beq     L14F0
 L14E2:      and     #$7F
-            sta     L083C,x
+            sta     INPUTBUFFER,x
             ldy     EOLPNTR
             iny
             inx
-            cpx     L0813
+            cpx     MAXILEN
             bne     L14B5
 L14F0:      txa
             tay
-            lda     #<L083C
+            lda     #<INPUTBUFFER
             sta     QLN
-            lda     #>L083C
+            lda     #>INPUTBUFFER
             sta     QLN+1
             jsr     EDLINE
             tay
             lda     #$00
-            sta     L083C,y
+            sta     INPUTBUFFER,y
             jmp     L0F29
 
-L1506:      jmp     L1BCA
+L1506:      jmp     ERRNLOAD
 
 ; ----------------------------------------------------------------------------
 ; CODOS "LOAD" STATEMENT
 ; ----------------------------------------------------------------------------
-LOAD:       jsr     L1607
+LOAD:       jsr     FILOPEN
             ldy     #$00
-            jsr     L03E6
+            jsr     _SETERRRCVRY
             jsr     L1717
             lda     TXTPTR+1
-            cmp     #$08
+            cmp     #>INPUTBUFFER
             bne     L1526
-L151A:      jsr     L1592
+
+            .export LOAD2
+
+LOAD2:      jsr     L1592
             jsr     SETPTRS
             jsr     L0F30
             jmp     RESTART
 
 L1526:      lda     VARTAB+1
             cmp     MEMBUFF+1
-            bcc     L151A
+            bcc     LOAD2
             bne     L1534
             lda     VARTAB
             cmp     MEMBUFF
-            bcc     L151A
+            bcc     LOAD2
 L1534:      jsr     L0F30
             jsr     STXTPT
             jmp     L1126
@@ -1702,9 +1773,9 @@ SAVE:       sty     Z9C+1
 
 L154C:      jsr     L1659
             jsr     L1624
-            ldx     ICHANNEL
+            ldx     SYSCHN
             jsr     _OUTMBUFF
-            lda     L09BD
+            lda     LIBSIZE+1
             beq     L157E
             clc
             lda     Z9C+1
@@ -1716,16 +1787,16 @@ L1566:      adc     (Z9C),y
             dec     Z9C
             cpy     #$3A
             bne     L1566
-            ldx     ICHANNEL
+            ldx     SYSCHN
 L1572:      lda     (Z9C),y
             jsr     _OUTCHAR
             iny
             dec     Z9C
             cpy     #$3F
             bne     L1572
-L157E:      ldx     ICHANNEL
+L157E:      ldx     SYSCHN
             jsr     L03F3
-            jmp     L1735
+            jmp     CLOSESCHN
 
 L1587:      lda     L03DF
             sta     INPBUFP
@@ -1742,11 +1813,14 @@ L1592:      lda     MEMBUFF
 ; ----------------------------------------------------------------------------
 ; CODOS "ENTER" STATEMENT
 ; ----------------------------------------------------------------------------
-ENTER:      jsr     L1607
-            ldx     ICHANNEL
-            stx     SCHANNEL
+ENTER:      jsr     FILOPEN
+            ldx     SYSCHN
+
+            .export ENTER2
+
+ENTER2:     stx     INCHN
             ldx     TXTPTR+1
-            cpx     #$08
+            cpx     #>INPUTBUFFER
             beq     L15AB
             rts
 
@@ -1761,7 +1835,7 @@ L15B9:      lda     INPBUFP
             sta     TMPBUFP
             lda     INPBUFP+1
             sta     TMPBUFP+1
-            jsr     L03D1
+            jsr     _UNPROTECT
             jsr     _FSCAN
             sta     L0822
             bit     L0822
@@ -1786,25 +1860,30 @@ L15E0:      jsr     L15B0
             bpl     L15F6
             bit     L0812
             bmi     L15F6
-            jsr     L03CE
+            jsr     _PROTECT
             ldx     #ERR_CODOS_FEXISTS
             jmp     CODOS_ERROR
 
 L15F6:      lda     L0822
             and     #$03
 L15FB:      rol     L0822
-            jsr     L03DB
-            ldx     ICHANNEL
+            jsr     _SETCURRDRV
+            ldx     SYSCHN
             jmp     _ASSIGN
 
-L1607:      jsr     L15B0
+; CODOS: Opens file
+            .export FILOPEN
+
+FILOPEN:    jsr     L15B0
             bcs     L15D7
             asl     a
             asl     a
             bmi     L15F6
-            jsr     L03CE
+            jsr     _PROTECT
             ldx     #ERR_CODOS_NFOUND
             jmp     CODOS_ERROR
+
+            .export L1618
 
 L1618:      ldy     #$03
 L161A:      lda     L0814,y
@@ -1817,7 +1896,10 @@ L1624:      lda     TXTTAB
             sta     MEMBUFF
             lda     TXTTAB+1
             sta     MEMBUFF+1
-            lda     L0820
+
+            .export L162C
+
+L162C:      lda     L0820
             sta     MEMCOUNT
             lda     L0820+1
             sta     MEMCOUNT+1
@@ -1848,33 +1930,33 @@ L1659:      lda     #$42
             sta     L0818
             lda     #$00
             sta     L0818+1
-            sta     L0818+2
-            sta     L0818+3
+            sta     L081A
+            sta     L081A+1
             ldy     #$02
             lda     (TXTTAB),y
-            sta     L0818+4
+            sta     FRSTLIN
             iny
             lda     (TXTTAB),y
-            sta     L0818+5
+            sta     FRSTLIN+1
             lda     TXTTAB
-            sta     L0818+6
+            sta     L081E
             lda     TXTTAB+1
-            sta     L0818+7
+            sta     L081E+1
             sec
             lda     VARTAB
             sbc     TXTTAB
-            sta     L0818+8
+            sta     L0820
             lda     VARTAB+1
             sbc     TXTTAB+1
-            sta     L0818+9
+            sta     L0820+1
             jsr     L1618
-            ldx     ICHANNEL
+            ldx     SYSCHN
             jmp     _OUTMBUFF
 
 L1698:      lda     L0818
             cmp     #$42
             beq     L16A7
-            jsr     L1735
+            jsr     CLOSESCHN
             ldx     #ERR_CODOS_NBASIC
             jmp     CODOS_ERROR
 
@@ -1886,7 +1968,7 @@ L16A7:      clc
             adc     L0820+1
             cmp     MEMSIZ+1
             bcc     L16BF
-            jsr     L1735
+            jsr     CLOSESCHN
             ldx     #ERR_CODOS_LARGE
             jmp     CODOS_ERROR
 
@@ -1897,59 +1979,83 @@ L16BF:      rts
 ; ----------------------------------------------------------------------------
 RUN:        bne     L16D7
 
-L16C2:      jsr     L1E38
-            ldy     #$00
-            ldx     #$00
-L16C9:      adc     (LOWTR),y
-            inx
-            cpx     L0D3D
-            bne     L16C9
+RUN2:
+.ifdef mtu
+            ; User lock stuff
+            jsr     L1E38           ; Sets SPREGREAD in LOWTR and clears Z9C
+            ldy     #$00            ; Reads and discard bytes from the special
+            ldx     #$00            ;   register until the "User number" position
+L16C9:      adc     (LOWTR),y       ;
+            inx                     ;
+            cpx     L0D3D           ; $0B - Position of the "User number" in the regs
+            bne     L16C9           ; Repeat until done
 
 L16D1:      jsr     INTEGRITY_CHK
+.endif
             jmp     SETPTRS
 
 L16D7:      bcc     L1711
-            jsr     L1607
+            jsr     FILOPEN
             ldy     #$00
-            jsr     L03E6
+            jsr     _SETERRRCVRY
             jsr     CHRGOT
             beq     L16F3
             cmp     #$2C
             beq     L16F0
-            jsr     L1735
+            jsr     CLOSESCHN
             jmp     SYNERR
 
 L16F0:      jsr     CHRGET
 L16F3:      jsr     LINGET
             jsr     L1717
-            jsr     L1735
+            jsr     CLOSESCHN
             jsr     L1592
             jsr     L0F30
-            lda     LINNUM
-            ora     LINNUM+1
-            beq     L16C2
+            lda     LINNUM          ; No line number?
+            ora     LINNUM+1        ;
+            beq     RUN2            ; Go run without params
             jsr     CLEAR1
-            jsr     L177F
+            jsr     GOTO2
             jmp     NEWSTT
 
 L1711:      jsr     CLEAR1
             jmp     L175F
 
 L1717:      jsr     L1618
-            ldx     ICHANNEL
+            ldx     SYSCHN
             jsr     _GETMBUFF
             bcs     L172D
             jsr     L1698
             jsr     L1624
             jsr     _GETMBUFF
-            bcc     L1735
-L172D:      jsr     L1735
+            bcc     CLOSESCHN
+L172D:      jsr     CLOSESCHN
             ldx     #ERR_CODOS_LOAD
             jmp     CODOS_ERROR
 
-L1735:      ldx     ICHANNEL
+; CODOS: Close system channel
+;
+CLOSESCHN:  ldx     SYSCHN
             jsr     _FREECH
-            jmp     L03CE
+            jmp     _PROTECT
+
+.ifdef kim1
+
+CODE_SIZE = * - INILIBSPC
+
+            .segment "CODE2"
+
+            ; Loadable file data
+            ;
+            .byte   $58             ; CODOS loadable file header byte
+            .byte   $00             ; Memory overlay
+            .byte   $00             ; Memory bank
+            .byte   $00             ; Reserved
+            .addr   ENTRY           ; Entry point
+            .addr   GOSUB           ; Load address
+            .word   CODE2_SIZE      ; Memory image size
+
+.endif
 
 ; ----------------------------------------------------------------------------
 ; "GOSUB" STATEMENT
@@ -1962,12 +2068,15 @@ L1735:      ldx     ICHANNEL
 ; ----------------------------------------------------------------------------
 GOSUB:      lda     #$03
             jsr     CHKMEM
+.ifdef mtu
             lda     #$20            ; What??? L2197 always contains JSR, so this
             cmp     L2197           ; comparison is always true!
             beq     L1750           ;
             ldy     #<L31E2
             tya
             jsr     L270C
+.endif
+
 L1750:      lda     TXTPTR+1
             pha
             lda     TXTPTR
@@ -1990,7 +2099,7 @@ GOTO:       jsr     LINGET
             jsr     REMN
             lda     CURLIN+1
             cmp     LINNUM+1
-            bcs     L177F
+            bcs     GOTO2
             tya
             sec
             adc     TXTPTR
@@ -1998,7 +2107,10 @@ GOTO:       jsr     LINGET
             bcc     L1783
             inx
             bcs     L1783
-L177F:      lda     TXTTAB
+
+            .export GOTO2
+
+GOTO2:      lda     TXTTAB
             ldx     TXTTAB+1
 L1783:      jsr     FL1
             bcc     UNDERR
@@ -2097,6 +2209,8 @@ L17FB:      lda     FAC
 ; ----------------------------------------------------------------------------
 ; "REM" STATEMENT, OR FALSE "IF" STATEMENT
 ; ----------------------------------------------------------------------------
+            .export REM
+
 REM:        jsr     REMN
             beq     ADDON
 L1804:      jsr     CHRGOT
@@ -2174,13 +2288,20 @@ L1835:      bcs     L182E
 L1863:      jsr     CHRGET
             jmp     L1835
 
+; CODOS: Store value in variable
 
-L1869:      pha
+            .export STORVAR
+
+STORVAR:    pha
             txa
             pha
             jmp     L1885
 
-L186F:  .byte   $0F
+.ifdef mtu
+; This is part of the second user lock code
+
+L186F:      .byte   $0F
+.endif
 
 ; ----------------------------------------------------------------------------
 ; "LET" STATEMENT
@@ -2270,134 +2391,172 @@ L18E1:      sta     DSCPTR
 
 ; CODOS specific stuff
 
+.ifdef mtu
+; This is part of the second user lock code
+
 L18F9:      .byte   $0A
+.endif
 
-L18FA:      ldx     #$00
-            lda     VARTAB+1
-            sec
-            sbc     L09C9
-            bcc     L1918
-            adc     #$00
-            sta     L09CC
-            cmp     #$61
-            bcs     L1932
+; CODOS: Get available space for libraries
+;
+GETLIBSPC:   ldx     #$00
+            lda     VARTAB+1        ; Get page of start of unavailable memory (variables space)
+            sec                     ; Clear borrow for substraction
+            sbc     LIBBPGMIN       ; Substract start page of library space
+            bcc     L1918           ; No room for libraries
+            adc     #$00            ; Calculates first unavailable page
+            sta     LIBUNOFF        ; And stores it
+            cmp     #$61            ; If not enough space for libraries,
+            bcs     L1932           ; Error
 
-            lda     #$80
-L190F:      sta     L0950,x
-            inx
-            cpx     L09CC
-            bne     L190F
-L1918:      clc
-            lda     Z9E
-            adc     #$1A
-            sta     Z9C+1
-            adc     #$04
-            sta     Z9C
-            lda     #$80
-L1925:      cmp     L0950,x
-            bne     L1937
-            asl     L0950,x
-            inx
-            cpx     #$61
-            bcc     L1925
+            lda     #$80            ; Marks all available library map space
+L190F:      sta     LIBPMAP,x       ;
+            inx                     ;
+            cpx     LIBUNOFF        ; Repeat until last available page
+            bne     L190F           ;
+
+L1918:
+.ifdef mtu
+            ; More obfuscated code for the user lock
+            ;
+            clc
+            lda     Z9E             ; Z9E contains $A5
+            adc     #$1A            ; + $1A
+            sta     Z9C+1           ; = $BF
+            adc     #$04            ; + $04
+            sta     Z9C             ; = $C3, so now Z9C points to SPREGREAD
+.endif
+            lda     #$80            ; Check library memory map
+L1925:      cmp     LIBPMAP,x       ; Marked?
+            bne     L1937           ; No, return
+            asl     LIBPMAP,x       ; Yes, clear mark
+            inx                     ; Increment page
+            cpx     #$61            ; Should not reach here
+            bcc     L1925           ; Repeat
 
 L1932:      ldx     #ERR_CODOS_INTEGRITY
             jmp     CODOS_ERROR
 
 L1937:      rts
 
-L1938:      jsr     L03D1
-            lda     #'Z'
+
+; CODOS: Load library file and inits file position pointer
+;
+; Library name must be an string at current input line position
+;
+OPENLFILE:  jsr     _UNPROTECT
+            lda     #'Z'            ; Set defalut ext to 'Z'
             jsr     SETDEFEXT
-            jsr     L1607
-            lda     #'B'
+            jsr     FILOPEN           ; Load file
+            lda     #'B'            ; Restore default ext
             jsr     SETDEFEXT
-            lda     #$00
-            sta     L09CD
-            sta     L09CE
-            sta     L09CF
+            lda     #$00            ; Init File pointer
+            sta     LIBFPOS         ;
+            sta     LIBFPOS+1       ;
+            sta     LIBFPOS+2       ;
             rts
 
-L1954:      ldx     #$03
-L1956:      lda     L09B0,x
+; CODOS: Prepare pointers for reading a library file. Points MEMBUF to
+;        the library header buffer and MEMCOUNT to its size
+;
+PREPLLOAD:  ldx     #$03
+L1956:      lda     LIBHDRP,x
             sta     MEMBUFF,x
             dex
             bpl     L1956
             rts
 
-L195F:      ldx     #$00
-L1961:      lda     L0900,x
-            bpl     L1975
-            cmp     L09BF
-            beq     L1977
-            inx
-            cpx     #$08
-            bne     L1961
+; CODOS: Search for a free slot for the library ID in LIBID
+;        If found, return index in X and Cy clear
+;        If library ID is already loaded, return Cy set
+;        If no free slot found, error
+;
+GETLIBSLOT: ldx     #$00            ; Check if there is a free slot for the lib
+L1961:      lda     LIBIDTBL,x      ; Get entry
+            bpl     L1975           ; <$80? Free slot. Return with Cy clear
+            cmp     LIBID           ; Is the same ID as our library?
+            beq     L1977           ; Yes, already loaded. Return with Cy set
+            inx                     ; Next slot
+            cpx     #$08            ; Past max libs?
+            bne     L1961           ; No, loop
+                                    ; Yes, error
             ldx     #ERR_CODOS_MNYLIBS
             jmp     CODOS_ERROR
-
 L1975:      clc
             rts
-
 L1977:      sec
             rts
 
-L1979:      lda     L09BB
-            sec
-            sbc     L09C9
-            bcc     L19B7
-            cmp     #$61
-            bcs     L19B7
-            sta     L09CA
-            tax
-            lda     L09BA
-            adc     L09BC
-            php
-            sec
-            sbc     #$01
-            lda     L09BB
-            sbc     #$00
-            plp
-            adc     L09BD
-            sec
-            sbc     L09C9
-            cmp     #$61
-            bcs     L19B7
-            adc     #$01
-            sta     L09CB
-L19AA:      lda     L0950,x
-            bmi     L19B7
-            inx
-            cpx     L09CB
-            bne     L19AA
-            clc
+; CODOS: Check that there is enough space for loading the library and that no other library
+;        occupies the same space
+;
+; Returns Cy clear if OK, Cy set otherwise
+;
+; There are 60 pages (24K) of RAM space reserved for libraries. First page is calculated from
+; the top of the available space.
+;
+LIBCHKSPC:  lda     LIBLOAD+1       ; Get library load page
+            sec                     ; Clear borrow for substraction
+            sbc     LIBBPGMIN       ; Substract lower page of library reserved space (calculate
+                                    ;  library start page offset)
+            bcc     L19B7           ; Not enough space
+            cmp     #$61            ; Over memory top?
+            bcs     L19B7           ; Invalid load address
+            sta     LIBSPOFF        ; Save library start page offset
+            tax                     ; Save it as an index for later
+            lda     LIBLOAD         ; Get library load address
+            adc     LIBSIZE         ; Add libsize (calculate end address+1)
+            php                     ; Save it
+            sec                     ; Clear borrow for substraction
+            sbc     #$01            ; Get end address
+            lda     LIBLOAD+1       ;
+            sbc     #$00            ;
+            plp                     ;
+            adc     LIBSIZE+1       ; A contains last page of library
+            sec                     ; Clear borrow for substraction
+            sbc     LIBBPGMIN       ; Substract lower page of library reserved space (calculate
+                                    ;  library end page offset) 
+            cmp     #$61            ; Over memory top?
+            bcs     L19B7           ; Not enough room
+            adc     #$01            ; Calculate first page after library end     
+            sta     LIBEPOFF        ; and store it
+L19AA:      lda     LIBPMAP,x       ; Check that there is no other library occupying the same pages
+            bmi     L19B7           ; Return fail if there is
+            inx                     ; Next page
+            cpx     LIBEPOFF        ; Repeat until last page
+            bne     L19AA           ;
+            clc                     ; All good
+            rts
+L19B7:      sec                     ; Can't load library
             rts
 
-L19B7:      sec
-            rts
-
-L19B9:      ldx     L09CA
-            lda     L09BF
-L19BF:      sta     L0950,x
+L19B9:      ldx     LIBSPOFF
+            lda     LIBID
+L19BF:      sta     LIBPMAP,x
             inx
-            cpx     L09CB
+            cpx     LIBEPOFF
             bne     L19BF
             rts
 
-L19C9:      lda     L09BF
-            sta     L0900,x
-            lda     L09C6
-            sta     L0938,x
+; CODOS: Get library info from header
+;
+GETLIBINFO: lda     LIBID
+            sta     LIBIDTBL,x
+            lda     LIBFIRST
+            sta     LIBFTKTBL,x
             txa
             asl     a
             tax
             clc
+
+; Get library pointers
+
             ldy     #$00
-L19DB:      lda     L09C0,y
-            sta     L0908,x
+L19DB:      lda     LIBITOKT,y
+            sta     LIBTKNTBL,x
             iny
-            lda     L09C0,y
-            sta     L0908+1,x
+            lda     LIBITOKT,y
+            sta     LIBTKNTBL+1,x
             iny
             cpy     #$06
             beq     L19F5
@@ -2406,74 +2565,84 @@ L19DB:      lda     L09C0,y
             adc     #$10
             tax
             bne     L19DB
-L19F5:      iny
-            txa
-            adc     #$17
-            tax
-            bne     L19DB
+L19F5:      iny                     ; Advance to lib name pointer
+            txa                     ; Advance to LIBNAMTBL
+            adc     #$17            ; It really adds $18, as Cy is set
+            tax                     ;
+            bne     L19DB           ; Always jump
 L19FC:      rts
 
-L19FD:      clc
-            lda     L09CD
+; CODOS: Update library file pointer to new pos
+;
+UPDLIBFPOS: clc
+            lda     LIBFPOS
             adc     MEMCOUNT
-            sta     L09CD
-            lda     L09CE
+            sta     LIBFPOS
+            lda     LIBFPOS+1
             adc     MEMCOUNT+1
-            sta     L09CE
+            sta     LIBFPOS+1
             bcc     L1A13
-            inc     L09CF
+            inc     LIBFPOS+2
 L1A13:      rts
 
-L1A14:      clc
-            lda     L09BA
-            adc     #$0B
-            sta     L09BA
-            bcc     L1A22
-            inc     L09BB
-L1A22:      sec
-            lda     L09BC
-            sbc     #$0B
-            sta     L09BC
-            bcs     L1A30
-            dec     L09BD
+; CODOS: Adjust library size and load address
+;
+ADJLIBSIZ:  clc                     ; Clear carry for addition
+            lda     LIBLOAD         ; Get library load address
+            adc     #$0B            ; Skips header
+            sta     LIBLOAD         ;
+            bcc     L1A22           ;
+            inc     LIBLOAD+1       ;
+L1A22:      sec                     ; Clear borrow for substracion
+            lda     LIBSIZE         ; Get library size
+            sbc     #$0B            ; Substract header size
+            sta     LIBSIZE         ;
+            bcs     L1A30           ;
+            dec     LIBSIZE+1       ;
 L1A30:      rts
 
-L1A31:      clc
-            lda     L09BC
-            adc     L09CD
-            sta     L09CD
-            sta     FILEPOS
-            lda     L09BD
-            adc     L09CE
-            sta     L09CE
-            sta     FILEPOS+1
-            lda     L09CF
-            adc     #$00
-            sta     L09CF
-            sta     FILEPOS+2
-            ldx     ICHANNEL
-            jmp     _FSEEK
+; CODOS: Seek for another library instance in the library file.
+;
+; Library files may have several instances with different load addresses, to
+; avoid conflicts with other libraries
+;
+SNXTLINST:  clc
+            lda     LIBSIZE         ; Advance just past the library size
+            adc     LIBFPOS         ;
+            sta     LIBFPOS         ;
+            sta     FILEPOS         ;
+            lda     LIBSIZE+1       ;
+            adc     LIBFPOS+1       ;
+            sta     LIBFPOS+1       ;
+            sta     FILEPOS+1       ;
+            lda     LIBFPOS+2       ;
+            adc     #$00            ;
+            sta     LIBFPOS+2       ;
+            sta     FILEPOS+2       ;
+            ldx     SYSCHN          ; And seek to it
+            jmp     _FSEEK          ;
 
-L1A58:      jsr     L1A14
-            jsr     L1979
-            bcc     L1A7C
-            jsr     L1A31
-            jsr     L1954
-            ldx     ICHANNEL
-            jsr     _GETMBUFF
-            bcs     L1A74
-            jsr     L19FD
-            jmp     L1A58
-
-L1A74:      jsr     L1735
-            ldx     #ERR_CODOS_LIBLOAD
-            jmp     CODOS_ERROR
-
-L1A7C:      lda     L09BA
-            sta     MEMBUFF
-            lda     L09BB
-            sta     MEMBUFF+1
-            cmp     MEMSIZ+1
+; CODOS: Loads lib from file into memory. Selects the first library image in the
+;        file that fits in the available memory
+; 
+LOADLIB:    jsr     ADJLIBSIZ       ; Adjust library size and start address (skipping the header)
+            jsr     LIBCHKSPC       ; Check that there is room for loading the library
+            bcc     L1A7C           ; There is, proceed
+            jsr     SNXTLINST       ; Seek for another library instance in the library file
+            jsr     PREPLLOAD       ; Prepare pointers for loading the library headers
+            ldx     SYSCHN          ; Use system channel
+            jsr     _GETMBUFF       ; Load header into memory
+            bcs     L1A74           ; Something happened, error
+            jsr     UPDLIBFPOS      ; Update library file pointer to new pos
+            jmp     LOADLIB         ; And try again with the new instance
+L1A74:      jsr     CLOSESCHN       ; Close system channel (lib file)
+            ldx     #ERR_CODOS_LIBLOAD ; And raise error
+            jmp     CODOS_ERROR     ;
+L1A7C:      lda     LIBLOAD         ; Get load address
+            sta     MEMBUFF         ;    (Isn't it redundant? Wasn't already done by PREPLLOAD?)
+            lda     LIBLOAD+1       ;
+            sta     MEMBUFF+1       ;
+            cmp     MEMSIZ+1        ;
             bcc     L1A94
             bne     L1A9A
             lda     MEMBUFF
@@ -2486,28 +2655,35 @@ L1A94:      sta     MEMSIZ+1
 L1A9A:      ror     a
             and     L09D0
             sta     L09D0
-            lda     L09BC
-            sta     MEMCOUNT
-            lda     L09BD
-            sta     MEMCOUNT+1
-            ldx     ICHANNEL
-            jsr     _GETMBUFF
-            bcs     L1ACF
+            lda     LIBSIZE         ; Set size to read
+            sta     MEMCOUNT        ;
+            lda     LIBSIZE+1       ;
+            sta     MEMCOUNT+1      ;
+            ldx     SYSCHN          ; Read from library file
+            jsr     _GETMBUFF       ;
+            bcs     LOADERR         ; TThere was a problem loading
             jsr     L19B9
-            jsr     L1735
+            jsr     CLOSESCHN       ; Close system channel (lib file)
+.ifdef mtu
+            ; Yet another user lock check
             ldx     #$12
-L1ABB:      asl     L09BF,x
-            lda     GETARY2+1,x
+L1ABB:      asl     L09D1-$12,x     ; Starts at L09D1
+            lda     USRNUM3-$12,x   ; Starts at USRNUM3
             eor     #$80
-            cmp     L09BF,x
+            cmp     L09D1-$12,x
             bne     L1AD4
             inx
-            cpx     L241D
+            cpx     L241D           ; $17
             bne     L1ABB
+.endif
             rts
 
-L1ACF:      ldx     #ERR_CODOS_LOAD
+LOADERR:    ldx     #ERR_CODOS_LOAD
             jmp     CODOS_ERROR
+
+.ifdef mtu
+            ; Trashes the code in case of user number mismatch, provoking
+            ; syntax errors
 
 L1AD4:      lda     #$31
             sta     CHRGOT2+6
@@ -2516,131 +2692,160 @@ L1AD4:      lda     #$31
             inx
             stx     CHRGOT2+9
 L1ADE:      rts
+.endif
 
 ; ----------------------------------------------------------------------------
 ; CODOS "LIB" STATEMENT
 ; ----------------------------------------------------------------------------
-LIB:        beq     L1B4D
-            jsr     L09F9
-L1AE4:      jsr     L1938
-            jsr     L1221
-            jsr     L1954
-            ldx     ICHANNEL
-            jsr     _GETMBUFF
-            bcs     L1ACF
-            lda     L09BE
-            cmp     #INPBUFP+1
-            bne     L1B48
-            jsr     L19FD
-            jsr     L195F
-            bcs     L1B28
-            stx     Z9E
-            ldx     L18F9
+LIB:        beq     L1B4D           ; Without arguments, print loaded libraries
+            jsr     INILIBSPC           ; Set L09D0 flag
+LIB2:       jsr     OPENLFILE       ; Opens library file
+
+.ifdef mtu
+            ; User lock stuff
+            jsr     PREPARE_ULCK
+.endif
+            jsr     PREPLLOAD       ; Prepare pointers for loading the library headers
+            ldx     SYSCHN          ; Get system channel
+            jsr     _GETMBUFF       ; Reads the library header
+            bcs     LOADERR         ; Error if it couldnt read
+            lda     LIBMAGIC        ; Get LIBs "magical number"
+            cmp     #$80+'L'        ; Check if a library file ($CC)
+            bne     NLIBERR         ; Nope, error
+            jsr     UPDLIBFPOS      ; Update library file pointer to new pos
+            jsr     GETLIBSLOT      ; Get a free slot for library ID
+            bcs     L1B28           ; Already loaded a lib with same id
+            stx     Z9E             ; Save slot number
+
+.ifdef mtu         
+            ; Yet another user-lock check, whick tries to be obfuscated
+            ;
+            ldx     L18F9           ; Loads $0A to X
             ldy     #$00
-L1B0B:      lda     CHRGOT2+2       ; Does it makes any sense? $87
-            ora     (Z9C),y
-            sta     L09C7,x
-            cmp     L2C8E,x
-            bne     L1B3B
-            inx
-            cpx     L186F
-            bne     L1B0B
-L1B1D:      jsr     L1A58
-            ldx     Z9E
-            jsr     L19C9
-            jsr     L1B45
-L1B28:      jsr     CHRGOT
-            beq     L1B35
-            jsr     CHKCOM
-            sta     (Z9C),y
-            jmp     L1AE4
 
-L1B35:      bit     L09D0
-            bpl     L1B42
-            rts
+            ; CHRGOT2+2 points to a BEQ instruction, so next instruction loads $F0 into
+            ; the accumulator.
+            ;
+L1B0B:      lda     CHRGOT2+2
+            ora     (Z9C),y         ; Z9C points to SPREGREAD ($BFC3)
+            sta     L09D1-$0A,x     ; Starts at L09D1. Will set the User Number with bit 7 set
+            cmp     USRNUM2-$0A,x   ; Starts at L2C98 and has F0 F0 F1 F7 F5 (for Dave William's MTU-130)
+            bne     TRASHCODE       ; No match, trash the source code
+            inx                     ; Next char
+            cpx     L186F           ; Compares to $0F
+            bne     L1B0B           ; Until all 5 read and checked
+.endif
 
-L1B3B:      lda     #$17
-            sta     L13AE+1
-            bne     L1B1D
-L1B42:      jmp     CLEAR1
+L1B1D:      jsr     LOADLIB         ; Loads lib from file into memory
+            ldx     Z9E             ; Recover slot number
+            jsr     GETLIBINFO      ; Get library info from header
+            jsr     LIBINIT         ; Execute library initialization procedure
+L1B28:      jsr     CHRGOT          ; Get current char from input line
+            beq     L1B35           ; None, no more libraries to load
+            jsr     CHKCOM          ; If there is a char, must be a comma. Syntax error if not
+.ifdef mtu
+            sta     (Z9C),y         ; Points to SPREGREN, so enables/reset reading from special regs
+.endif
+            jmp     LIB2            ; Go get the next library
 
-L1B45:      jmp     (L09B8)
+L1B35:      bit     L09D0           ; Check if L09D0 flag is set
+            bpl     L1B42           ; No, free memory and return
+            rts                     ; Yes, just return
 
-L1B48:      ldx     #ERR_CODOS_NOTLIB
+.ifdef mtu
+            ; Part of the second user-lock routine
+
+TRASHCODE:  lda     #$17            ; This loads an invalid token table in EXECUTE_COMMAND,
+            sta     L13AE+1         ;   rendering it unusable
+            bne     L1B1D           ; Always jump
+.endif
+
+L1B42:      jmp     CLEAR1          ; Clear memory (restore to defaults)
+
+LIBINIT:    jmp     (LIBENTRY)      ; Jumps to library initialization routine
+
+NLIBERR:    ldx     #ERR_CODOS_NOTLIB
             jmp     CODOS_ERROR
 
-L1B4D:      ldx     #$07
-L1B4F:      lda     L0900,x
-            bmi     L1B58
-            dex
-            bpl     L1B4F
-            rts
+; Print loaded libraries. The LIBIDTBL is really a stack, so we find the last occupied slot
+;                         and then go downwards printing all loaded library names
+                                    ; Find last occupied slot:
+L1B4D:      ldx     #$07            ; Library ID table size - 1
+L1B4F:      lda     LIBIDTBL,x      ; Get ID from slot
+            bmi     L1B58           ; If library ID, go print name
+            dex                     ; If not, next slot
+            bpl     L1B4F           ; Repeat until no more and return
+            rts                     ;
 
-L1B58:      stx     Z9E
-            jsr     CRDO
-L1B5D:      lda     Z9E
-            asl     a
-            tax
-            lda     L0940,x
-            ldy     L0940+1,x
-            sta     INDEX
-            sty     INDEX+1
-            ldy     #$00
-L1B6D:      lda     (INDEX),y
-            beq     L1B77
-            jsr     OUTDO
-            iny
-            bne     L1B6D
-L1B77:      jsr     CRDO
-            dec     Z9E
-            bpl     L1B5D
-            rts
+L1B58:      stx     Z9E             ; Save index to library slot
+            jsr     CRDO            ; Print a CR
+L1B5D:      lda     Z9E             ; Recover index
+            asl     a               ; Calculate index into library names table
+            tax                     ;
+            lda     LIBNAMTBL,x     ; Get pointer to library name
+            ldy     LIBNAMTBL+1,x   ;
+            sta     INDEX           ; Store into INDEX
+            sty     INDEX+1         ;
+            ldy     #$00            ; Output name:
+L1B6D:      lda     (INDEX),y       ; Get char
+            beq     L1B77           ; If null, we're done
+            jsr     OUTDO           ; Output char
+            iny                     ; Next char
+            bne     L1B6D           ;
+L1B77:      jsr     CRDO            ; Output CR
+            dec     Z9E             ; Next library down the stack
+            bpl     L1B5D           ; Repeat until no more and return
+            rts                     ;
 
-; ----------------------------------------------------------------------------
-L1B7F:      ldx     #$5F
+; CODOS: Clear library tables and restart library space bottom page
+;
+CLRLIBTBLS: ldx     #$5F
             lda     #$00
-L1B83:      sta     L0950,x         ; Init variables from L0950 to L09AF
+L1B83:      sta     LIBPMAP,x       ; Init library memory map
             dex
             bpl     L1B83
 
-            ldx     #$07            ; Same for variables from $0900 to $0907
-L1B8B:      sta     L0900,x
+            ldx     #$07            ; Init library IDs table
+L1B8B:      sta     LIBIDTBL,x
             dex
             bpl     L1B8B
 
-            lda     TOPMEM+1
-            sec
+            lda     DFLSIZ+1        ; Get memory top page
+            sec                     ; Clear borrow for substraction
             sbc     #$60            ; Substract 24K bytes
-            sta     L09C9
+            sta     LIBBPGMIN       ; Set library space bottom page
             rts
 
 ; ----------------------------------------------------------------------------
 ; CODOS "FRELIB" STATEMENT
 ; ----------------------------------------------------------------------------
 FRELIB:     beq     L1BA0
-            jmp     SYNERR
+            jmp     SYNERR          ; Takes no arguments
 
-L1BA0:      jsr     L1B7F
+L1BA0:      jsr     CLRLIBTBLS      ; Clear library tables and restart library space bottom page
             lda     #$00
             sta     L080A
             sta     L080E
             lda     TXTPTR+1
-            cmp     #$08
-            beq     L1BB2
-            rts
+            cmp     #>INPUTBUFFER   ; Is it executed directly (not in a program)?
+            beq     L1BB2           ; Yes, free memory
+            rts                     ; No, keep variables and return
 
-L1BB2:      lda     TOPMEM
-            sta     MEMSIZ
-            lda     TOPMEM+1
-            sta     MEMSIZ+1
-            jsr     L03D1
-            ldy     #$00
-            jsr     L03E6
-            jsr     L03CE
-            jmp     CLEAR1
+L1BB2:      lda     DFLSIZ          ; Restore memory
+            sta     MEMSIZ          ;
+            lda     DFLSIZ+1        ;
+            sta     MEMSIZ+1        ;
+            jsr     _UNPROTECT      ;
+            ldy     #$00            ;
+            jsr     _SETERRRCVRY    ; Restore default error recovery
+            jsr     _PROTECT        ;
+            jmp     CLEAR1          ; And clear variables
 
-; ----------------------------------------------------------------------------
-L1BCA:      sec
+; CODOS: Print library not loaded error.
+;
+; Arguments: Library ID in A
+;
+ERRNLOAD:   sec
             sbc     #$D0
             sta     Z9E
             jsr     L1C0F
@@ -2658,27 +2863,27 @@ L1BD4:      jsr     _GETLINE
             lda     INPBUFP
             ldy     INPBUFP+1
             jsr     STROUT
-L1BEE:      jsr     L03D1
-            jsr     L1735
+L1BEE:      jsr     _UNPROTECT
+            jsr     CLOSESCHN
             ldx     #ERR_CODOS_NLOADED
             jmp     CODOS_ERROR
 
 L1BF9:      jsr     CHRGOT
             and     #$7F
-            sta     Z77
+            sta     STATUS
             jmp     L1BEE
 
 L1C03:  .byte   "SYSLIBNAM.Z", $0D
 
 L1C0F:      jsr     L1C2A
-            jsr     L03D1
+            jsr     _UNPROTECT
             jsr     L15B9
             bcs     L1C28
             bvs     L1C28
             asl     a
             asl     a
             bpl     L1C28
-            ldx     ICHANNEL
+            ldx     SYSCHN
             jsr     _ASSIGN
             clc
             rts
@@ -2765,7 +2970,7 @@ L1CA1:      sta     LEGTBL,x
 ; CODOS "OUTCHAN" STATEMENT
 ; ----------------------------------------------------------------------------
 OUTCHAN:    jsr     GETBYT
-            stx     OCHANNEL
+            stx     OUTCHN
             rts
 
 ; ----------------------------------------------------------------------------
@@ -2852,13 +3057,14 @@ L1D38:      jsr     OUTSP
 ; ----------------------------------------------------------------------------
 CONSOLE_STROUT:
             ldx     #$02
-            cpx     OCHANNEL
+            cpx     OUTCHN
             beq     STROUT
             rts
 
 ; ----------------------------------------------------------------------------
 ; PRINT STRING AT (Y,A)
 ; ----------------------------------------------------------------------------
+PRTSTR:
 STROUT:     jsr     STRLIT
 
 ; ----------------------------------------------------------------------------
@@ -2896,18 +3102,19 @@ L1D71:      inc     Z15
 L1D73:      pla
             stx     Z99
             sty     Z99+1
-            jsr     L03D1
-            ldx     OCHANNEL
+            jsr     _UNPROTECT
+            ldx     OUTCHN
             jsr     _OUTCHAR
-            jsr     L03CE
+            jsr     _PROTECT
             ldy     Z99+1
             ldx     Z99
 L1D88:      and     #$FF
             rts
 
-
-INTEGRITY_CHKSUM:
-            .word   CHECKSUM
+.ifdef mtu
+            ; User lock stuff: Checksum of the User number
+CHKSUM:     .word    $006C
+.endif
 
 L1D8D:      cmp     BSPACE
             beq     L1DAF
@@ -2948,7 +3155,7 @@ L1DC9:      sta     CURLIN
             sty     CURLIN+1
             jmp     SYNERR
 
-RESPERR:    lda     SCHANNEL
+RESPERR:    lda     INCHN
             cmp     #$01
             beq     L1DDC
             ldx     #ERR_BADDATA
@@ -2983,7 +3190,7 @@ INPUT:      lsr     Z14             ; Clear no output flag
             cmp     #$22
             bne     L1E0F
             jsr     STRTXT
-            lda     #$3B
+            lda     #';'
             jsr     SYNCHR
             jsr     STRPRT
 L1E0F:      jsr     ERRDIR
@@ -2992,30 +3199,35 @@ L1E0F:      jsr     ERRDIR
             jsr     NXIN
             lda     INPUTBUFFER
             bne     L1E53
-            bit     L0800
+            bit     CNIFLG
             bmi     L1E53
             clc
             jmp     CONTROL_C_TYPED
 
-NXIN:       lda     SCHANNEL
+NXIN:       lda     INCHN
             cmp     #$01
             bne     L1E35
             jsr     OUTQUES
             jsr     OUTSP
 L1E35:      jmp     INLIN
 
+.ifdef mtu
 ; ----------------------------------------------------------------------------
+; More obfuscated code
+; At this point, Z9E contains TOKEN_LAST, which in the original version is $A5
 L1E38:      clc
-            lda     Z9E
-            adc     #$1A
-            sta     LOWTR+1
-            eor     #$7F
-            adc     #$03
-            sta     LOWTR
-            lda     #$00
-            sta     Z9C
-            sta     Z9C+1
+            lda     Z9E             ; $A5
+            adc     #$1A            ; +$1A
+            sta     LOWTR+1         ; = $BF
+            eor     #$7F            ; $BF eor $7F = $C0
+            adc     #$03            ; + $03
+            sta     LOWTR           ; = $C3  So, in that convoluted way, LOWTR now points to $BFC3,
+                                    ; AKA "SPREGREAD" or special registers read byte
+            lda     #$00            ; Also zeroes Z9C for checksum calculations
+            sta     Z9C             ;
+            sta     Z9C+1           ;
             rts
+.endif
 
 ; ----------------------------------------------------------------------------
 ; "READ" STATEMENT
@@ -3060,7 +3272,7 @@ PROCESS_INPUT_ITEM:
             ldy     #>(INPUTBUFFER-1)
             bne     L1E96
 L1E87:      bmi     FINDATA
-            lda     SCHANNEL
+            lda     INCHN
             cmp     #$01
             bne     L1E93
             jsr     OUTQUES
@@ -3151,7 +3363,7 @@ INPDONE:    lda     INPTR
 L1F32:      ldy     #$00
             lda     (INPTR),y
             beq     L1F46
-            lda     SCHANNEL
+            lda     INCHN
             cmp     #$01
             bne     L1F46
             lda     #<ERREXTRA
@@ -3258,6 +3470,7 @@ JERROR:     jmp     ERROR
 ; RESULT IN FAC.  WORKS FOR BOTH STRING AND NUMERIC
 ; EXPRESSIONS.
 ; ----------------------------------------------------------------------------
+GETPRM:
 FRMEVL:     ldx     TXTPTR
             bne     L1FEE
             dec     TXTPTR+1
@@ -3444,13 +3657,13 @@ L20DA:      jmp     FIN
 
 L20DD:      jsr     ISLETC
             bcs     FRM_VARIABLE
-            cmp     #$2E
+            cmp     #'.'            ; Float
             beq     L20DA
             cmp     #TOKEN_MINUS
             beq     MIN
             cmp     #TOKEN_PLUS
             beq     L20D5
-            cmp     #$22
+            cmp     #'"'            ; String
             bne     NOT_
 
 ; ----------------------------------------------------------------------------
@@ -3499,22 +3712,31 @@ L211F:      cmp     #TOKEN_SGN
 ; ----------------------------------------------------------------------------
 ; EVALUATE "(EXPRESSION)"
 ; ----------------------------------------------------------------------------
+PARPRM:
 PARCHK:     jsr     CHKOPN
             jsr     FRMEVL
 CHKCLS:     lda     #')'
             .byte   $2C
 CHKOPN:     lda     #'('
             .byte   $2C
+CHKCMV:
 CHKCOM:     lda     #','
 
 ; ----------------------------------------------------------------------------
 ; UNLESS CHAR AT TXTPTR = (A), SYNTAX ERROR
 ; ----------------------------------------------------------------------------
+
+            .export CHRCHK
+
+CHRCHK:
 SYNCHR:     ldy     #$00
             cmp     (TXTPTR),y
             bne     SYNERR
             jmp     CHRGET
 ; ----------------------------------------------------------------------------
+
+            .export SYNERR
+
 SYNERR:     ldx     #ERR_SYNTAX
             jmp     ERROR
 ; ----------------------------------------------------------------------------
@@ -3551,23 +3773,35 @@ L216E:      cmp     #$53
             bne     L218F
             cpy     #$54
             bne     L21BF
+.ifdef mtu
+            ; User lock and integrity checks
             jsr     L217E
-            lda     Z77
+.endif
+            lda     STATUS
             jmp     FLOAT
 
+.ifdef mtu
+; User lock and integrity checks
 L217E:      lda     #$A5
             sta     Z9E
             jsr     L1E38
             ldy     #$04
             sta     (LOWTR),y
-            jsr     L1221
+            jsr     PREPARE_ULCK
             jmp     INTEGRITY_CHK
+.endif
 
 L218F:      cmp     #$4B
             bne     L21BF
             cpy     #$45
             bne     L21BF
+
+.ifdef mtu
+            ; User lock and integrity checks
+
 L2197:      jsr     L217E
+.endif
+
             lda     Z9B
             beq     L21BC
             cmp     #$FF
@@ -3592,19 +3826,19 @@ L21BF:      lda     FAC_LAST-1
 
 L21C6:      cmp     #$D0
             bcc     UNARY
-            jsr     L1319
-            beq     L21D2
-            jmp     L1BCA
+            jsr     FINDLIB         ; It is a command in library, check if loaded
+            beq     L21D2           ; Loaded
+            jmp     ERRNLOAD           ; Not loaded, manage error
 
-L21D2:      tya
-            asl     a
-            tay
-            lda     L0928,y
-            sta     Z9C
-            lda     L0928+1,y
-            sta     Z9C+1
-            jsr     CHRGET
-            jmp     (Z9C)
+L21D2:      tya                     ; Calculate index to function handler table
+            asl     a               ;
+            tay                     ;
+            lda     LIBHNDTBL,y         ; Get pointer to function handler
+            sta     Z9C             ;
+            lda     LIBHNDTBL+1,y       ;
+            sta     Z9C+1           ;
+            jsr     CHRGET          ; Get next non-blank
+            jmp     (Z9C)           ; And execute function handler
 ; ----------------------------------------------------------------------------
 UNARY:      asl     a
             pha
@@ -3648,7 +3882,7 @@ L2218:      lda     L09ED,y
 USR:        pla
             jsr     CHKOPN
             jsr     FRMNUM
-            jsr     GETADDR
+            jsr     GETADR
             jsr     L2238
             jmp     CHKCLS
 
@@ -3756,8 +3990,11 @@ DIM:        tax
             bne     NXDIM
             rts
 
-; CODOS: Alternate PTRGET
-APTRGET:    jsr     PTRGET
+; CODOS: Find pointer for next variable
+
+            .export GETVAR
+
+GETVAR:     jsr     PTRGET
             sta     FORPNT
             sty     FORPNT+1
             rts
@@ -3959,7 +4196,7 @@ L23FD:      sta     VARPNT
 ; ----------------------------------------------------------------------------
 GETARY:     lda     EOLPNTR
             asl     a
-GETARY2:    adc     #$05
+            adc     #$05
             adc     LOWTR
             ldy     LOWTR+1
             bcc     L240E
@@ -3969,13 +4206,14 @@ L240E:      sta     HIGHDS
             rts
 
 ; ----------------------------------------------------------------------------
-NEG32768:
-            .byte   $90, $80, $00, $00, $00
+NEG32768:   .byte   $90, $80, $00, $00, $00
 
-            .byte   $60, $60, $62, $6E, $6A
-
+.ifdef mtu
+            ; Yet another obfuscated user code, 00175 (each byte ROLed once, then ORed $60)
+USRNUM3:   .byte   $60, $60, $62, $6E, $6A
 
 L241D:      .byte   $17
+.endif
 
 ; ----------------------------------------------------------------------------
 ; EVALUATE NUMERIC FORMULA AT TXTPTR
@@ -4087,6 +4325,10 @@ SUBERR:     ldx     #ERR_BADSUBS
 ; ----------------------------------------------------------------------------
 ; ERROR:  ILLEGAL QUANTITY
 ; ----------------------------------------------------------------------------
+
+            .export IQLERR
+
+IQLERR:
 IQERR:      ldx     #ERR_ILLQTY
 JER:        jmp     ERROR
 
@@ -4321,6 +4563,9 @@ L25FE:      sta     FAC+1
 ; ----------------------------------------------------------------------------
 ; FLOAT THE SIGNED INTEGER IN A,Y
 ; ----------------------------------------------------------------------------
+
+            .export GIVAYF
+
 GIVAYF:     ldx     #$00
             stx     VALTYP
             sta     FAC+1
@@ -4340,6 +4585,8 @@ SNGFLT:     lda     #$00
 ; CHECK FOR DIRECT OR RUNNING MODE
 ; GIVING ERROR IF DIRECT MODE
 ; ----------------------------------------------------------------------------
+            .export ERRDIR
+
 ERRDIR:     ldx     CURLIN+1
             inx
             bne     RTS9
@@ -4449,40 +4696,43 @@ L26C8:      ldy     #$00
             sta     (FNCNAM),y
             rts
 
+.ifdef mtu
 ; CODOS -------------------- 
 ; Integrity check
+; On entry, LOWTR points to SPREGREAD and Z9C = 0
 ;
 INTEGRITY_CHK:
             ldx     #$00
             clc
             ldy     #$00
-L26E3:      lda     (LOWTR),y
-L26E5:      adc     #$10
-            bcc     L26E5
-            adc     Z9C             ; On entry, Z9C = 0
-            sta     Z9C
-            bcc     L26F1
-            inc     Z9C+1
-L26F1:      asl     Z9C
-            rol     Z9C+1
+L26E3:      lda     (LOWTR),y       ; Gets "User number" byte
+L26E5:      adc     #$10            ; Kind of checksum algorithm
+            bcc     L26E5           ;
+            adc     Z9C             ;
+            sta     Z9C             ;
+            bcc     L26F1           ;
+            inc     Z9C+1           ;
+L26F1:      asl     Z9C             ;
+            rol     Z9C+1           ;
             inx
-            cpx     L2713
-            bne     L26E3
-            lda     Z9C             ; Here, X = 5
-            cmp     INTEGRITY_CHKSUM-5,x
+            cpx     L2713           ; Completed reading?
+            bne     L26E3           ; No, get next
+            lda     Z9C             ; Compare checksum with the hardcoded one
+            cmp     CHKSUM-5,x
             bne     L270A
             lda     Z9C+1
-            cmp     INTEGRITY_CHKSUM-4,x
+            cmp     CHKSUM-4,x
             bne     L270A
-            rts
+            rts                     ; All good
 
-L270A:      lda     #<L31E2
+L270A:      lda     #<L31E2         ; Fail with integrity error
 L270C:      ldy     #>L31E2
             sta     GOSTROUT+1
             sty     GOSTROUT+2
             rts
 
-L2713:      .byte   $05
+L2713:      .byte   $05             ; Length of the user number
+.endif
 
 ; ----------------------------------------------------------------------------
 ; "STR$" FUNCTION
@@ -4560,7 +4810,10 @@ L2764:      stx     STRNG2+1
             cmp     #>INPUTBUFFER
             bne     PUTNEW
 L276E:      tya
-            jsr     STRINI
+
+            .export L276F
+
+L276F:      jsr     STRINI
             ldx     STRNG1
             ldy     STRNG1+1
             jsr     MOVSTR
@@ -4597,7 +4850,8 @@ L2792:      stx     FAC_LAST-1
             stx     TEMPPT
             rts
 
-L27A3:      sta     SGNCPR
+; CODOS:  Push string on string stack
+PSHSTR:     sta     SGNCPR
             stx     FACEXTENSION
             jmp     L276E
 
@@ -4608,6 +4862,9 @@ L27A3:      sta     SGNCPR
 ; RETURN WITH (A) SAME,
 ;	AND Y,X = ADDRESS OF SPACE ALLOCATED
 ; ----------------------------------------------------------------------------
+
+            .export GETSPA
+
 GETSPA:     lsr     DATAFLG
 L27AC:      pha
             eor     #$FF
@@ -4888,6 +5145,10 @@ L2958:      rts
 ; ----------------------------------------------------------------------------
 ; IF (FAC) IS A TEMPORARY STRING, RELEASE DESCRIPTOR
 ; ----------------------------------------------------------------------------
+
+            .export FRETPS
+
+FRETPS:
 FRESTR:     jsr     CHKSTR
 
 ; ----------------------------------------------------------------------------
@@ -5100,10 +5361,12 @@ CONINT:     jsr     MKINT
 ; "VAL" FUNCTION
 ; ----------------------------------------------------------------------------
 VAL:        jsr     GETSTR
-            bne     L2A6B
+            bne     VAL2
             jmp     ZERO_FAC
 
-L2A6B:      ldx     TXTPTR
+            .export VAL2
+
+VAL2:       ldx     TXTPTR
             ldy     TXTPTR+1
             stx     STRNG2
             sty     STRNG2+1
@@ -5141,7 +5404,7 @@ POINT:      ldx     STRNG2
 ; CODOS "MCALL" FUNCTION
 ; ----------------------------------------------------------------------------
 MCALL:      jsr     FRMNUM
-            jsr     GETADDR
+            jsr     GETADR
 L2AA8:      jmp     (LINNUM)
 
 ; ----------------------------------------------------------------------------
@@ -5151,7 +5414,7 @@ L2AA8:      jmp     (LINNUM)
 ; CONVERT EXP2 TO 8-BIT NUMBER IN X-REG
 ; ----------------------------------------------------------------------------
 GTNUM:      jsr     FRMNUM
-            jsr     GETADDR
+            jsr     GETADR
 
 ; ----------------------------------------------------------------------------
 ; EVALUATE ",EXPRESSION"
@@ -5163,7 +5426,7 @@ COMBYTE:    jsr     CHKCOM
 ; ----------------------------------------------------------------------------
 ; CONVERT (FAC) TO A 16-BIT VALUE IN LINNUM
 ; ----------------------------------------------------------------------------
-GETADDR:    lda     FACSIGN
+GETADR:     lda     FACSIGN
             bmi     GOIQ
             lda     FAC
             cmp     #$91
@@ -5182,7 +5445,7 @@ PEEK:       lda     LINNUM+1
             pha
             lda     LINNUM
             pha
-            jsr     GETADDR
+            jsr     GETADR
             ldy     #$00
             lda     (LINNUM),y
             tay
@@ -5235,6 +5498,7 @@ FSUB:       jsr     LOAD_ARG_FROM_YA
 ; ----------------------------------------------------------------------------
 ; FAC = ARG - FAC
 ; ----------------------------------------------------------------------------
+FLTSUB:
 FSUBT:      lda     FACSIGN
             eor     #$FF
             sta     FACSIGN
@@ -5254,8 +5518,8 @@ FADD1:      jsr     SHIFT_RIGHT
 ; ----------------------------------------------------------------------------
 FADD:       jsr     LOAD_ARG_FROM_YA
 
-; CODOS: Alternate FADDT
-AFADDT:     lda     FAC
+; CODOS: Floating point add
+FLTADD:     lda     FAC
 
 ; ----------------------------------------------------------------------------
 ; FAC = ARG + FAC
@@ -5318,6 +5582,9 @@ L2B71:      sec
 NORMALIZE_FAC1:
             bcs     NORMALIZE_FAC2
             jsr     COMPLEMENT_FAC
+
+            .export NORMALIZE_FAC2
+
 NORMALIZE_FAC2:
             ldy     #$00
             tya
@@ -5501,9 +5768,17 @@ CON_ONE:    .byte   $81, $00, $00, $00, $00
 POLY_LOG:   .byte   $03
             .byte   $7F, $5E, $56, $CB, $79
             .byte   $80, $13, $9B, $0B, $64
-L2C8E:      .byte   $80, $76, $38, $93, $16
+            .byte   $80, $76, $38, $93, $16
             .byte   $82, $38, $AA, $3B, $20
-            .byte   $F0, $F0, $F1, $F7, $F5
+
+.ifdef mtu
+; Another part of the second "User lock feature"
+;
+; This contains the same USRNUM, but with the bit 7 set.
+;
+USRNUM2:    .byte   $F0, $F0, $F1, $F7, $F5
+.endif
+
 CON_SQR_HALF:
             .byte   $80, $35, $04, $F3, $34
 CON_SQR_TWO:
@@ -5516,6 +5791,7 @@ CON_LOG_TWO:
 ; ----------------------------------------------------------------------------
 ; "LOG" FUNCTION
 ; ----------------------------------------------------------------------------
+FLTLOG:
 LOG:        jsr     SIGN
             beq     GIQ
             bpl     LOG2
@@ -5552,8 +5828,8 @@ LOG2:       lda     FAC
 ; ----------------------------------------------------------------------------
 FMULT:      jsr     LOAD_ARG_FROM_YA
 
-; CODOS: Alternate FMULTT
-AFMULTT:    lda     FAC
+; CODOS: Floating point multiply
+FLTMUL:     lda     FAC
 
 ; ----------------------------------------------------------------------------
 ; FAC = ARG * FAC
@@ -5615,6 +5891,7 @@ L2D54:      rts
 ; ----------------------------------------------------------------------------
 ; UNPACK NUMBER AT (Y,A) INTO ARG
 ; ----------------------------------------------------------------------------
+MOVMTA:
 LOAD_ARG_FROM_YA:
             sta     INDEX
             sty     INDEX+1
@@ -5724,8 +6001,8 @@ DIV:        stx     SGNCPR
 ; ----------------------------------------------------------------------------
 FDIV:       jsr     LOAD_ARG_FROM_YA
 
-; CODOS: Alternate FDIVT
-AFDIVT:     lda     FAC
+; CODOS: Floating point divide
+FLTDIV:     lda     FAC
 
 ; ----------------------------------------------------------------------------
 ; FAC = ARG / FAC
@@ -5814,8 +6091,8 @@ COPY_RESULT_INTO_FAC:
             sta     FAC+4
             jmp     NORMALIZE_FAC2
 
-; CODOS: Alternate LOAD_FAC_FROM_YA
-ALOAD_FAC_FROM_YA:
+; CODOS: Move memory to FLTACC
+MOVMTF:
             jsr     LOAD_FAC_FROM_YA
             lda     FACSIGN
             eor     ARGSIGN
@@ -5870,8 +6147,8 @@ SETFOR:     ldx     FORPNT
             ldy     FORPNT+1
             .byte   $24
 
-; CODOS: Alternate STORE_FAC_AT_YX_ROUNDED
-ASTORE_FAC_AT_YX_ROUNDED:
+; CODOS: ; Move FLTACC to memory
+MOVFTM:
             tax
 
 ; ----------------------------------------------------------------------------
@@ -5904,6 +6181,7 @@ STORE_FAC_AT_YX_ROUNDED:
 ; ----------------------------------------------------------------------------
 ; COPY ARG INTO FAC
 ; ----------------------------------------------------------------------------
+MOVATF:
 COPY_ARG_TO_FAC:
             lda     ARGSIGN
 
@@ -5922,6 +6200,7 @@ L2ED7:      lda     SHIFTSIGNEXT,x
 ; ----------------------------------------------------------------------------
 COPY_FAC_TO_ARG_ROUNDED:
             jsr     ROUND_FAC
+MOVFTA:
 MAF:        ldx     #BYTES_FP+1
 L2EE6:      lda     EXPSGN,x
             sta     SHIFTSIGNEXT,x
@@ -5933,6 +6212,7 @@ RTS14:      rts
 ; ----------------------------------------------------------------------------
 ; ROUND FAC USING EXTENSION BYTE
 ; ----------------------------------------------------------------------------
+RNDFAC:
 ROUND_FAC:
             lda     FAC
             beq     RTS14
@@ -6008,6 +6288,7 @@ ABS:        lsr     FACSIGN
 ; COMPARE FAC WITH PACKED # AT (Y,A)
 ; RETURN A=1,0,-1 AS (Y,A) IS <,=,> FAC
 ; ----------------------------------------------------------------------------
+FLTCMP:
 FCOMP:      sta     DEST
 
 ; ----------------------------------------------------------------------------
@@ -6126,27 +6407,27 @@ L2FCC:      sty     TMPEXP,x
             dex
             bpl     L2FCC
             bcc     FIN2
-            cmp     #$2D
+            cmp     #'-'
             bne     L2FDB
             stx     SERLEN
             beq     FIN1
-L2FDB:      cmp     #$2B
+L2FDB:      cmp     #'+'
             bne     FIN3
 FIN1:       jsr     CHRGET
 FIN2:       bcc     FIN9
-FIN3:       cmp     #$2E
+FIN3:       cmp     #'.'
             beq     FIN10
-            cmp     #$45
+            cmp     #'E'
             bne     FIN7
             jsr     CHRGET
             bcc     FIN5
             cmp     #TOKEN_MINUS
             beq     L3003
-            cmp     #$2D
+            cmp     #'-'
             beq     L3003
             cmp     #TOKEN_PLUS
             beq     FIN4
-            cmp     #$2B
+            cmp     #'+'
             beq     FIN4
             bne     FIN6
 
@@ -6457,7 +6738,8 @@ L31DD:      lda     #<STACK2
             ldy     #>STACK2
             rts
 
-; CODOS
+.ifdef mtu
+; CODOS integrity stuff
 L31E2:      ldx     #GOSTROUT+2
             lda     #>(CONSOLE_STROUT+1)
             sta     GORESTART,x
@@ -6468,6 +6750,7 @@ L31E2:      ldx     #GOSTROUT+2
             lsr     a
             tax
             jmp     CODOS_ERROR
+.endif
 
 ; ----------------------------------------------------------------------------
 CON_HALF:   .byte   $80, $00, $00, $00, $00
@@ -6500,6 +6783,7 @@ SQR:    jsr     COPY_FAC_TO_ARG_ROUNDED
 ;
 ; ARG ^ FAC  =  EXP( LOG(ARG) * FAC )
 ; ----------------------------------------------------------------------------
+FLTPWR:
 FPWRT:  beq     EXP
         lda     ARG
         bne     L3230
@@ -6556,6 +6840,7 @@ POLY_EXP:   .byte   $07
 ;
 ; FAC = E ^ FAC
 ; ----------------------------------------------------------------------------
+FLTEXP:
 EXP:        lda     #<CON_LOG_E
             ldy     #>CON_LOG_E
             jsr     FMULT
@@ -6706,6 +6991,7 @@ SIN_COS_TAN_ATN:
 ; ----------------------------------------------------------------------------
 ; "COS" FUNCTION
 ; ----------------------------------------------------------------------------
+FLTCOS:
 COS:        lda     #<CON_PI_HALF
             ldy     #>CON_PI_HALF
             jsr     FADD
@@ -6713,6 +6999,7 @@ COS:        lda     #<CON_PI_HALF
 ; ----------------------------------------------------------------------------
 ; "SIN" FUNCTION
 ; ----------------------------------------------------------------------------
+FLTSIN:
 SIN:        jsr     COPY_FAC_TO_ARG_ROUNDED
             lda     #<CON_PI_DOUB
             ldy     #>CON_PI_DOUB
@@ -6766,6 +7053,7 @@ L33C3:      lda     #<POLY_SIN
 ;
 ; COMPUTE TAN(X) = SIN(X) / COS(X)
 ; ----------------------------------------------------------------------------
+FLTTAN:
 TAN:        jsr     STORE_FAC_IN_TEMP1_ROUNDED
             lda     #$00
             sta     CPRMASK
@@ -6805,6 +7093,7 @@ MICROSOFT:  .byte   $A1, $54, $46, $8F, $13, $8F, $52, $43
 ; ----------------------------------------------------------------------------
 ; "ATN" FUNCTION
 ; ----------------------------------------------------------------------------
+FLTATN:
 ATN:        lda     FACSIGN
             pha
             bpl     L3436
@@ -6851,12 +7140,14 @@ POLY_ATN:
             .byte   $81, $00, $00, $00, $00
 
 ; CODOS
-L349B:      lda     #$FF
-            bit     L0802
+UCONV:      lda     #$FF
+            bit     RETTYP
             bne     L34D7
             rts
 
-L34A3:      lda     #$00
+            .export UFPARM
+
+UFPARM:     lda     #$00
             sta     VALTYP+1
             jsr     FRMEVL
             bit     VALTYP
@@ -6870,18 +7161,18 @@ L34B6:      lda     #$40
             bne     L34BC
 
 L34BA:      lda     #$20
-L34BC:      bit     L0801
+L34BC:      bit     FCHTYP
             bne     L34C6
             ldx     #ERR_BADTYPE    
             jmp     ERROR
 
-L34C6:      sta     L0801
+L34C6:      sta     FCHTYP
 L34C9:      lda     #$00
             sta     VALTYP+1
             lda     #$FF
-            bit     L0802
+            bit     RETTYP
             bne     L34D7
-            bit     L0801
+            bit     FCHTYP
 L34D7:      bmi     L34FD
             bvs     L350F
             bit     VALTYP
@@ -6943,7 +7234,7 @@ L3531:      cmp     #$03
 L3542:      sec
             rts
 
-L3544:      jsr     L1129
+L3544:      jsr     CLEAR2
             lda     #$00
             sta     TXTPTR+1
             sec
@@ -6955,7 +7246,7 @@ SETDEFEXT:  sta     DEFAULTEXT
 ; ----------------------------------------------------------------------------
 ; CODOS "BYE" STATEMENT
 ; ----------------------------------------------------------------------------
-BYE:        jsr     L03D1
+BYE:        jsr     _UNPROTECT
             lda     #$00
             sta     NOPRREGS
             jsr     L03E3
@@ -7016,7 +7307,7 @@ JSYNE:      jmp     SYNERR
 ; CODOS: WARM RESTART ENTRY
 ; ----------------------------------------------------------------------------
 CODOS_RESTART:
-            jsr     L03D1
+            jsr     _UNPROTECT
             lda     #<L0E3A
             ldy     #>L0E3A
             sta     JPOSTERR+1
@@ -7031,7 +7322,7 @@ CODOS_RESTART:
             sta     DEFAULTEXT
             lda     #$80
             sta     NOPRREGS
-            jsr     L03CE
+            jsr     _PROTECT
             jmp     RESTART
 
 ; Everything below this point is freed for programs memory
@@ -7082,7 +7373,7 @@ GENERIC_CHRGET_END:
 ; Error if don't
 ;
 USRNPOS:    .byte   $0B             ; Position of user number code in special registers
-USRNCODE:   .byte   $00             ; Expected User Number
+USRNUM:     .byte   $00             ; Expected User Number
             .byte   $00             ;
             .byte   $01             ;
             .byte   $07             ;
@@ -7124,7 +7415,7 @@ L3612:      lda     #$00
             sta     JMPADRS
             lda     YLNLIM
             sta     POSX
-            sta     L0813
+            sta     MAXILEN
             lda     #$B4
             sta     Z17
             ldx     #GENERIC_CHRGET_END-GENERIC_CHRGET+2
@@ -7139,8 +7430,8 @@ L3653:      lda     GENERIC_CHRGET-1,x
             sta     LASTPT+1
             pha
             sta     Z14
-            sta     L0800
-            sta     Z77
+            sta     CNIFLG
+            sta     STATUS
             sta     Z9B
             sta     L080A
             sta     L080E
@@ -7151,15 +7442,15 @@ L3653:      lda     GENERIC_CHRGET-1,x
 
             ldx     #$06
 L3681:      lda     L37F9,x
-            sta     ICHANNEL,x
+            sta     SYSCHN,x
             dex
             bpl     L3681
 
             ldx     #$03
 L368C:      lda     L3800,x
             sta     L0814,x
-            lda     L3804,x
-            sta     L09B0,x
+            lda     LIBHBUF,x
+            sta     LIBHDRP,x
             dex
             bpl     L368C
 
@@ -7176,8 +7467,8 @@ L368C:      lda     L3800,x
             jsr     CHRGOT
             tay
             bne     L36BD
-L36B5:      lda     TOPMEM
-            ldy     TOPMEM+1
+L36B5:      lda     DFLSIZ
+            ldy     DFLSIZ+1
             bne     L36E3
 L36BD:      jsr     CHRGOT
             jsr     LINGET
@@ -7192,11 +7483,11 @@ L36D2:      cmp     L3808
             bcc     L36DD
 L36D7:      lda     L3808
             ldy     L3808+1
-L36DD:      sta     TOPMEM
-            sty     TOPMEM+1
+L36DD:      sta     DFLSIZ
+            sty     DFLSIZ+1
 L36E3:      sta     MEMSIZ
             sty     MEMSIZ+1
-            jsr     L1B7F
+            jsr     CLRLIBTBLS      ; Clear library tables and restart library space bottom page
             jsr     CHRGOT
             tay
             beq     L371D
@@ -7234,7 +7525,7 @@ L371D:      ldx     #<RAMSTART2
             inc     TXTTAB+1
 L3730:
 
-; CODOS - User lock routine --------------------------------------------------
+; CODOS: User lock routine --------------------------------------------------
 .ifdef mtu
             ldx     USRNPOS         ; Position of the User Number in the special registers
             sta     SPREGREN        ; Prepares reading of special registers
@@ -7244,7 +7535,7 @@ L3736:      lda     SPREGREAD       ; Read byte from special registers
 
 L373C:      lda     SPREGREAD       ; Read register value
             and     #$0F            ; Mask out upper nibble
-            cmp     USRNCODE,y      ; Compare to registered user code
+            cmp     USRNUM,y      ; Compare to registered user code
             bne     USRNMISM        ; Not equal, integrity fail, you pirate!
             iny                     ; Next byte
             cpy     #$05            ; Continue until all 5 digits are read
@@ -7259,9 +7550,9 @@ USRNMISM:   lda     #<WARMST
             sta     GOSTROUT+2
             lda     #$4C
             sta     GOSTROUT
-            jsr     L03D1
+            jsr     _UNPROTECT
             jsr     L03E3
-            jsr     L03CE
+            jsr     _PROTECT
             ldx     #ERR_CODOS_INTEGRITY
             jmp     CODOS_ERROR
 .endif
@@ -7312,7 +7603,7 @@ L37F9:      .byte   $00             ; System channel
 L3800:      .addr   L0818           ; Buffer for???
             .word   $000A           ; Buffer count (10)
 
-L3804:      .addr   L09B4           ; Buffer for??
+LIBHBUF:    .addr   LIBHDR          ; Buffer for LIB file headers (including Z file header)
             .word   $0015           ; Buffer count (21)
 
 L3808:      .addr   MEMORY_TOP
@@ -7320,9 +7611,9 @@ L3808:      .addr   MEMORY_TOP
 L380A:      .byte   $0A
 
 .ifdef mtu
-CODE_SIZE = * - START
+CODE_SIZE = * - INILIBSPC
 .else
-CODE2_SIZE = * - RESTORE
+CODE2_SIZE = * - GOSUB
 .endif
 
 
@@ -7340,6 +7631,10 @@ CODE2_SIZE = * - RESTORE
             .addr   _GETCHAR        ; Load address
             .word   SYSIF_SIZE      ; Memory image size
 
+            .export _GETCHAR, _OUTCHAR, _TSTKEY, _GETLINE, _FSCAN, _ASSIGN, _OUTMBUFF, _GETMBUFF
+            .export _FSEEK, _FREECH, _SETINPBCH, _WARMST, _ERROR12, _ERROR11, _ERROR03, _PROTECT
+            .export _UNPROTECT, _GETASSGNFLG, _SETCURRDRV, _SETERRRCVRY
+
 _GETCHAR:   jmp     GETCHAR
 _OUTCHAR:   jmp     OUTCHAR
 _TSTKEY:    jmp     TSTKEY
@@ -7356,24 +7651,27 @@ _ERROR12:   jmp     ERROR12
 _ERROR11:   jmp     ERROR11
 _ERROR03:   jmp     ERROR03
 
-L03CE:      ldx     #$02
+_PROTECT:    ldx     #$02
             .byte   $2C             ; BIT abs (Old trick to skip next two bytes)
 
-L03D1:      ldx     #$00
+_UNPROTECT: ldx     #$00
             stx     HSRCW
             rts
 
-L03D7:      lda     ASSIGNFLAG
+_GETASSGNFLG:
+            lda     ASSIGNFLAG
             rts
 
-L03DB:      sta     CURRDRV
+_SETCURRDRV:
+            sta     CURRDRV
             rts
 
 L03DF:      .byte   $00, $05, $00, $06
 
 L03E3:      jmp     INIJMPTBL       ; E834
 
-L03E6:      jmp     SETERRRCVRY
+_SETERRRCVRY:
+            jmp     SETERRRCVRY
 
 L03E9:      lda     #$00
             sta     PERRPFLG
@@ -7400,38 +7698,38 @@ SYSIF_SIZE = * - _GETCHAR
             .addr   L0700           ; Load address
             .word   JMPTBL_SIZE     ; Memory image size
 
-L0700:      jmp     L34A3
-            jmp     L349B
-            jmp     ERROR2
-            jmp     CHKCOM
-            jmp     SYNCHR
-            jmp     SYNERR
-            jmp     IQERR
-            jmp     FRMEVL
-            jmp     PARCHK
-            jmp     APTRGET
-            jmp     L1869
-            jmp     FRESTR
-            jmp     L27A3
-            jmp     STROUT
-            jmp     ALOAD_FAC_FROM_YA
-            jmp     LOAD_ARG_FROM_YA
-            jmp     ASTORE_FAC_AT_YX_ROUNDED
-            jmp     MAF
-            jmp     COPY_ARG_TO_FAC
-            jmp     ROUND_FAC
-            jmp     AFADDT
-            jmp     FSUBT
-            jmp     AFMULTT
-            jmp     AFDIVT
-            jmp     FCOMP
-            jmp     COS
-            jmp     SIN
-            jmp     TAN
-            jmp     ATN
-            jmp     LOG
-            jmp     EXP
-            jmp     FPWRT
+L0700:      jmp     UFPARM          ; Universal fetch parameter routine
+            jmp     UCONV           ; Universal convert routine
+            jmp     ERREXIT         ; Error exit routine
+            jmp     CHKCMV          ; Check for comma in BASIC statement, error if not found
+            jmp     CHRCHK          ; Check for character in A register, error if not found
+            jmp     SYNERR          ; Execute SYNTAX ERROR exit
+            jmp     IQLERR          ; Execute ILLEGAL QUANTITY ERROR exit 
+            jmp     GETPRM          ; Evaluate expression
+            jmp     PARPRM          ; Evaluate expression within parenthesis
+            jmp     GETVAR          ; Find pointer for next variable
+            jmp     STORVAR         ; Store value in variable
+            jmp     FRETPS          ; Free temporary string
+            jmp     PSHSTR          ; Push string on string stack
+            jmp     PRTSTR          ; Output string
+            jmp     MOVMTF          ; Move memory to FLTACC
+            jmp     MOVMTA          ; Move memory to FLTARG
+            jmp     MOVFTM          ; Move FLTACC to memory
+            jmp     MOVFTA          ; Move FLTACC to FLTARG
+            jmp     MOVATF          ; Move FLTARG to FLTACC
+            jmp     RNDFAC          ; Round number in FLTACC
+            jmp     FLTADD          ; Floating point add
+            jmp     FLTSUB          ; Floating point substract
+            jmp     FLTMUL          ; Floating point multiply
+            jmp     FLTDIV          ; Floating point divide
+            jmp     FLTCMP          ; Floating point compare
+            jmp     FLTCOS          ; Floating point cosine
+            jmp     FLTSIN          ; Floating point sine
+            jmp     FLTTAN          ; Floating point tangent
+            jmp     FLTATN          ; Floating point arctangent
+            jmp     FLTLOG          ; Floating point natural log
+            jmp     FLTEXP          ; Floating point exponentation
+            jmp     FLTPWR          ; Floating point raise number to a power
             jmp     CLEAR1
             jmp     L0F30
             jmp     LINGET
@@ -7444,6 +7742,12 @@ L0700:      jmp     L34A3
             jmp     ERRUNDEF
 
 JMPTBL_SIZE = * - L0700
+
+            .segment "BSS3"
+
+            .export L0780
+
+L0780:      .res    1
 
             .endscope
 
