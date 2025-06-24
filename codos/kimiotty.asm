@@ -20,9 +20,10 @@ UNKNWN10:   .res    2               ; $F8 - $F9
 TEMP1:      .res    1               ; $FA Temporary storeage for keyboard routine
 UNKNWN13:   .res    1               ; $FB
 UNKNWN14:   .res    1               ; $FC
-UNKNWN15:   .res    1               ; $FD
+NUMCHRS:    .res    1               ; $FD Number of chars in input buffer
 UNKNWN16:   .res    1               ; $FE
 UNKNWN17:   .res    1               ; $FF
+
 
             .segment "ioscratch"
 
@@ -31,6 +32,8 @@ UNKNWN17:   .res    1               ; $FF
 ASVKB:      .res    1               ; Saved A reg
 XSVKB:      .res    1               ; Saved X reg
 YSVKB:      .res    1               ; Saved Y reg
+CURPOS:     .res    1               ; Cursor position in line buffer
+
 
             .segment "iodata"
 
@@ -465,6 +468,10 @@ FINISH:     lda     TPTR+1          ; Push new PC to the stack
 ;                     QLN points to the complted line
 ;
 .proc _EDLINE
+            sty     NUMCHRS         ; Update number of chars
+            cld
+UPDSCRN:    jsr     OUTLBUF         ; Output line buffer to screen
+
 GKLOOP:     jsr     _GETKEY         ; Get key
             cmp     #$7F            ; Printable?
             bcs     NONPRNT         ; Nope
@@ -474,7 +481,7 @@ GKLOOP:     jsr     _GETKEY         ; Get key
 KNORMAL:    jsr     NORMALKEY       ; Normal character key
             jmp     GKLOOP          ; And continue processing the input line
 
-CHKSPCL:    cmp     #$08            ; Backspace?
+CHKSPCL:    cmp     BSPACE          ; BS?
             bne     CHKCR           ; No, check if CR
             cpy     #$00            ; Beginning of line?
             bne     DECCNT          ; No, continue
@@ -543,6 +550,30 @@ ECHO:       jmp     _OUTCH          ; Output the character and return
             tax                     ;
             pla                     ; Restore A
 DONE:     rts
+.endproc
+
+; Internal procedure - Output line buffer to screen and init current
+;
+.proc OUTLBUF
+            ldy     #$00            ; Reset cursor position
+            sty     CURPOS          ;
+LOOP:       cpy     NUMCHRS         ; Have we reached the number of chars?
+            beq     RETURN          ; Yes, return
+            lda     (QLN),y         ; No, get char from line buffer
+            jsr     OUTCIFEON       ; Echo (if set) and advance cursor right
+            iny                     ; Next char
+            bne     LOOP            ; Loop until current pos
+RETURN:     rts
+.endproc
+
+; Internal procedure - Output char to screen if echo is not disabled
+;
+.proc OUTCIFEON
+            bit     NOLEKO          ; Check keyboard echo flag
+            bmi     NOECHO          ; If no echo, skip
+            jmp     OUTCH           ; Echo on, output the character
+NOECHO:     rts
+            ; jmp     CURSORR         ; Advance cursor to the right and return
 .endproc
 
 IODRIVER_SIZE = * - _INITIO
