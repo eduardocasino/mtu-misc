@@ -18,8 +18,8 @@ L      - Lists the files on the SD card.
 
 S      - Saves the current mounts to the SD card config file.
 
-M <drive> <image> [O]
-        - Mounts <image> into <drive>. Switch 'O' makes it read-only.
+M <drive> <image> [R]
+        - Mounts <image> into <drive>. Switch 'R' makes it read-only.
 
 U <drive>
         - Unmounts image from <drive>
