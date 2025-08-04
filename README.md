@@ -45,6 +45,8 @@ And, of course, some programming interpreters/compilers/assemblers:
 
 A backport for the KIM-1 is also working, including BASIC and the libraries, using a simple TTY based IO driver, named `KIMIOTTY.Z`.
 
+There is also a new image management utility, `IMU.C`, for the KIM-1 port, that allows mounting, unmounting, copy, rename, delete or create image files on the SD card when using [this Pico W based emulator card](https://github.com/eduardocasino/kim-1-programmable-memory-card).
+
 ## Why?
 
 Why not? Also, I had an even useless purpose: to reconstruct CODOS for the KIM-1, CODOS 2.0 predecessor, which seems to be lost forever.

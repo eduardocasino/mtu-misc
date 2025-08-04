@@ -47,6 +47,11 @@ ifeq ($(ARCH),mtu)
   FILESYSTEM += cpuid.c
 endif
 
+ifeq ($(ARCH),kim1)
+  FILESYSTEM += imu.c \
+				imu.t
+endif
+
 FILESYSTEM +=	basic.c cil.z cilb.z syslibnam.z
 
 CODOSOBJS = codos.o comdproc.o svcproc.o $(IODRIVER).o

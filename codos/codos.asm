@@ -42,7 +42,7 @@ LEGTBL      := __LEGTBL             ; (64 bytes) Function key legend table
 
             ;   Disk Controller Registers
             ;
-            .export HSRCW, ADMA
+            .export HSRCW, ADMA, DATR, MSTR
 
 HSRCW       := SYSRAM+$1FE8         ; Read  - Hardware Status Read
                                     ; Write - Hardware Control Write
