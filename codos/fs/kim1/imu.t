@@ -26,7 +26,7 @@ U <drive>
 
 N <image> {1 | 2} [/P]
         - Creates a formatted, empty image file on the SD card. 
-          '1' creates a single-sided image, '2' a ouble-sided one.
+          '1' creates a single-sided image, '2' a double-sided one.
         - Switch 'P' creates the image in a compressed format,
           which optimizes space usage, but may be slower.
 
