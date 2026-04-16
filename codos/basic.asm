@@ -1560,6 +1560,24 @@ L13DD:      ldy     #>TOKEN_ADDRESS_TABLE
             jsr     SYNCHR
             jmp     GOTO
 
+.ifdef kim1 
+            
+CODE_SIZE = * - INILIBSPC
+            
+            .segment "CODE2"
+
+            ; Loadable file data
+            ; 
+            .byte   $58             ; CODOS loadable file header byte
+            .byte   $00             ; Memory overlay
+            .byte   $00             ; Memory bank
+            .byte   $00             ; Reserved
+            .addr   ENTRY           ; Entry point
+            .addr   RESTORE         ; Load address
+            .word   CODE2_SIZE      ; Memory image size
+
+.endif
+
 ; ----------------------------------------------------------------------------
 ; "RESTORE" STATEMENT
 ; ----------------------------------------------------------------------------
@@ -2038,24 +2056,6 @@ L172D:      jsr     CLOSESCHN
 CLOSESCHN:  ldx     SYSCHN
             jsr     _FREECH
             jmp     _PROTECT
-
-.ifdef kim1
-
-CODE_SIZE = * - INILIBSPC
-
-            .segment "CODE2"
-
-            ; Loadable file data
-            ;
-            .byte   $58             ; CODOS loadable file header byte
-            .byte   $00             ; Memory overlay
-            .byte   $00             ; Memory bank
-            .byte   $00             ; Reserved
-            .addr   ENTRY           ; Entry point
-            .addr   GOSUB           ; Load address
-            .word   CODE2_SIZE      ; Memory image size
-
-.endif
 
 ; ----------------------------------------------------------------------------
 ; "GOSUB" STATEMENT
@@ -7613,7 +7613,7 @@ L380A:      .byte   $0A
 .ifdef mtu
 CODE_SIZE = * - INILIBSPC
 .else
-CODE2_SIZE = * - GOSUB
+CODE2_SIZE = * - RESTORE
 .endif
 
 
