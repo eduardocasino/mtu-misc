@@ -224,29 +224,12 @@ LOOP:       lda     $1500, y        ; Jump table location
             dey                     ; 
             bpl     LOOP            ; Check next
 
-            ; Init ACIA
-
-            lda     #$03            ; included for completeness
-            sta     ACIAC           ; reset the acia
-            lda     #$11
-            sta     ACIAC           ; CR0 =1 divide by 16  CR4 = 1 8 bits 2 stop bits
-
             ; Update pointers for char routines
-            lda     #<_GETKEYSIM
-            sta     GETKEY+1
-            lda     #>_GETKEYSIM
-            sta     GETKEY+2
 
             lda     #<_TSTKEYSIM
             sta     TSTKEY+1
             lda     #>_TSTKEYSIM
             sta     TSTKEY+2
-
-            lda     #<_OUTCHSIM
-            sta     OUTCH+1
-            lda     #>_OUTCHSIM
-            sta     OUTCH+2
-
 
 CONT:       ldy     YSVKB
 
@@ -288,7 +271,10 @@ JMPDATA:    .byte $4c, $15, $15, $4c, $6e, $15, $4c, $86, $15, $4c, $b4, $15
             and     #$FE
             sta     SBD
 
-INCH:       jsr     TTYBGETCH
+INCH:       stx     XSVKB
+            sty     YSVKB
+            
+            jsr     GETCH
 
             bit     KBECHO          ; Test "KEYBOARD ECHO" flag
             bmi     RETLAST         ; Skip restore echo if set 
@@ -299,35 +285,15 @@ INCH:       jsr     TTYBGETCH
             sta     SBD
             pla
 
-RETLAST:    stx     XSVKB           ; Preserve X
-            ldx     #0
+RETLAST:    ldx     #0
             stx     LSTKEY
+
             ldx     XSVKB
+            ldy     YSVKB
 
             rts
 .endproc
 
-.proc _GETKEYSIM
-            lda     LSTKEY          ; Is there a pending key?
-            bne     RETLAST
-
-LOOP:       lda     ACIAS           ; get 6850 status register
-            and     #$01            ; check recieve register full status
-            beq     LOOP            ; branch on no character
-            lda     ACIAR           ; get the char in the recieve register
-
-            bit     KBECHO          ; Test "KEYBOARD ECHO" flag
-            bpl     RETLAST         ; Skip echo if not set
-
-            jsr     _KOUTCHSIM      ; Echo character
-
-RETLAST:    stx     XSVKB           ; Preserve X
-            ldx     #0
-            stx     LSTKEY
-            ldx     XSVKB
-
-            rts
-.endproc
 
 ; SUBROUTINE IFKEY: TEST KEY WITHOUT ROLLOVER
 ;
@@ -383,21 +349,6 @@ RETCLC:     clc
             rts
 .endproc
 
-; Local subroutine TTYBGETCH
-;
-; Blocking tty read. Wait until char ready, then
-; put it into A
-;
-.proc TTYBGETCH
-            lda     #1
-LOOP:       bit     SAD             ; Check start bit
-            bne     NOKEY           ; Nokey
-            bmi     LOOP            ; Wait until ready
-            bpl     TTYGETCH        ; Always jump
-NOKEY:      lda #0
-            rts
-.endproc
-
 ; Local subroutine TTYNBGETCH
 ;
 ; Non-blocking tty read. If there is a char ready,
@@ -405,14 +356,10 @@ NOKEY:      lda #0
 ; from the KIM-1 ROM
 ;
 .proc TTYNBGETCH
-            lda     #1
             bit     SAD             ; Check start bit
-            bne     TTYBGETCH::NOKEY
-            bmi     TTYBGETCH::NOKEY
-            ; Fall through
-.endproc
+            bne     RET0
+            bmi     RET0
 
-.proc TTYGETCH
             stx     XSVKB
             sty     YSVKB
 
@@ -438,6 +385,9 @@ LOOP:       lda     SAD             ; Get 8 bits loop
             ldy     YSVKB
 
             rts
+
+RET0:       lda     #0
+            rts
 .endproc
 
 
@@ -445,7 +395,7 @@ LOOP:       lda     SAD             ; Get 8 bits loop
 ;
 .proc _BEEP
             lda     #$07
-            jmp     OUTCH
+            ; Fall through
 .endproc
 
 
@@ -466,34 +416,6 @@ SKIP:       jsr     KOUTCH
             ldy     YSVKB
             lda     ASVKB
 
-            rts
-.endproc
-
-.proc _OUTCHSIM
-            sta     ASVKB
-            stx     XSVKB
-            sty     YSVKB
-
-            cmp     #$0D            ; If CR, echo an additional LF
-            bne     SKIP
-            jsr     _KOUTCHSIM
-            lda     #$0A
-SKIP:       jsr     _KOUTCHSIM
-
-            ldx     XSVKB
-            ldy     YSVKB
-            lda     ASVKB
-
-            rts
-.endproc
-
-.proc _KOUTCHSIM
-            pha                     ; save character to be sent
-LOOP:       lda     ACIAC           ; wait for transmitter to be empty
-            and     #$02            ; check bit 1 TDR
-            beq     LOOP
-            pla                     ; recover character
-            sta     ACIAT           ; send character
             rts
 .endproc
 
