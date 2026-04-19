@@ -24,7 +24,6 @@ NUMCHRS:    .res    1               ; $FD Number of chars in input buffer
 UNKNWN16:   .res    1               ; $FE
 UNKNWN17:   .res    1               ; $FF
 
-
             .segment "ioscratch"
 
 ; Scratch ram used by Console I-O and graphics drivers 
@@ -33,7 +32,6 @@ ASVKB:      .res    1               ; Saved A reg
 XSVKB:      .res    1               ; Saved X reg
 YSVKB:      .res    1               ; Saved Y reg
 CURPOS:     .res    1               ; Cursor position in line buffer
-
 
             .segment "iodata"
 
@@ -216,6 +214,25 @@ TABTBL_SIZE = * - TABTBL
 ; INITIO - Clear screen and set default values of display parameters
 ;
 .proc _INITIO
+            ; Are we running inside the KIM-1 simulator?
+
+            sty     YSVKB
+            ldy     #11             ; Check 12 bytes (4 jump table entries)
+LOOP:       lda     $1500, y        ; Jump table location
+            cmp     JMPDATA, y      ; Compare to known data
+            bne     CONT            ; No match: Not in KIM-1 Simulator
+            dey                     ; 
+            bpl     LOOP            ; Check next
+
+            ; Update pointers for char routines
+
+            lda     #<_TSTKEYSIM
+            sta     TSTKEY+1
+            lda     #>_TSTKEYSIM
+            sta     TSTKEY+2
+
+CONT:       ldy     YSVKB
+
             lda     #<__INPLBUF     ; Inits input line buffer
             sta     QLN             ;
             lda     #>__INPLBUF     ;
@@ -227,6 +244,10 @@ TABTBL_SIZE = * - TABTBL
             
             rts
 .endproc
+
+; First 12 bytes of the ACIA rom jump table
+
+JMPDATA:    .byte $4c, $15, $15, $4c, $6e, $15, $4c, $86, $15, $4c, $b4, $15
 
 
 ; SUBROUTINE _GETKEY: WAIT FOR KEYBOARD KEY DEPRESSION, RETURN
@@ -250,7 +271,10 @@ TABTBL_SIZE = * - TABTBL
             and     #$FE
             sta     SBD
 
-INCH:       jsr     TTYBGETCH
+INCH:       stx     XSVKB
+            sty     YSVKB
+            
+            jsr     GETCH
 
             bit     KBECHO          ; Test "KEYBOARD ECHO" flag
             bmi     RETLAST         ; Skip restore echo if set 
@@ -261,13 +285,15 @@ INCH:       jsr     TTYBGETCH
             sta     SBD
             pla
 
-RETLAST:    stx     XSVKB           ; Preserve X
-            ldx     #0
+RETLAST:    ldx     #0
             stx     LSTKEY
+
             ldx     XSVKB
+            ldy     YSVKB
 
             rts
 .endproc
+
 
 ; SUBROUTINE IFKEY: TEST KEY WITHOUT ROLLOVER
 ;
@@ -278,7 +304,7 @@ RETLAST:    stx     XSVKB           ; Preserve X
 .proc _IFKEY
             lda     #$00
             sta     LSTKEY          ; Clear last key
-            ; Fall through
+            jmp     TSTKEY
 .endproc
 
 ; SUBROUTINE TSTKEY: TEST FOR KEY DEPRESSION (WITH ROLLOVER).
@@ -305,21 +331,21 @@ RETLAST:    stx     XSVKB           ; Preserve X
 
 RETCLC:     clc
             rts
-       
+
 .endproc
 
-; Local subroutine TTYBGETCH
-;
-; Blocking tty read. Wait until char ready, then
-; put it into A
-;
-.proc TTYBGETCH
-            lda     #1
-LOOP:       bit     SAD             ; Check start bit
-            bne     NOKEY           ; Nokey
-            bmi     LOOP            ; Wait until ready
-            bpl     TTYGETCH        ; Always jump
-NOKEY:      lda #0
+.proc _TSTKEYSIM
+            lda     ACIAS           ; get 6850 status register
+            and     #$01            ; check recieve register full status
+            beq     NOCHR           ; branch on no character
+            lda     ACIAR           ; get the char in the recieve register
+            cmp     LSTKEY
+            beq     RETCLC          ; Same key? Return carry clear
+            sta     LSTKEY          ; Save key and return with Cy set
+            sec
+            rts
+NOCHR:      lda     #0
+RETCLC:     clc
             rts
 .endproc
 
@@ -330,14 +356,10 @@ NOKEY:      lda #0
 ; from the KIM-1 ROM
 ;
 .proc TTYNBGETCH
-            lda     #1
             bit     SAD             ; Check start bit
-            bne     TTYBGETCH::NOKEY
-            bmi     TTYBGETCH::NOKEY
-            ; Fall through
-.endproc
+            bne     RET0
+            bmi     RET0
 
-.proc TTYGETCH
             stx     XSVKB
             sty     YSVKB
 
@@ -362,6 +384,9 @@ LOOP:       lda     SAD             ; Get 8 bits loop
             ldx     XSVKB
             ldy     YSVKB
 
+            rts
+
+RET0:       lda     #0
             rts
 .endproc
 
@@ -393,7 +418,6 @@ SKIP:       jsr     KOUTCH
 
             rts
 .endproc
-
 
 ;  CLRTW - CLEAR THE TEXT WINDOW WITHOUT MOVING THE CURSOR
 ;
@@ -436,7 +460,7 @@ NEXT:       inc     TPTR            ; Increment PC (points to first char of stri
 GETC:       ldy     #$00            ;
             lda     (TPTR),y        ; Get char
             beq     FINISH          ; If null, end of sequence
-            jsr     _OUTCH          ; Print char
+            jsr     OUTCH           ; Print char
             jmp     NEXT            ; Loop
 
 FINISH:     lda     TPTR+1          ; Push new PC to the stack
@@ -472,7 +496,7 @@ FINISH:     lda     TPTR+1          ; Push new PC to the stack
             cld
 UPDSCRN:    jsr     OUTLBUF         ; Output line buffer to screen
 
-GKLOOP:     jsr     _GETKEY         ; Get key
+GKLOOP:     jsr     GETKEY          ; Get key
             cmp     #$7F            ; Printable?
             bcs     NONPRNT         ; Nope
             cmp     #' '            ; Maybe...
@@ -489,19 +513,20 @@ CHKSPCL:    cmp     BSPACE          ; BS?
             jmp     GKLOOP          ; And continue processing the input line
 
 DECCNT:     dey                     ; Decrement count
-            jsr     _OUTCH          ; Move cursor left and delete char
+            jsr     OUTCH          ; Move cursor left and delete char
             lda     #' '            ;
-            jsr     _OUTCH          ;
+            jsr     OUTCH          ;
             lda     #$08            ;
-            jsr     _OUTCH          ;
+            jsr     OUTCH          ;
             jmp     GKLOOP          ; Continue processing the input line
 
 CHKCR:      cmp     #$0D            ; Is it CR?
-            bne     NONPRNT         ; Nope, go process non-prontable
+            bne     NONPRNT         ; Nope, go process non-printable
             sta     (QLN),y         ; Save char into input line buffer
             jsr     CHARECHO
             tya                     ;    return number of characters in A
             ldy     #$00            ;    and make Y = 0
+            clc
             rts
 
 NONPRNT:    bit     UKINLN          ; Unrecognized keys allowed?
@@ -528,7 +553,7 @@ CONT:       sta     (QLN),y         ; Save char into input line buffer
             bit     NOLEKO          ; Check keyboard echo flag
             bpl     ECHO            ; If echo, skip
             lda     #' '            ; Advance cursor to the right and return
-ECHO:       jmp     _OUTCH          ; Output the character and return  
+ECHO:       jmp     OUTCH           ; Output the character and return  
 .endproc
 
 ; Local procedure: Ring the bell

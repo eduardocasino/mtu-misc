@@ -16,3 +16,10 @@ PORTB = $1702
 DDRB = $1703
 SAD = $1740            ; 6530 A Data (TTY)
 SBD = $1742            ; 6530 B data register
+
+;KIM-1 SIMULATOR
+
+ACIAS = $1620
+ACIAC = ACIAS
+ACIAR = $1621
+ACIAT = ACIAR
