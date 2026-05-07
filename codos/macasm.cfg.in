@@ -1,0 +1,18 @@
+MEMORY {
+
+# BANK 0
+    ZEROPAGE : start = $0000,    size = $100;
+    RAM      : start = $0700-$A, size = $F700+$A, file="build/%%VERSION%%/macasm.c";
+    DATARAM  : start = $3f00-$A, size = $40A+$A,  file="build/%%VERSION%%/macasm.c";
+# BANK 3
+    BANK3    : start = $0000,    size = $FF00;
+}
+
+SEGMENTS {
+    ZEROPAGE : load = ZEROPAGE, type = zp,  start = $40;
+    CODE     : load = RAM,      type = rw,  start = $0700-$A;
+    BSS      : load = RAM,      type = bss, start = $3400;
+    DATA     : load = DATARAM,  type = rw;
+    BSS2     : load = RAM,      type = bss, start = $ac00;
+    BSS3     : load = BANK3,    type = bss;
+}

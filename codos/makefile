@@ -44,7 +44,8 @@ FILESYSTEM +=	dir.c \
 				syserrmsg.z
 
 ifeq ($(ARCH),mtu)
-  FILESYSTEM += cpuid.c
+  FILESYSTEM += cpuid.c \
+				macasm.c
 endif
 
 ifeq ($(ARCH),kim1)
@@ -129,6 +130,14 @@ $(foreach ver,$(VERSIONS),$(eval build/$(ver)/graphdriver.z: build/$(ver)/graphd
 	; $(LD) -C $$(@:.z=.cfg) -vm -m $(basename $$@).map -o $$@ $$<))
 
 $(foreach ver,$(VERSIONS),$(eval build/$(ver)/graphdriver.o: graphdriver.asm build/$(ver)/symbols.inc $(SYSDEPS) \
+	; echo "AS $$@" \
+	; $(AS) $(AFLAGS) -D CODOS2_VER=$(ver) -I build/$(ver) -l $(basename $$@).lst -o $$@ $$<))
+
+$(foreach ver,$(VERSIONS),$(eval build/$(ver)/macasm.c: build/$(ver)/macasm.o build/$(ver)/macasm.cfg \
+	; echo "LD $$@" \
+	; $(LD) -C $$(@:.c=.cfg) -vm -m $(basename $$@).map -o $$@ $$<))
+
+$(foreach ver,$(VERSIONS),$(eval build/$(ver)/macasm.o: macasm.asm monomeg.inc build/$(ver)/symbols.inc $(SYSDEPS) \
 	; echo "AS $$@" \
 	; $(AS) $(AFLAGS) -D CODOS2_VER=$(ver) -I build/$(ver) -l $(basename $$@).lst -o $$@ $$<))
 endif
