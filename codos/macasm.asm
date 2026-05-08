@@ -1569,7 +1569,6 @@ PASS1_LINE_LOOP:
 ; performs some addressing arithmetic on SCRATCHP and writes to a computed
 ; location.  The conditional-flag check at the end handles mismatched
 ; .IF/.ENDIF nesting.
-; NOTE: The exact semantics of the SCRATCHP shifting are unclear.
 ; ============================================================================
 END_OF_PASS1:
             jsr     ADVANCE_LOCCNT  ; Flush pending segment header
