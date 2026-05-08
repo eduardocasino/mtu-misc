@@ -2204,7 +2204,6 @@ HANDLE_OVL: jsr     SKIP_LEADING_SPACES ; Skip spaces
 ERR_RANGE:  jsr     ERROR_RANGE           ; ERR_TYPE_LADDER (range error)
             ; Not reached
 
-.ifdef mtu
 ; ============================================================================
 ; HANDLE_BANK
 ; Handles the ".BANK" directive.
@@ -2226,7 +2225,6 @@ HANDLE_BANK:
             bcs     ERR_RANGE       ; >= 4 -> range error
             sta     BANK_NUM        ; Evaluated bank number
             rts
-.endif
 
 ; ============================================================================
 ; ADVANCE_LOCCNT
@@ -9057,12 +9055,10 @@ TABLE:      .byte   $13             ; Entry length
             .byte   $e8
             .addr   HANDLE_OVL
 
-.ifdef mtu
             .byte   $0a
             .byte   ".BANK*"        ; Set memory bank number (0–3) for the segment
             .byte   $e8
             .addr   HANDLE_BANK
-.endif
 
             .byte   $09
             .byte   ".OPT*"         ; Assembler option (ignored; returns immediately)
