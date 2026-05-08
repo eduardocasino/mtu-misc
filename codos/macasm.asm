@@ -70,7 +70,7 @@ HASHTBLP:   .res    2               ; Hash-table bucket probe pointer ($44)
 MATCHP:     .res    2               ; Matched symbol entry pointer (result of hash lookup) ($46)
 SEGHEADP:   .res    2               ; Object segment header write pointer ($48)
 MACTBLP:    .res    2               ; Macro table base pointer ($4A)
-OBJBUFP:    .res    2               ; Object-code output buffer pointer ($4C)
+SCRATCHP:   .res    2               ; General-purpose secondary traversal pointer ($4C)
 SYMNAMP:    .res    2               ; Symbol name pointer – sort comparator A ($4E)
 SYMNAMP2:   .res    2               ; Symbol name pointer – sort comparator B ($50)
 TEMPP:      .res    2               ; Generic temporary pointer ($52)
@@ -133,8 +133,10 @@ HEAPST:     .addr   TABLE           ; Start of symbol-table primary heap ($070E)
 HEAPEND:    .addr   SYMHASHT        ; End+1 of primary heap   (page-aligned) ($0710)
 HASHTST:    .addr   SYMHASHT        ; Start of hash table     (relocatable) ($0712)
 HASHTEND:   .addr   MACSTACK        ; End+1 of hash table ($0714)
+.ifdef mtu
 HEAP2ST:    .addr   SCNDHEAP+4      ; Start of secondary heap (bank 3) ($0716)
 HEAP2END:   .addr   SCNDHEAP+$ff00  ; End+1 of secondary heap (bank 3) ($0718)
+.endif
 MACSST:     .addr   MACSTACK        ; Start of macro argument stack (relocatable) ($071A)
 MACSPTR:    .addr   MACSTACK        ; Current write position in macro arg stack ($071C)
 MACSEND:    .addr   MACSTACK+$200   ; End+1 of macro argument stack ($071E)
@@ -231,7 +233,9 @@ DIRECT_DEFS_ACT:    .byte   $00   ; ($0759) $80 = "==" command-line redirect act
 LIST_SUPPRESS:      .byte   $00   ; ($075A) $80 = suppress line-number increment (.LIST OFF)
 ENDIANNESS:         .byte   $00   ; ($075B) $80 = Emit bytes BE for DBYTE
 RELADDR_FLAG:       .byte   $00   ; ($075C) Relative-address mode flag for branch instructions
+.ifdef mtu
 EXPANSION_BANK:     .byte   $FD   ; ($075D) $80 = expansion RAM (bank 3) is present and usable
+.endif
 VALUE_OUTPUT:       .byte   $00   ; ($075E) $80 = value digits have already been written to listing
 VALUE_SUPPRESS:     .byte   $00   ; ($075F) $80 = suppress value digit output in listing
 IN_STRING:          .byte   $00   ; ($0760) In-string flag for comment-character scanning
@@ -278,7 +282,9 @@ OP_HANDLER:         .word   $0000 ; ($0796) Current operator-handler vector
 MACRO_BODY_VEC:     .word   $0000 ; ($0798) Macro body expansion vector
 ERRFNP:             .word   $0000 ; ($079A) Error-recovery dispatch vector (pass-dependent)
                     .byte   $03   ; ($079C) Unused
+.ifdef mtu
 BANK_CTL_BITS:      .byte   $00   ; ($079D) 2-bit bank selector for BNKCTL
+.endif
 FILL_COUNT_NEG:     .word   $0000 ; ($079E) Negated .FILL count (16-bit)
 MACRO_ARG_CNT:      .byte   $00   ; ($07A0) Actual argument count in macro call
 STR_DELIM:          .byte   $00   ; ($07A1) Current string delimiter char
@@ -320,7 +326,9 @@ OPT_START_Y:        .byte   $00   ; ($07CB) Option token start position in line
 EVAL_X_SAVE:        .byte   $00   ; ($07CC) Saved X in EVAL_EXPRESSION
 EVAL_Y_SAVE:        .byte   $00   ; ($07CD) Saved Y in formatting routines
 MACDEF_Y_SAVE:      .byte   $00   ; ($07CE) Saved Y in DEFINE_MACRO
-SYMTBL_CHKSUM:      .word   $0000 ; ($07CF) Symbol-table checksum (16-bit)
+.ifdef mtu
+CONCEALED_CHKSUM:   .word   $0000 ; ($07CF) Used to calculate checksum for the hw-lock test (16-bit)
+.endif
 READNB_X_SAVE:      .byte   $00   ; ($07D1) Saved X scratch for READ_NEXT_BLOCK
 READBI_X_SAVE:      .byte   $00   ; ($07D2) Saved X scratch for READ_BLOCK_INNER
 OUTPUTEL_Y_SAVE:    .byte   $00   ; ($07D3) Saved Y scratch for OUTPUT_ERROR_LINE
@@ -336,8 +344,10 @@ RWARG_X_SAVE:       .byte   $00   ; ($07DC) Saved X scratch for WRITE_ARG_BYTE /
 RWARG_Y_SAVE:       .byte   $00   ; ($07DD) Saved Y scratch for WRITE_ARG_BYTE / READ_ARG_BYTE
 PRTSTR_Y_SAVE:      .byte   $00   ; ($07DF) Saved Y for PRTSTR
 OUTPGB_Y_SAVE:      .byte   $00   ; ($07DE) Saved Y for OUTPUT_LINE_PG_BRK routine
-OBJ_BUF_LIMIT:      .byte   $0a   ; ($07E0) Object buffer size in pages
-CHKSUM_PASS1:       .word   $0067 ; ($07E1) Pass-1 checksum reference (16-bit)
+.ifdef mtu
+HW_CHECK_LEN_M1:    .byte   $0a   ; ($07E0) Hardware check data length minus 1 (for concealed check)
+CHKSUM_REFERENCE:   .word   $0067 ; ($07E1) Checksum reference for the concealed hw-lock check (16-bit)
+.endif
                     .byte   $d9   ; ($07E3) Unused
 SRC_CHANNEL:        .byte   $05   ; ($07E4) CODOS channel number for source file
 LST_CHANNEL:        .byte   $06   ; ($07E5) CODOS channel for listing file
@@ -735,7 +745,10 @@ MAIN_ENTRY:
             lda     #$00
             jsr     PARSE_CMD_LINE  ; Parse source/output filenames
             jsr     OPEN_ERR_CHANNEL ; Open error file channel
+
+.ifdef mtu
             jsr     PROBE_MEMORY    ; Determine symbol-table ceiling
+.endif
 
             ; Check for no-listing option
             lda     LST_DRIVE       ; Listing drive
@@ -1217,6 +1230,7 @@ FATAL_SYNTAX_ERR:
             jmp     FATAL_COMMAND_SYNTAX
             ; Does not return
 
+.ifdef mtu
 ; ============================================================================
 ; PROBE_MEMORY
 ; Determines the top of available RAM by writing and verifying test patterns
@@ -1273,6 +1287,7 @@ PROBE_MEMORY:
             ora     #$03            ; Restore bank 0
             sta     BNKCTL
             rts
+.endif
 
 ; ============================================================================
 ; CHARACTER CLASSIFICATION ROUTINES
@@ -1366,6 +1381,7 @@ CHK_MATCH:  inx
             bcc     READ_NIBBLE     ; No: check next nibble
             jsr     ENABLE_IO_PAGE  ; Restore RAM
 .endif
+
             ; Initialise symbol value pointer and save it
             lda     #$00
             sta     SYMVAL
@@ -1550,20 +1566,30 @@ PASS1_LINE_LOOP:
 ; END_OF_PASS1  –  End-of-pass finalisation for pass 1.
 ; Called when END_SEEN or INCLUDE_POP finds the include stack empty.
 ; Calls ADVANCE_LOCCNT to emit the final segment header, then
-; performs some addressing arithmetic on OBJBUFP and writes to a computed
+; performs some addressing arithmetic on SCRATCHP and writes to a computed
 ; location.  The conditional-flag check at the end handles mismatched
 ; .IF/.ENDIF nesting.
-; NOTE: The exact semantics of the OBJBUFP shifting are unclear.
+; NOTE: The exact semantics of the SCRATCHP shifting are unclear.
 ; ============================================================================
 END_OF_PASS1:
             jsr     ADVANCE_LOCCNT  ; Flush pending segment header
-            asl     OBJBUFP         ; Shift OBJBUFP left (see NOTE above)
-            rol     OBJBUFP+1       ; Complete 16-bit left shift; carry -> RUNNING_EOR_SUM inc
+
+.ifdef mtu
+            ; Second part of the concealed hardware-lock check:
+            ;
+            ; Here, SCRATCHP was previously initizalized to $5f71. After
+            ; the shift left -> $bee2, plus the $e5 offset -> $bfc7 == SPREGREN
+            ; So, "sta (SCRATCHP),Y" enables the special registers read
+            ;
+            asl     SCRATCHP        ; Shift SCRATCHP left (see NOTE above)
+            rol     SCRATCHP+1      ; Complete 16-bit left shift; carry -> RUNNING_EOR_SUM inc
             bcc     @SKIP
             inc     RUNNING_EOR_SUM
-@SKIP:      ldy     #$e5            ; Fixed offset for checksum
+@SKIP:      ldy     #$e5            ; Fixed offset for SPREGREN
             lda     RUNNING_EOR_SUM
-            sta     (OBJBUFP),Y     ; Write RUNNING_EOR_SUM at computed OBJBUFP+$E5
+            sta     (SCRATCHP),Y    ; Write to SPREGREN to enable special registers read
+.endif
+
             bit     COND_DEPTH      ; COND_DEPTH: any open .IF blocks?
             bpl     @DONE
             asl     COND_DEPTH      ; Shift depth flag
@@ -1577,7 +1603,7 @@ END_OF_PASS1:
 ; /OBJBUF_WRITE_BYTE, and writes the assembly listing.
 ;
 ; Before the main loop, verifies that the symbol table was not corrupted
-; between passes by checking SYMTBL_CHKSUM against the values stored at
+; between passes by checking CONCEALED_CHKSUM against the values stored at
 ; the end of pass 1.  If they differ, a crash at HALT is triggered.
 ;
 ; ERRFNP is set to PASS2_ERROR_HANDLER (pass-2 error recovery vector).
@@ -1608,24 +1634,30 @@ PASS2_MAIN_LOOP:
             ldx     SRC_CHANNEL
             svc     $11             ; Set channel position to beginning of data
 
-            ; Compute symbol-table checksum for integrity verification
-            ; Reads OBJ_BUF_LIMIT+1 bytes from (OBJBUFP)+$E1 and XOR-folds them
-            ; against RUNNING_EOR_SUM (running EOR sum) and CUMULATIVE_XOR
+.ifdef mtu
+            ; Third part of the concealed hardware-lock check
+            ;
+            ; SCRATCHP here contains $bee2 after the shifting done in END_OF_PASS1.
+            ; Adding the $e1 offset -> SPREGREAD, or special registers read byte.
+            ; Computes checksum for hardware-lock verification
+            ; Reads HW_CHECK_LEN_M1+1 bytes (which is $0b) from SPREGREAD and XOR-folds
+            ; them against RUNNING_EOR_SUM (running EOR sum) and CUMULATIVE_XOR
             ; (cumulative XOR byte)
+            ;
             ldy     #$e1
-            ldx     OBJ_BUF_LIMIT
+            ldx     HW_CHECK_LEN_M1
             inx
-@LOOP:      lda     (OBJBUFP),Y
+@LOOP:      lda     (SCRATCHP),Y
             eor     RUNNING_EOR_SUM
             sta     CUMULATIVE_XOR  ; Accumulate XOR into CUMULATIVE_XOR
             dex
             bne     @LOOP
 
-            ; Second checksum pass: nibble-based scramble into SYMTBL_CHKSUM
-            lda     SYMTBL_CHKSUM
+            ; Second checksum pass: nibble-based scramble into CONCEALED_CHKSUM
+            lda     CONCEALED_CHKSUM ; This really does nothing, as A is overwritten below before use
             ldx     #$05
             clc
-@LOOP2:     lda     (OBJBUFP),Y
+@LOOP2:     lda     (SCRATCHP),Y
             and     #$0f            ; Low nibble only
             cpx     #$02
             beq     @SKIP2
@@ -1637,14 +1669,15 @@ PASS2_MAIN_LOOP:
             rol     A
             rol     A
 @SKIP2:     clc
-            adc     SYMTBL_CHKSUM
-            sta     SYMTBL_CHKSUM   ; Accumulate into SYMTBL_CHKSUM
+            adc     CONCEALED_CHKSUM
+            sta     CONCEALED_CHKSUM ; Accumulate into CONCEALED_CHKSUM
             bcc     @SKIP3
-            eor     SYMTBL_CHKSUM+1
-            sta     SYMTBL_CHKSUM+1
+            eor     CONCEALED_CHKSUM+1
+            sta     CONCEALED_CHKSUM+1
 
 @SKIP3:     dex
             bne     @LOOP2
+.endif
 
             ; If definitions file is needed, assign the channel
             lda     #<DEF_FNAME_SLOT
@@ -1659,10 +1692,17 @@ PASS2_MAIN_LOOP:
             svc     $12             ; Set channel position to end of file
 
 @NODEF:     jsr     READ_NEXT_BLOCK ; Read next block from channel
-            ; Verify symbol-table checksum against pass-1 reference values
-            lda     SYMTBL_CHKSUM+1
-            eor     CHKSUM_PASS1+1
+
+.ifdef mtu
+            ; Fourth part of the concealed hardware-lock check
+            ;
+            ; Verify MSB of hardware checksum against pass-1 reference values
+            ;
+            lda     CONCEALED_CHKSUM+1
+            eor     CHKSUM_REFERENCE+1
             bne     CRASH           ; Mismatch -> crash
+.endif
+
             bit     DIRECT_DEFS_ACT ; Redirect active?
             bpl     @NOREDIR
             jsr     SETUP_DDEF_READ_MODE
@@ -1670,11 +1710,18 @@ PASS2_MAIN_LOOP:
 
 @NOREDIR:   jsr     READ_BLOCK_SVC  ; Read next block from channel
 
-@SKIP4:     lda     SYMTBL_CHKSUM
-            eor     CHKSUM_PASS1
+@SKIP4:     
+.ifdef mtu
+            ; Fifth and last part of the concealed hardware-lock check
+            ;
+            ; Verify LSB of hardware checksum against pass-1 reference values
+            ;
+            lda     CONCEALED_CHKSUM
+            eor     CHKSUM_REFERENCE
             beq     PASS2_DONE      ; Match: proceed
 
 CRASH:      jmp     DO_HALT         ; Checksum mismatch -> crash
+.endif
 
 PASS2_DONE: tsx
             stx     SAVED_SP        ; Save SP for error longjmp
@@ -2157,6 +2204,7 @@ HANDLE_OVL: jsr     SKIP_LEADING_SPACES ; Skip spaces
 ERR_RANGE:  jsr     ERROR_RANGE           ; ERR_TYPE_LADDER (range error)
             ; Not reached
 
+.ifdef mtu
 ; ============================================================================
 ; HANDLE_BANK
 ; Handles the ".BANK" directive.
@@ -2178,6 +2226,7 @@ HANDLE_BANK:
             bcs     ERR_RANGE       ; >= 4 -> range error
             sta     BANK_NUM        ; Evaluated bank number
             rts
+.endif
 
 ; ============================================================================
 ; ADVANCE_LOCCNT
@@ -2350,6 +2399,24 @@ HANDLE_FILL:
             jmp     @LOOP
 
 @DONE:      rts
+
+.ifdef kim1 
+            
+PROG_SIZE = * - START
+            
+            .segment "CODE2"
+
+            ; Loadable file data
+            ; 
+            .byte   $58             ; CODOS loadable file header byte
+            .byte   $00             ; Memory overlay
+            .byte   $00             ; Memory bank
+            .byte   $00             ; Reserved
+            .addr   START           ; Entry point
+            .addr   EMIT_BYTE_ENTRY ; Load address
+            .word   PROG2_SIZE      ; Memory image size
+
+.endif
 
 ; ============================================================================
 ; EMIT_BYTE_ENTRY
@@ -3142,6 +3209,8 @@ ISYM_ZERO_LOOP:
             sta     MACTBLP
             lda     HEAPST+1
             sta     MACTBLP+1
+
+.ifdef mtu
             ; Initialize secondary heap pointers with HEAP2ST
             lda     HEAP2ST
             sta     HEAP2WRP
@@ -3149,6 +3218,8 @@ ISYM_ZERO_LOOP:
             lda     HEAP2ST+1
             sta     HEAP2WRP+1
             sta     HEAP2PRP+1
+.endif
+
             ; Predefined macro registration loop
 ISYM_MACRO_PREDEF_LOOP:
             lda     MACTBLP
@@ -3182,7 +3253,14 @@ ISYM_HASH_INSERT:
 ISYM_NEXT_MACRO:
             lda     (MACTBLP),Y         ; Any more entries? (0 = end of list)
             bne     ISYM_MACRO_PREDEF_LOOP
-            ; Configure SYMTBLP+12/+13 pointing to opcodes
+
+.ifdef mtu
+            ; First part of the concealed hardware-lock check
+            ;
+            ; SYMTBLP,$0c is actually SCRATCHP
+            ; SCRATCHP is initializaed with $5f71, which is then manipulated
+            ; in parts 2 and 3 to point to SPREGREN y SPREGREAD
+            ; 
             ldx     #$0c
             lda     #$71
             sta     SYMTBLP,X           ; SYMTBLP[12] = $71 (low address)
@@ -3190,8 +3268,10 @@ ISYM_NEXT_MACRO:
             lda     #$5f
             sta     SYMTBLP,X           ; SYMTBLP[13] = $5F (high address)
             lda     #$00
-            sta     SYMTBL_CHKSUM
-            sta     SYMTBL_CHKSUM+1
+            sta     CONCEALED_CHKSUM
+            sta     CONCEALED_CHKSUM+1
+.endif
+
             ; SYMVALP = MACTBLP + 1 (start of free heap)
             lda     MACTBLP
             clc
@@ -3456,6 +3536,8 @@ SST_FINAL_CHAR:
 READ_MACRO_BODY_BYTE:
             stx     READMB_X_SAVE       ; Save X
             ldx     #$00
+
+.ifdef mtu
             bit     EXPANSION_BANK      ; EXPANSION_BANK: secondary RAM active?
             bpl     RMBB_PRIMARY_READ   ; No -> read from primary heap
             ; Read from expansion RAM (bank BANK_CTL_BITS)
@@ -3471,6 +3553,8 @@ READ_MACRO_BODY_BYTE:
             sta     BNKCTL
             pla
             jmp     RMBB_INC_PTR
+.endif
+
 RMBB_PRIMARY_READ:
             lda     (OPCTBLP,X)         ; Read byte from primary heap
 RMBB_INC_PTR:
@@ -3818,13 +3902,15 @@ DEFINE_MACRO:
             bvc     DMAC_REDEF_MACRO    ; C=1, N=1, V=0 -> existing macro: update
 DMAC_DUPLICATE_ERR:
             ldy     #$00
-            jsr     ERROR_DUPLICATE               ; ERR_TYPE_LADDER: duplicate error
+            jsr     ERROR_DUPLICATE     ; ERR_TYPE_LADDER: duplicate error
             ; Does not return
 DMAC_NEW_MACRO:
             lda     #$e0
             jsr     WRITE_TO_PRIMARY_HEAP ; Write type $E0 (macro)
             asl     A
             sta     ENTRY_TYPE_FLAGS    ; ENTRY_TYPE_FLAGS = $C0
+
+.ifdef mtu
             bit     EXPANSION_BANK      ; EXPANSION_BANK available?
             bpl     DMAC_CALC_BODY_ADDR_PRI
             ; Body in expansion RAM
@@ -3833,6 +3919,8 @@ DMAC_NEW_MACRO:
             lda     HEAP2WRP+1
             sta     MACBODYP+1
             jmp     DMAC_WRITE_BODY_PTR
+.endif
+
 DMAC_CALC_BODY_ADDR_PRI:
             lda     #$03                ; Default offset (no xref)
             bit     XREF_MODE           ; XREF_MODE active?
@@ -3871,6 +3959,8 @@ DMAC_REDEF_MACRO:
             lda     #$e0
             sta     (SYMTBLP),Y         ; Update type byte in place
             iny
+
+.ifdef mtu
             bit     EXPANSION_BANK      ; EXPANSION_BANK available?
             bpl     DMAC_REDEF_BODY_ADDR_PRI
             lda     HEAP2WRP
@@ -3878,6 +3968,8 @@ DMAC_REDEF_MACRO:
             lda     HEAP2WRP+1
             sta     MACBODYP+1
             jmp     DMAC_WRITE_REDEF_PTR
+.endif
+
 DMAC_REDEF_BODY_ADDR_PRI:
             lda     SYMVALP
             sta     MACBODYP
@@ -5463,6 +5555,7 @@ PRINT_FINAL_SUM:
             svc     $0a                 ; Encode total heap size as hex ASCII
             svc     7                   ; Output "$xxxx" total
             jsr     PRTSTR
+.ifdef mtu
             .byte   " BYTES AVAILABLE (BANK 0)", 0
             bit     EXPANSION_BANK      ; Expansion RAM bank present?
             bpl     @DONE               ; No: skip secondary heap report
@@ -5487,6 +5580,10 @@ PRINT_FINAL_SUM:
             svc     7
             jsr     PRTSTR
             .byte   " IN EXPANSION RAM BANK.", 0
+.else
+            .byte   " BYTES AVAILABLE", 0
+.endif
+
 @DONE:      jsr     PRTSTR
             .byte   $0d, "* END OF ASSEMBLY. *", $0d, 0
             rts
@@ -5805,7 +5902,7 @@ ADVANCE_PEEK_BLANK:
 ;   Z clear otherwise.
 ;
 ; Entry:  Y = index into source line buffer LINE_BUF
-; Exit:   Z flag set ↔ character is blank/end-of-field; A = character; Y unchanged
+; Exit:   Z flag set <-> character is blank/end-of-field; A = character; Y unchanged
 ; ============================================================================
 PEEK_BLANK_CHAR:
             lda     LINE_BUF,Y          ; Read character at current line position
@@ -5828,7 +5925,7 @@ ADVANCE_SKIP_LEADING_SPACES:
 ;
 ; Entry:  Y = starting index into LINE_BUF
 ; Exit:   Y = index of first non-space (or NUL/comment) character
-;         A = stopping character; Z set ↔ stopping at NUL or comment delimiter
+;         A = stopping character; Z set <-> stopping at NUL or comment delimiter
 ; ============================================================================
 SKIP_LEADING_SPACES:
             lda     LINE_BUF,Y          ; Read character
@@ -5837,7 +5934,7 @@ SKIP_LEADING_SPACES:
             cmp     #$00                ; NUL?
             beq     @DONE               ; Yes: stop (Z set)
             cmp     COMMENT             ; Comment delimiter?
-@DONE:      rts                         ; Return; Z set ↔ end-of-field reached
+@DONE:      rts                         ; Return; Z set <-> end-of-field reached
 
 ; ============================================================================
 ; STORE_MACRO_LINE
@@ -5932,15 +6029,23 @@ RECORD_XREF:
             lda     LINE_NUM+1
             jsr     WRITE_TO_HEAP
             lda     SYMVALP+1           ; SYMVALP = next write position in primary heap
+
+.ifdef mtu
             bit     EXPANSION_BANK      ; Is expansion RAM bank available?
             bpl     @NOEXP              ; No: use SYMVALP
             lda     HEAP2WRP+1          ; Yes: use secondary heap write pointer (hi)
+.endif
+
 @NOEXP:     sta     (SYMTBLP),Y         ; Update symbol entry chain-link hi -> new record
             dey
             lda     SYMVALP             ; Primary heap (lo)
+
+.ifdef mtu
             bit     EXPANSION_BANK
             bpl     @NOEXP2
             lda     HEAP2WRP            ; Secondary heap write pointer (lo)
+.endif
+
 @NOEXP2:    sta     (SYMTBLP),Y         ; Update symbol entry chain-link lo -> new record
             ldy     EVAL_Y_SAVE         ; Restore Y
             rts
@@ -5963,6 +6068,7 @@ RECORD_XREF:
 ; Falls through to WRITE_TO_PRIMARY_HEAP if EXPANSION_BANK is clear.
 ; ============================================================================
 WRITE_TO_HEAP:
+.ifdef mtu
             bit     EXPANSION_BANK      ; Use secondary heap (expansion RAM)?
             bpl     WRITE_TO_PRIMARY_HEAP
             stx     SAVEX               ; Save X
@@ -5993,6 +6099,7 @@ WRITE_TO_HEAP:
             pla
             ldx     SAVEX               ; Restore X
             rts
+.endif
 
 ; ============================================================================
 ; WRITE_TO_PRIMARY_HEAP
@@ -6830,7 +6937,7 @@ PARSE_HEX_LITERAL:
             sbc     #'0'                ; Normalise: '0'=0, '9'=9, 'A'->10 etc.
             bcc     RETURN_VALUE        ; < '0': not hex -> done
             cmp     #$0a
-            bcc     @DECIMAL           ; 0..9: valid decimal digit
+            bcc     @DECIMAL            ; 0..9: valid decimal digit
             sbc     #$07                ; A..F: subtract 7 more ($41 - $30 - 7 = 10)
             cmp     #$0a
             bcc     RETURN_VALUE        ; < 10 after correction: gap character, done
@@ -7228,10 +7335,12 @@ HASH_LKP_MISMATCH:
             lda     HASHTBLP            ; Hi byte differs: continue stepping lo
             jmp     @PROBE_LP
 
-            ; Symbol-table corruption crash point: jumped to from PASS2_MAIN_LOOP
-            ; when the symbol-table checksum fails between passes.
+.ifdef mtu
+            ; Crash point for the concealed hardware-lock test fail.
+            ; Jumped to from PASS2_MAIN_LOOP
 DO_HALT:    php                         ; Save flags (Z almost certainly clear)
             bne     HALT                ; Z clear -> always taken -> halt the CPU
+.endif
 
             ; Wrap-around: restart probing from the end of the hash table
 HASH_LKP_WRAP:
@@ -7258,7 +7367,9 @@ HASH_LKP_CHKEND:
             bit     ENTRY_TYPE_FLAGS    ; Set N and V flags from type byte for caller
             rts                         ; Return C set (entry found)
 
+.ifdef mtu
 HALT:       hlt                         ; Unofficial JAM/HLT — freezes CPU; reset required
+.endif
 
 ; ============================================================================
 ; SORT_SYMTBL
@@ -7270,7 +7381,7 @@ HALT:       hlt                         ; Unofficial JAM/HLT — freezes CPU; re
 ;
 ; Phase 1 — Compaction:
 ;   Walks through the hash table from HASHTST.  Whenever an empty (00 00)
-;   bucket is found at HASHTBLP, a forward scan with OBJBUFP finds the next
+;   bucket is found at HASHTBLP, a forward scan with SCRATCHP finds the next
 ;   non-empty bucket and the two entries are swapped.  This moves all filled
 ;   buckets to the low end of the table and all empty buckets to the high end.
 ;   At the end of compaction, SORTED_END/SORTED_END+1 is set to the address of the first
@@ -7300,41 +7411,41 @@ SORT_SYMTBL:
             lda     (HASHTBLP),Y        ; Check current bucket hi byte
             bne     @ADVANCE            ; Non-empty: advance
 
-            ; Found an empty bucket at HASHTBLP; scan forward with OBJBUFP for a filled one
+            ; Found an empty bucket at HASHTBLP; scan forward with SCRATCHP for a filled one
             lda     HASHTBLP
-            sta     OBJBUFP
+            sta     SCRATCHP
             lda     HASHTBLP+1
-            sta     OBJBUFP+1
+            sta     SCRATCHP+1
 
-@SCAN:      lda     OBJBUFP             ; Advance OBJBUFP by one bucket (2 bytes)
+@SCAN:      lda     SCRATCHP            ; Advance SCRATCHP by one bucket (2 bytes)
             clc
             adc     #$02
-            sta     OBJBUFP
+            sta     SCRATCHP
             bcc     @ISEOT
-            inc     OBJBUFP+1
+            inc     SCRATCHP+1
 
-@ISEOT:     cmp     HASHTEND            ; Has OBJBUFP reached the end of the table?
+@ISEOT:     cmp     HASHTEND            ; Has SCRATCHP reached the end of the table?
             bne     @CONT
-            lda     OBJBUFP+1
+            lda     SCRATCHP+1
             cmp     HASHTEND+1
             beq     @PH1_COMPLETE       ; Yes: compaction complete
-            lda     OBJBUFP
+            lda     SCRATCHP
 
 @CONT:      ldy     #$00
-            lda     (OBJBUFP),Y         ; Check OBJBUFP bucket lo byte
+            lda     (SCRATCHP),Y        ; Check SCRATCHP bucket lo byte
             bne     @SWAP               ; Non-empty: swap with the empty slot at HASHTBLP
             iny
-            lda     (OBJBUFP),Y
-            beq     @SCAN               ; OBJBUFP also empty: keep scanning forward
+            lda     (SCRATCHP),Y
+            beq     @SCAN               ; SCRATCHP also empty: keep scanning forward
 
-            ; Swap the filled bucket at OBJBUFP with the empty bucket at HASHTBLP
+            ; Swap the filled bucket at SCRATCHP with the empty bucket at HASHTBLP
 @SWAP:      ldy     #$01
-@XCHANGE:   lda     (HASHTBLP),Y        ; Exchange 2 bytes: HASHTBLP[y] ↔ OBJBUFP[y]
+@XCHANGE:   lda     (HASHTBLP),Y        ; Exchange 2 bytes: HASHTBLP[y] <-> SCRATCHP[y]
             tax
-            lda     (OBJBUFP),Y
+            lda     (SCRATCHP),Y
             sta     (HASHTBLP),Y
             txa
-            sta     (OBJBUFP),Y
+            sta     (SCRATCHP),Y
             dey
             bpl     @XCHANGE            ; Repeat for lo byte (Y: 1 -> 0)
 
@@ -7394,17 +7505,17 @@ SORT_SYMTBL:
 
             ; Outer loop: iterate HASHTBLP from HASHTST to SORT_LIMIT − 1
 @OUTER:     lda     HASHTBLP
-            sta     OBJBUFP             ; OBJBUFP = current outer-loop element
+            sta     SCRATCHP            ; SCRATCHP = current outer-loop element
             lda     HASHTBLP+1
-            sta     OBJBUFP+1
+            sta     SCRATCHP+1
 
-            ; Inner (insertion-sort) loop: compare element at OBJBUFP with
+            ; Inner (insertion-sort) loop: compare element at SCRATCHP with
             ; the element gap positions ahead of it (at SYMNAMP)
-@INNER:     lda     OBJBUFP
+@INNER:     lda     SCRATCHP
             clc
-            adc     SORT_GAP            ; SYMNAMP = OBJBUFP + gap
+            adc     SORT_GAP            ; SYMNAMP = SCRATCHP + gap
             sta     SYMNAMP
-            lda     OBJBUFP+1
+            lda     SCRATCHP+1
             adc     SORT_GAP+1
             sta     SYMNAMP+1
 
@@ -7414,9 +7525,9 @@ SORT_SYMTBL:
             sbc     SORTED_END+1        ; SYMNAMP+1 − SORTED_END+1 (with borrow)
             bcs     @ADV_OUTER          ; SYMNAMP >= SORTED_END: inner loop done
 
-            lda     OBJBUFP             ; SYMNAMP2 = OBJBUFP (the element to insert)
+            lda     SCRATCHP            ; SYMNAMP2 = SCRATCHP (the element to insert)
             sta     SYMNAMP2
-            lda     OBJBUFP+1
+            lda     SCRATCHP+1
             sta     SYMNAMP2+1
 
             ; Compare elements at SYMNAMP2 and SYMNAMP; swap if out of order
@@ -7437,16 +7548,16 @@ SORT_SYMTBL:
             sbc     HASHTST+1
             bcs     @BACK_SCAN          ; Still within range: continue backward scan
 
-            ; Inner loop done: advance OBJBUFP by gap for next outer step
+            ; Inner loop done: advance SCRATCHP by gap for next outer step
 @INNER_DONE:
-            lda     OBJBUFP
+            lda     SCRATCHP
             clc
-            adc     SORT_GAP            ; OBJBUFP += gap
-            sta     OBJBUFP
-            lda     OBJBUFP+1
+            adc     SORT_GAP            ; SCRATCHP += gap
+            sta     SCRATCHP
+            lda     SCRATCHP+1
             adc     SORT_GAP+1
-            sta     OBJBUFP+1
-            jmp     @INNER               ; Continue inner loop
+            sta     SCRATCHP+1
+            jmp     @INNER              ; Continue inner loop
 
             ; SYMNAMP >= SORTED_END: advance outer HASHTBLP by 2 and check limit
 @ADV_OUTER: lda     HASHTBLP
@@ -7531,7 +7642,7 @@ COMPARE_SYMBOL_ENTRIES:
 
             ; Out of order: swap the two 2-byte pointers in the bucket table
 @SWAP:      ldy     #$01
-@LOOP:      lda     (SYMNAMP2),Y        ; Exchange SYMNAMP2[y] ↔ SYMNAMP[y]
+@LOOP:      lda     (SYMNAMP2),Y        ; Exchange SYMNAMP2[y] <-> SYMNAMP[y]
             tax
             lda     (SYMNAMP),Y
             sta     (SYMNAMP2),Y
@@ -7896,10 +8007,11 @@ FORMAT_MACRO_XREF:
             ; Reverse the xref linked list in place (forward-link while printing).
             ; The list is singly-linked from newest to oldest; we need to walk to
             ; the beginning and print in forward order.
-@CONT:      lda     #$00                ; OBJBUFP = 0 (will hold the reversed "next" ptr)
-            sta     OBJBUFP
-            sta     OBJBUFP+1
+@CONT:      lda     #$00                ; SCRATCHP = 0 (will hold the reversed "next" ptr)
+            sta     SCRATCHP
+            sta     SCRATCHP+1
 
+.ifdef mtu
             ; Switch to expansion RAM bank if available
             bit     EXPANSION_BANK
             bpl     @WALK               ; No expansion RAM: skip bank switch
@@ -7907,6 +8019,7 @@ FORMAT_MACRO_XREF:
             and     #<~$03              ; Bank 3
             ora     BANK_CTL_BITS       ; Select working bank
             sta     BNKCTL
+.endif
 
             ; Walk backward through the xref chain, reversing links as we go
 @WALK:      lda     SYMTBLP
@@ -7925,10 +8038,10 @@ FORMAT_MACRO_XREF:
             sta     SYMNAMP+1
 
             ; Overwrite the link field with the forward pointer (reverse the link)
-            lda     OBJBUFP+1
+            lda     SCRATCHP+1
             sta     (SYMTBLP),Y         ; Write reversed link hi
             dey
-            lda     OBJBUFP
+            lda     SCRATCHP
             sta     (SYMTBLP),Y         ; Write reversed link lo
 
             lda     SYMNAMP             ; Is the previous-record pointer non-null?
@@ -7937,9 +8050,9 @@ FORMAT_MACRO_XREF:
 
             ; Not yet at start: continue reversing
             lda     SYMTBLP
-            sta     OBJBUFP             ; OBJBUFP = current record (for next iteration)
+            sta     SCRATCHP            ; SCRATCHP = current record (for next iteration)
             lda     SYMTBLP+1
-            sta     OBJBUFP+1
+            sta     SCRATCHP+1
             lda     SYMNAMP
             sta     SYMTBLP             ; SYMTBLP = previous record
             lda     SYMNAMP+1
@@ -7954,6 +8067,7 @@ FORMAT_MACRO_XREF:
             lda     (SYMTBLP),Y         ; Line number hi byte
             sta     SYMVAL+1
 
+.ifdef mtu
             ; Restore RAM bank (main bank 0) after reading from expansion RAM
             bit     EXPANSION_BANK
             bpl     @FMT16
@@ -7961,6 +8075,7 @@ FORMAT_MACRO_XREF:
             and     #$fc                ; Mask out other bits
             ora     #$03                ; Bank 0 = main data bank
             sta     BNKCTL
+.endif
 
 @FMT16:     jsr     FORMAT_DECIMAL_16   ; Write line number in decimal
 
@@ -7984,12 +8099,15 @@ FORMAT_MACRO_XREF:
             bcc     @INDENT
 
             ; Follow the forward-reversed link to the next (more-recent) xref record
-@CONT2:     bit     EXPANSION_BANK
+@CONT2:
+.ifdef mtu
+            bit     EXPANSION_BANK
             bpl     @CONT3
             lda     BNKCTL
             and     #<~$03              ; Bank 3
             ora     BANK_CTL_BITS       ; Switch to expansion RAM
             sta     BNKCTL
+.endif
 
 @CONT3:     ldy     #$00
             lda     (SYMTBLP),Y         ; Read the (now-reversed) forward link lo byte
@@ -8008,12 +8126,15 @@ FORMAT_MACRO_XREF:
             jmp     @PRINT              ; Print next line number
 
             ; All xref records printed; restore main bank if needed
-@DONE:      bit     EXPANSION_BANK
+@DONE:      
+.ifdef mtu
+            bit     EXPANSION_BANK
             bpl     @CONT4
             lda     BNKCTL
             and     #$fc                ; Mask out other bits
             ora     #$03                ; Restore bank 0
             sta     BNKCTL
+.endif
 
             ; Flush the final listing line if any content was written past column 16
 @CONT4:     cpx     #$10                ; Only indentation written (column = 16)?
@@ -8145,7 +8266,11 @@ INST_SIZE:  .byte   $01                 ; 0  — Accumulator / Implied
             .byte   $01                 ; 11 — Directive-internal (1 byte)
             .byte   $02                 ; 12 — Directive-internal (2 bytes)
 
+.ifdef mtu
 PROG_SIZE = * - START
+.else
+PROG2_SIZE = * - EMIT_BYTE_ENTRY
+.endif
 
             .bss
 
@@ -8184,6 +8309,7 @@ LSTNGBUF:   .res    $500                ; Listing output accumulation buffer (1.
 SYMHASHT:   .res    $1000               ; Symbol table hash table (4 KB, 2 048 buckets)
 MACSTACK:   .res    $200                ; Macro invocation argument stack (512 bytes)
 
+.ifdef mtu
             .segment "BSS3"
 
 ; =============================================================================
@@ -8197,6 +8323,8 @@ MACSTACK:   .res    $200                ; Macro invocation argument stack (512 b
 ; =============================================================================
 
 SCNDHEAP:   .res    $FF00               ; Secondary heap in expansion RAM (≈ 64 KB)
+
+.endif
 
             .data
 
@@ -8929,10 +9057,12 @@ TABLE:      .byte   $13             ; Entry length
             .byte   $e8
             .addr   HANDLE_OVL
 
+.ifdef mtu
             .byte   $0a
             .byte   ".BANK*"        ; Set memory bank number (0–3) for the segment
             .byte   $e8
             .addr   HANDLE_BANK
+.endif
 
             .byte   $09
             .byte   ".OPT*"         ; Assembler option (ignored; returns immediately)

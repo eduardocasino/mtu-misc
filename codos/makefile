@@ -44,8 +44,7 @@ FILESYSTEM +=	dir.c \
 				syserrmsg.z
 
 ifeq ($(ARCH),mtu)
-  FILESYSTEM += cpuid.c \
-				macasm.c
+  FILESYSTEM += cpuid.c
 endif
 
 ifeq ($(ARCH),kim1)
@@ -53,7 +52,7 @@ ifeq ($(ARCH),kim1)
 				imu.t
 endif
 
-FILESYSTEM +=	basic.c cil.z cilb.z syslibnam.z
+FILESYSTEM +=	macasm.c basic.c cil.z cilb.z syslibnam.z concat.a
 
 CODOSOBJS = codos.o comdproc.o svcproc.o $(IODRIVER).o
 
@@ -133,13 +132,6 @@ $(foreach ver,$(VERSIONS),$(eval build/$(ver)/graphdriver.o: graphdriver.asm bui
 	; echo "AS $$@" \
 	; $(AS) $(AFLAGS) -D CODOS2_VER=$(ver) -I build/$(ver) -l $(basename $$@).lst -o $$@ $$<))
 
-$(foreach ver,$(VERSIONS),$(eval build/$(ver)/macasm.c: build/$(ver)/macasm.o build/$(ver)/macasm.cfg \
-	; echo "LD $$@" \
-	; $(LD) -C $$(@:.c=.cfg) -vm -m $(basename $$@).map -o $$@ $$<))
-
-$(foreach ver,$(VERSIONS),$(eval build/$(ver)/macasm.o: macasm.asm monomeg.inc build/$(ver)/symbols.inc $(SYSDEPS) \
-	; echo "AS $$@" \
-	; $(AS) $(AFLAGS) -D CODOS2_VER=$(ver) -I build/$(ver) -l $(basename $$@).lst -o $$@ $$<))
 endif
 
 $(foreach ver,$(VERSIONS),$(eval build/$(ver)/overlays.bin: $(addprefix build/$(ver)/,$(OVERLAYS)) \
@@ -159,6 +151,14 @@ $(foreach ver,$(VERSIONS),$(eval build/$(ver)/%.c: build/$(ver)/%.o build/$(ver)
 	; $(LD) -C $$(@:.c=.cfg) -vm -m $(basename $$@).map -o $$@ $$<))
 
 $(foreach ver,$(VERSIONS),$(eval build/$(ver)/%.o: %.asm build/$(ver)/k1013.inc build/$(ver)/symbols.inc  \
+	; echo "AS $$@" \
+	; $(AS) $(AFLAGS) -D CODOS2_VER=$(ver) -I build/$(ver) -l $(basename $$@).lst -o $$@ $$<))
+
+$(foreach ver,$(VERSIONS),$(eval build/$(ver)/macasm.c: build/$(ver)/macasm.o build/$(ver)/macasm-$(ARCH).cfg \
+	; echo "LD $$@" \
+	; $(LD) -C $$(@:.c=-$(ARCH).cfg) -vm -m $(basename $$@).map -o $$@ $$<))
+
+$(foreach ver,$(VERSIONS),$(eval build/$(ver)/macasm.o: macasm.asm monomeg.inc build/$(ver)/symbols.inc $(SYSDEPS) \
 	; echo "AS $$@" \
 	; $(AS) $(AFLAGS) -D CODOS2_VER=$(ver) -I build/$(ver) -l $(basename $$@).lst -o $$@ $$<))
 

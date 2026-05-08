@@ -1,11 +1,11 @@
 MEMORY {
 
 # BANK 0
-    ZEROPAGE : start = $0000,    size = $100;
-    RAM      : start = $0700-$A, size = $F700+$A, file="build/%%VERSION%%/macasm.c";
-    DATARAM  : start = $3f00-$A, size = $40A+$A,  file="build/%%VERSION%%/macasm.c";
+    ZEROPAGE : start = $0000,         size = $100;
+    RAM      : start = __APPSADDR-$A, size = __APPSSIZE+$A, file="build/%%VERSION%%/macasm.c";
+    DATARAM  : start = $3f00-$A,      size = $40A+$A,       file="build/%%VERSION%%/macasm.c";
 # BANK 3
-    BANK3    : start = $0000,    size = $FF00;
+    BANK3    : start = $0000,         size = $FF00;
 }
 
 SEGMENTS {

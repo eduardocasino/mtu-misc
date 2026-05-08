@@ -1,0 +1,17 @@
+MEMORY {
+
+# BANK 0
+    ZEROPAGE : start = $0000,         size = $100;
+    RAM      : start = __APPSLOW-$A,  size = __APPSLSIZE+$A, file="build/%%VERSION%%/macasm.c";
+    RAM2     : start = __APPSADDR-$A, size = __APPSSIZE+$A,  file="build/%%VERSION%%/macasm.c";
+    DATARAM  : start = $4900-$A,      size = $40A+$A,        file="build/%%VERSION%%/macasm.c";
+}
+
+SEGMENTS {
+    ZEROPAGE : load = ZEROPAGE, type = zp,  start = $40;
+    CODE     : load = RAM,      type = rw;
+    CODE2    : load = RAM2,     type = rw;
+    BSS      : load = RAM2,     type = bss, start = $3E00;
+    DATA     : load = DATARAM,  type = rw;
+    BSS2     : load = RAM2,     type = bss, start = $ac00;
+}

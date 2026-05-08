@@ -1,0 +1,145 @@
+        .PAGE    'CONCAT UTILITY: JOIN FILES TOGETHER'
+LIST    =       1       ;SPECIFI LIST==7 TO FORCE FULL LIST
+        .LIST   LIST
+;
+; PROGRAM TO CONCATENATE FILES BY LARRY ISAACS
+
+; DECLARATIONS
+
+BUF     = $A000         ; LOCATION OF LARGE TRANSIENT BUFFER
+BUFEND  = $B3FF
+BUFSIZ  = BUFEND-BUF
+U1      = $B2
+U2      = $B4
+U5      = $BA
+SVCENB  = $EE
+;
+CODORG  = $B400
+
+;        MACROS...
+
+MSG     .MACRO  ;'TEXT OF MESSAGE'
+        SVC     2
+        .BYTE   2,!1,$0D,0
+        .ENDMAC
+;
+ERROR   .MACRO  ;'TEXT OF ERROR MESSAGE'
+        SVC     2
+        .BYTE   2,!1,$0D,0
+        SEC
+        RTS
+        .ENDMAC
+
+SETIM   .MACRO ; WORDCONSTANT,WORDDEST
+        LDA     #<!1
+        STA     !2
+        LDA     #>!1
+        STA     !2+1
+        .ENDMAC
+
+        *=CODORG
+;
+CONCAT  SEC             ;SET SVC ENABLE
+        ROR SVCENB
+        LSR FINFLG      ;CLEAR FINISHED FLAG
+        SVC 12          ;QUERRY I/O BUFFERS
+        LDX #6
+        STX CHAN
+        JSR GETFN1      ;TRY YO GET CHANNEL FROM COMMAND LINE
+        BCC CONCA2      ;BR IF GOT ONE
+        LSR FINFLG      ;CLEAR AGAIN
+CONCA1  MSG 'FILE TO CONCATENATE TO ?'
+        LDX #6
+        JSR GETFN       ;GET THE FILE NAME
+        BCC CONCA2      ;BR IF GOT ONE
+        BIT FINFLG      ;SEE IF TIME TO QUIT
+        BPL CONCA1      ;BR IF NO, TRY AGAIN
+        SVC 1
+CONCA2  BPL CONCA3      ;BR IF NEW FILE
+        SVC 18          ;POSITION TO EOF IF NOT
+CONCA3  ASL A           ;CHECK FOR LOCKED FILE
+        ASL A
+        BPL CONCA5      ;BR IF NOT LOCKED
+        MSG 'FILE IS LOCKED.'
+        JMP CONCA1
+CONCA4  JSR XFER        ;TRANSFER THE DATA
+CONCA5  MSG 'FILE TO CONCATENATE?'
+        LDX #5
+        JSR GETFN       ;GET INPUT FILE
+        BCC CONCA4      ;BR IF GOT ONE
+        BIT FINFLG      ;SEE IF TIME TO QUIT
+        BPL CONCA5      ;BR IF NO, TRY AGAIN
+        LDX #5          ;CLOSE INPUT FILE IF ASSIGNED
+        SVC 14
+        BCC CONCA6      ;BR IF NOT ASSIGNED
+        SVC 22
+CONCA6  LDX #6          ;CLOSE OUTPUT IF ASSIGNED
+        SVC 14
+        BCC CONCA7
+        SVC 22
+CONCA7  RTS             ;ALL DONE
+;
+; GET A FILE NAME.
+; IF ASSIGNING TO CHANNEL 6, MAKE SURE NOT LOCKED
+; IF ASSIGNING TO CHANNEL 5, MAKE SURE IT EXISTS
+;
+GETFN   STX CHAN        ;SAVE THE CHANNEL TO ASSIGN TO
+        LDX #1
+        SVC 5           ;INPUT A FILE NAME
+        BCC GETFN1      ;BR IF GO SOMETHING
+GETFND  ROR FINFLG      ;SET FINISHED FLAG
+        JMP NOFILE
+GETFN1  LDA (U5),Y      ;SKIP SPACES
+        CMP #$20
+        BNE GETFN2
+        INY
+        BNE GETFN1      ;BR ALWAYS
+GETFN2  CMP #$0D        ;SEE IF NO FILE NAME
+        BEQ GETFND
+        SVC 29          ;CHECK THE FILE NAME
+        BCS GETFNE      ;BR IF DEVICE NAME
+        STA OUSTAT      ;SAVE STATUS
+        BIT OUSTAT      ;SET FLAGS
+        BVS GETDOE      ;BR IF DRIVE NOT OPEN
+        LDX CHAN        ;CHECK CHANNEL
+        CPX #6
+        BNE GETFN3      ;BR IF NOT OUTPUT CHANNEL
+        AND #$0C        ;SEE IF WRITE PROTECTED DISK
+        CMP #$40
+        BEQ GETWPE      ;BR IF YES
+GETFN3  CPX #5
+        BNE GETFN4
+        LDA #$20        ;MAKE SURE INPUT FILE EXISTS
+        BIT OUSTAT
+        BEQ GETFXE      ;BR IF DOESN'T EXIST
+GETFN4  LDA OUSTAT      ;ASSIGN THE FILE
+        AND #$03
+        SVC 21
+        CLC
+        RTS
+NOFILE  SEC
+        RTS
+GETFNE  ERROR 'FILE NAME ERROR.'
+GETDOE  ERROR 'DRIVE NOT OPEN.'
+GETWPE  ERROR 'DISK IS WRITE PROTECTED.'
+GETFXE  ERROR 'FILE NOT FOUND.'
+;
+; TRANSFER ALL OF INPUT FILE TO OUTPUT FILE
+;
+XFER    SETIM BUF,U1
+        SETIM BUFSIZ,U2
+        LDX #5          ;READ FROM FILE
+        SVC 15
+        BCS XFERF       ;BR IF EOF
+        SETIM BUF,U1
+        LDX #6          ;WRITE TO FILE
+        SVC 16
+        JMP XFER        ;BACK FOR MORE
+XFERF   RTS
+;
+; VARIABLES SPACE
+;
+FINFLG  *=*+1
+CHAN    *=*+1
+OUSTAT  *=*+1
+        .END
