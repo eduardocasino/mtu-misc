@@ -52,7 +52,7 @@ ifeq ($(ARCH),kim1)
 				imu.t
 endif
 
-FILESYSTEM +=	macasm.c basic.c cil.z cilb.z syslibnam.z concat.a
+FILESYSTEM +=	macasm.c disasm.c basic.c cil.z cilb.z syslibnam.z concat.a
 
 CODOSOBJS = codos.o comdproc.o svcproc.o $(IODRIVER).o
 
