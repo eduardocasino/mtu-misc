@@ -445,7 +445,7 @@ static dir_entry_t *get_next_free_dirent( disk_t *disk )
     }
 }
 
-static char *set_date( char *date_buf, size_t size, char *date )
+void set_date( char *date_buf, size_t size, char *date )
 {
     static const char *month[12] = {"JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC "};
     time_t now = time( NULL );
@@ -556,7 +556,7 @@ static int copy_to_disk( disk_t *disk, uint8_t *buffer, char *filename, char *in
     header.size0 = (uint8_t) filesiz & 0xff;
     header.size1 = (uint8_t) ( filesiz >> 8 ) & 0xff;
     header.size2 = (uint8_t) ( filesiz >> 16 ) & 0xff;
-    set_date( header.date, sizeof( header.date ), date );
+    set_date( (char *)header.date, sizeof( header.date ), date );
  
     if ( boot )
     {
@@ -684,7 +684,7 @@ static int write_overlays( disk_t *disk, uint8_t *buffer, char *overlays )
 
     if ( fs.st_size != CODOS_OVERLAYS_SIZE )
     {
-        fprintf( stderr, "Wrong overlay size: %ld. Should be %d.\n", fs.st_size, CODOS_OVERLAYS_SIZE );
+        fprintf( stderr, "Wrong overlay size: %lld. Should be %d.\n", fs.st_size, CODOS_OVERLAYS_SIZE );
         return -1;
     }
 
@@ -878,7 +878,7 @@ static int file_op( op_t op, disk_t *disk, uint8_t *buffer, size_t bufsiz, int *
             }
     
             file_header_t *header = (file_header_t *)buffer;
-            char *date = locase ? lowercase( header->date ) : (char *)header->date;
+            char *date = locase ? lowercase( (char *)header->date ) : (char *)header->date;
     
             printf( "%-14.14s   %c   %9.9s   %8ld\n",
                             filename,

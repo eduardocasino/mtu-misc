@@ -60,7 +60,7 @@ typedef struct {
     uint8_t last_block;
 } BAT_t;
 
-static_assert( sizeof( BAT_t ) == CODOS_SECTOR_SIZE );
+static_assert( sizeof(BAT_t) == CODOS_SECTOR_SIZE, "BAT_t size mismatch" );
 
 typedef struct {
     uint8_t flag;       // 01 == present
@@ -68,7 +68,7 @@ typedef struct {
     uint8_t block;      // Pointer to first allocated block
 } dir_entry_t;
 
-static_assert( sizeof( dir_entry_t ) == 16 );
+static_assert( sizeof(dir_entry_t) == 16, "dir_entry_t size mismatch" );
 
 typedef struct {
     image_t image;
@@ -101,7 +101,7 @@ typedef struct {
     uint16_t entry;         // Address-1 of entry point into program
 } file_header_t;
 
-static_assert( sizeof( file_header_t ) == 64 );
+static_assert( sizeof(file_header_t) == 64, "file_header_t size mismatch" );
 
 #define BAT_TABLE_TRACK 0x12
 #define BAT_TABLE_SECT1 0x00
