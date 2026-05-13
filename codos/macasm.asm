@@ -1310,7 +1310,7 @@ SET_CARRY:
             sec
             rts
 CHK_UPPER:  cmp     #'Z'+1          ; > 'Z'?
-RET_ALNUM:      rts                     ; Returns C clear if in range, C set otherwise
+RET_ALNUM:  rts                     ; Returns C clear if in range, C set otherwise
 
 IS_DIGIT:
             cmp     #'0'
@@ -2135,7 +2135,7 @@ PROCESS_EQU_DIR:
             sta     EQUATE_CHAR
             rts
 
-@ERROR1:      jsr     ERROR_SYNTAX
+@ERROR1:    jsr     ERROR_SYNTAX
             ; Not reached
 
             ; Double '==' equate
@@ -6442,7 +6442,7 @@ DISPATCH_PRIMARY_TERM:
             bne     @STORE
             lda     #' '                ; NUL after quote -> treat as space
             dey
-@STORE:    sta     SYMVAL              ; Store character code in SYMVAL[0]
+@STORE:     sta     SYMVAL              ; Store character code in SYMVAL[0]
             lda     #$00
             sta     SYMVAL+1            ; High bytes = 0
             sta     SYMVAL+2
