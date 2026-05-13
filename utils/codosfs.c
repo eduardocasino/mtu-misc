@@ -684,7 +684,7 @@ static int write_overlays( disk_t *disk, uint8_t *buffer, char *overlays )
 
     if ( fs.st_size != CODOS_OVERLAYS_SIZE )
     {
-        fprintf( stderr, "Wrong overlay size: %lld. Should be %d.\n", fs.st_size, CODOS_OVERLAYS_SIZE );
+        fprintf( stderr, "Wrong overlay size: %ld. Should be %d.\n", (unsigned long)fs.st_size, CODOS_OVERLAYS_SIZE );
         return -1;
     }
 

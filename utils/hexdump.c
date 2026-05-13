@@ -40,7 +40,7 @@ int hexdump( FILE *file, const void* datap, size_t size, uint64_t base_addr )
     {
         if ( ! ( i % COLUMNS ) )
         {
-            rc = fprintf( file, "%010llX: ", base_addr + (unsigned) i );
+            rc = fprintf( file, "%010lX: ", (unsigned long)(base_addr + i) );
             if ( rc < 0 ) status = -1;
             memset( ascii, 0, sizeof( ascii) );
         }
