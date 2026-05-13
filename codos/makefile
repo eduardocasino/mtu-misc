@@ -11,6 +11,7 @@ LD = $(CC65)ld65
 AFLAGS = -U -D $(ARCH)
 
 IMAGES = $(VERSIONS:%=images/codos%.imd)
+SRCIMAGE = images/sources.imd
 
 ifeq ($(wildcard system_$(ARCH).map),)
     $(error #### UNSUPPORTED ARCH >>> $(ARCH) <<< ####)
@@ -52,7 +53,9 @@ ifeq ($(ARCH),kim1)
 				imu.t
 endif
 
-FILESYSTEM +=	macasm.c disasm.c basic.c cil.z cilb.z syslibnam.z concat.a
+FILESYSTEM +=	macasm.c disasm.c basic.c cil.z cilb.z syslibnam.z
+
+SOURCES = concat.a disasm.a macasm.a mtu130equ.a
 
 CODOSOBJS = codos.o comdproc.o svcproc.o $(IODRIVER).o
 
@@ -80,7 +83,7 @@ all: info tests
 info:
 	$(info #### BUILDING FOR ARCH >>> $(ARCH) <<< ####)
 
-images: $(IMAGES)
+images: $(IMAGES) $(SRCIMAGE)
 
 tests: images
 ifeq ($(ARCH), mtu)
@@ -88,6 +91,11 @@ ifeq ($(ARCH), mtu)
 	$(foreach ver,$(VERSIONS),bash -c "cd build/$(ver); echo -n \"Version $(ver): \"; \
 			(md5sum --quiet -c ../../checksums$(ver).md5 && echo \"OK.\")";)
 endif
+
+images/sources.imd:
+	echo "CODOSDSK $@"
+	../utils/codosdsk format -y -p -2 -s 2 -t 12 -v 0 $@
+	for f in $(SOURCES); do ../utils/codosdsk copy -a images/sources.imd sources/$$f 0:$$f ; done
 
 $(foreach ver,$(VERSIONS),$(eval images/codos$(ver).imd: build/$(ver)/codos.z build/$(ver)/overlays.bin $(addprefix build/$(ver)/,$(FILESYSTEM)) \
 	; echo "CODOSDSK $$@" \
@@ -202,7 +210,7 @@ $(foreach ver,$(VERSIONS),$(eval build/$(ver)/k1013.inc: k1013.asm build/$(ver)/
 
 clean:
 	echo "CLEAN"
-	rm -rf $(VERSIONS:%=build/%) $(VERSIONS:%=images/codos%.imd)
+	rm -rf $(VERSIONS:%=build/%) $(VERSIONS:%=images/codos%.imd) $(SRCIMAGE)
 
 .SILENT:
 

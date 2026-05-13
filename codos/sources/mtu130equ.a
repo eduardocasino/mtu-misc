@@ -1,0 +1,141 @@
+
+;*****  CODOS SVC EQUATES
+
+SVCENB  =      $EE           ; ADDRESS OF SVC ENABLE FLAG
+SVCRET  =      0             ; RETURN WITH REGISTER PRINT
+SVCRTS  =      1             ; RETURN WITHOUT REGISTER PRINT
+SVCOUM  =      2             ; OUTPUT INLINE MESSAGE SVC
+SVCINB  =      3             ; INPUT BYTE SVC
+SVCOUB  =      4             ; OUTPUT BYTE SVC
+SVCINL  =      5             ; INPUT LINE SVC
+SVCOUL  =      6             ; OUTPUT LINE SVC
+SVCOUS  =      7             ; OUTPUT STRING SVC
+SVCDCX  =      8             ; DECODE ASCII HEX TO BINARY
+SVCDCD  =      9             ; DECODE ASCII DECIMAL TO BINARY
+SVCENX  =      10            ; ENCODE BINARY TO ASCII HEX
+SVCEND  =      11            ; ENCODE BINARY TO ASCII DECIMAL
+SVCDFB  =      12            ; ESTABLISH DEFAULT BUFFER ADDRESS
+SVCMON  =      13            ; EXECUTE CODOS MONITOR COMMAND
+SVCQCA  =      14            ; QUERRY CHANNEL ASSIGNMENT
+SVCINR  =      15            ; READ RECORD FROM FILE
+SVCOUR  =      16            ; WRITE RECORD TO FILE
+SVCBOF  =      17            ; POSITION TO BEGINNING OF FILE
+SVCEOF  =      18            ; POSITION FILE TO END OF FILE
+SVCPSF  =      19            ; POSITION FILE TO ARBUTRARY LOCATION
+SVCQFP  =      20            ; QUERRY FILE POSITION
+SVCASS  =      21            ; ASSIGN CHANNEL TO FILE OR DEVICE
+SVCFRE  =      22            ; FREE CHANNEL
+SVCTNC  =      23            ; TRUNCATE FILE AT PRESENT POSITION
+SVCSPI  =      24            ; DEFINE USER INTERRUPT SERVICE ROUTINE
+SVCUER  =      25            ; DEFINE USER ERROR RECOVERY
+SVCCER  =      26            ; RESTORE CODOS ERROR RECOVERY
+SVCP16  =      27            ; ENTER 16 BIT PSEUDO PROCESSOR
+SVCQVN  =      28            ; QUERRY CODOS VERSION
+SVCFLS  =      29            ; QUERRY FILE STATUS
+SVCDAT  =      30            ; QUERRY CURRENT DATE
+
+;*****  CODOS PSEUDO REGISTERS
+
+U0      =      $B0           ; ADDRESS OF PSEUDO REG 0
+U1      =      $B2           ; ADDRESS OF PSEUDO REG 1
+U2      =      $B4           ; ADDRESS OF PSEUDO REG 2
+U3      =      $B6           ; ADDRESS OF PSEUDO REG 3
+U4      =      $B8           ; ADDRESS OF PSEUDO REG 4
+U5      =      $BA           ; ADDRESS OF PSEUDO REG 5
+U6      =      $BC           ; ADDRESS OF PSEUDO REG 6
+U7      =      $BE           ; ADDRESS OF PSEUDO REG 7 (24 BITS)
+
+;*****  16 BIT PSEUDO PROCESSOR MNEMONICS
+
+UEXT    =      0             ; EXIT PP MODE
+UADD    =      $10           ; U0 = U0 + UN
+USUB    =      $20           ; U0 = U0 - UN
+UMUL    =      $30           ; U0 = U0 * UN  UN HAS HIGH 16 BITS
+UDIV    =      $40           ; U0 = U0 / UN
+UNU0    =      $50           ; U0 = UN
+U0UN    =      $60           ; UN = U0
+USWP    =      $70           ; U0 IS EXCHANGED WITH UN
+ULDI    =      $80           ; UN = 16 BIT VAL
+ULDA    =      $90           ; UN = (16 BIT VAL)
+U0LD    =      $A0           ; U0 = (UN)
+USTA    =      $B0           ; (16 BIT VAL) = UN
+UOST    =      $C0           ; (UN) = U0
+UNU7    =      $D0           ; U7 = U0, UN    (24 BIT MOVE)
+UJSR    =      $E0           ; CALL SUBROUTINE AT (UN)
+UNOP    =      $F0           ; NO OPERATION
+
+;       EQUATES FOR KEYBOARD AND TEXT DISPLAY PACKAGE
+
+GETKEY  =     $306           ; WAIT FOR KEY DEPRESSION
+TSTKEY  =     $30C           ; TEST FOR KEY DOWN WITH ROLLOVER
+TSTKNR  =     $360           ; TEST FOR KEY DOWN WITHOUT ROLLOVER
+NOCLIK  =     $213           ; BIT 7=1=NO KEY CLICK
+LEGTBL  =     $5C0           ; LEGEND TABLE
+DRWLEG  =     $315           ; DRAW LEGENDS
+COL     =     $200           ; TEXT CURSOR COLUMN, 1-80
+LINE    =     $201           ; TEXT CURSOR LINE, 1-NLINET
+NLINET  =     $21E           ; NUMBER OF TEXT LINES IN WINDOW
+YTDOWN  =     $21F           ; 255-Y COORD OF TOP MARGIN
+RVIDEO  =     $215           ; BIT 7=1=REVERSE VIDEO
+OUTCH   =     $309           ; DISPLAY CHARACTER THEN MOVE CURSOR
+CLRDSP  =     $312           ; CLEAR ENTIRE 256X480 SCREEN
+INITIO  =     $30F           ; CLEAR SCREEN AND SET DEFAULT PARAMETERS
+INITTW  =     $363           ; SET STANDARD TEXT WINDOW AND CLEAR IT
+DEFTW   =     $366           ; A=# OF TEXT LINES, Y=255-Y COORD OF TOP
+                             ; OF TEXT WINDOW
+CLRHTW  =     $369           ; CLEAR TEXT WINDOW AND HOME CURSOR
+HOMETW  =     $36C           ; HOME CURSOR
+CRLF    =     $36F           ; MOVE TEXT CURSOR TO NEW LINE
+CLRTW   =     $372           ; CLEAR TEXT WINDOW WITHOUT MOVING CURSOR
+CLRLEG  =     $375           ; CLEAR LEGEND DISPLAY AREA
+CLRTLN  =     $378           ; CLEAR LINE NUMBER IN A
+LINEFD  =     $37B           ; MOVE TEXT CURSOR DOWN 1 LINE
+OFFTCR  =     $37E           ; TURN TEXT CURSOR OFF
+ONTCR   =     $381           ; TURN TEXT CURSOR ON
+FLPTCR  =     $384           ; FLIP VIDEO SENSE AT TEXT CURSOR LOCATION
+BEEP    =     $38D           ; SOUND AUDIO BEEP
+
+;       EQUATES FOR GRAPHICS PACKAGE
+
+XC      =     $0202          ; X CURSOR COORDINATE  (2 BYTES)
+YC      =     $0204          ; Y CURSOR COORDINATE  (2 BYTES)
+XX      =     $0206          ; NEW X COORDINATE     (2 BYTES)
+YY      =     $0208          ; NEW Y COORDINATE     (2 BYTES)
+GMODE   =     $020A          ; 0=MOVE, $40=ERASE, $80=DRAW, $C0=FLIP
+                             ; ADD $20 FOR DASH
+DSHPAT  =     $20B           ; 16 BIT DASH PATTERN
+
+SDRAW   =     $324           ; DRAW A SOLID LINE FROM XC,YC TO XX,YY
+SMOVE   =     $327           ; MOVE TO XX,YY
+SVEC    =     $330           ; DRAW VECTOR ACCORDING TO GMODE
+SDOT    =     $336           ; PLOT POINT AT XX,YY ACCORDING TO GMODE
+SDRAWR  =     $32A           ; PLOT REG X,Y RELATIVE TO XC,YC
+SMOVER  =     $32D           ; MOVE REG X,Y RELATIVE TO XC,YC
+SVECR   =     $333           ; DRAW VECTOR X,Y RELATIVE TO XC,YC
+SDOTR   =     $339           ; DRAW DOT AT REG X,Y RELATIVE TO XC,YC
+SDRWCH  =     $345           ; DRAW CHARACTER AT XX,YY
+SISDOT  =     $348           ; DETERMINE STATE OF PIXEL AT XX,YY
+SONGC   =     $34E           ; TURN ON GRAPHIC CURSOR AT XC,YC
+SOFFGC  =     $34B           ; TURN OFF GRAPHIC CURSOR
+SGRIN   =     $33C           ; GRIN FUNCTION, XC,YC=INITIAL CURSOR POS,
+                             ; XX,YY=FINAL CURSOR POSITION, A=TERM.
+
+;       SERIAL I/O PORT EQUATES
+
+SRDATA  =     $BFC8          ; READ RECEIVED DATA, WRITE TRANSMIT DATA
+SRSTATS =     $BFC9          ; READ STATUS, WRITE TO RESET SERIAL PORT
+SRCMMD  =     $BFCA          ; WRITE COMMAND (PARITY, MODEM CNTL, INTEN)
+SRCNTL  =     $BFCB          ; WRITE CONTROL (BAUD RATE, SERIAL FORMAT)
+
+;       MISCELLANEOUS EQUATES
+
+INTSVA  =     $EC            ; CODOS SAVES A HERE ON INTERRUPT
+IOON    =     $FFFE          ; WRITE ANYTHING TO TURN I/O ON AT BE00-BFFF
+IOOFF   =     $FFFF          ; WRITE ANYTHING TO TURN RAM ON AT BEOO-BFFF
+SEEIO   =     $2F9           ; CODOS I/O ENABLE STATE IN BIT 7
+UTILORG =     $B400          ; ORIGIN OF UTILITY PROGRAMS
+OVLORG  =     $FE00          ; ORIGIN OF CODOS OVERLAYS
+LSTPLBF =     $D300          ; ADDRESS OF LAST (LOWEST) DISK POOL BUFFER
+USRRAM  =     $C000          ; ADDRESS OF USER RAM BLOCK ON DISK CONTROLLER
+SYSRAM  =     $E000          ; ADDRESS OF SYSTEM RAM BLOCK ON DISK CONTROLLER
+

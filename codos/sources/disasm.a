@@ -1,0 +1,835 @@
+        .PAGE    'DISASM: MTU 6502 DISASSEMBLER'
+LIST    =       1       ;SPECIFI LIST==7 TO FORCE FULL LIST
+        .LIST   LIST
+; =============================================================================
+; DISASM.ASM  -  MTU 6502 DISASSEMBLER
+; =============================================================================
+; COMPANION UTILITY TO MACASM.ASM (MTU 6502 MACRO ASSEMBLER).
+; DISASSEMBLES A RANGE OF 6502 MACHINE CODE, FORMATTING EACH INSTRUCTION
+; AS: <ADDRESS>  <HEX BYTES>  <MNEMONIC> <OPERAND>
+;
+; TARGET CPU  : MOS TECHNOLOGY 6502
+; HOST OS     : CODOS (MTU DISK OPERATING SYSTEM)
+;
+; USAGE (AT THE DISASM> PROMPT):
+;   <START> [<END>] [L<LINES>] [P<CHANNEL>]
+;
+;   START    HEX START ADDRESS (REQUIRED)
+;   END      HEX END ADDRESS   (OPTIONAL; TAKES PRIORITY OVER LINE COUNT)
+;   L<N>     DECIMAL NUMBER OF LINES TO DISASSEMBLE (DEFAULT: 22)
+;   P<CH>    OUTPUT CHANNEL NUMBER (DEFAULT: 2 = CONSOLE)
+;
+; =============================================================================
+
+        .READ   MTU130EQU.A
+
+; =============================================================================
+; ZERO-PAGE ALIASES
+;
+; REUSES CODOS 16-BIT PSEUDO-REGISTERS FOR PAGE-ZERO DATA AND POINTERS
+; =============================================================================
+ZP_DISASM       = U1                ; CURRENT DISASSEMBLY POINTER
+ZP_END          = U2                ; END-ADDRESS LIMIT
+LINE_COUNT      = U3                ; LINES PER PAGE
+REMAINING_LINES = U3+1              ; REMAINING LINES COUNTER (COUNTS DOWN)
+END_MODE_FLAG   = U4                ; $00 = LINE-COUNT MODE; $80 = END-ADDRESS MODE
+OUT_CHANNEL     = U4+1              ; ACTIVE OUTPUT CHANNEL NUMBER
+OPFMT_BYTE      = U7                ; OPERAND FORMAT BYTE (SUFFIX MASK + ARG COUNT)
+ARG_BYTE_COUNT  = U7+1              ; ARGUMENT BYTE COUNT (0, 1, OR 2)
+
+        *= UTILORG
+
+
+DISASM      JMP     MAIN_ENTRY      ; NORMAL ENTRY POINT
+
+CONTINUE_CHAR 
+        .BYTE   $11                 ; ^Q (DC1/XON) CONTINUE CHARACTER
+DEFAULT_LINE_COUNT
+        .BYTE   $16                 ; DEFAULT NUMBER OF LINES TO DISASSEMBLE (22)
+
+; =============================================================================
+; MAIN_ENTRY
+;
+; ASSEMBLER START-UP. ENABLES THE SVC HANDLER, OBTAINS THE CODOS SYSTEM
+; BUFFER ADDRESSES, AND FALLS THROUGH TO THE MAIN PROMPT/PARSE LOOP.
+; =============================================================================
+MAIN_ENTRY 
+        SEC                         ; SET CARRY
+        ROR     SVCENB              ; ENABLE SVC
+        SVC     SVCDFB              ; OBTAIN SYSTEM BUFFER ADDRESSES (CMD LINE, ARGS)
+        JMP     PARSE_ARGS          ; JUMP TO ARGUMENT PARSER
+
+; =============================================================================
+; PROMPT_AND_INPUT
+;
+; PRINTS 'DISASM>' ON CHANNEL 2, READS A LINE OF TEXT FROM CHANNEL 1,
+; AND RETURNS.  IF THE USER ENTERS A BARE CR THE SVC HANDLER IS DISABLED
+; AND CONTROL RETURNS TO CODOS.
+; =============================================================================
+PROMPT_AND_INPUT 
+        SVC     SVCOUM              ; OUTPUT INLINE MESSAGE ON CHANNEL
+        .BYTE   $02                 ; -> CHANNEL 2 (CONSOLE)
+        .BYTE   $0D, 'DISASM>', $00
+
+        LDX     #$01                ; CHANNEL 1 (CONSOLE INPUT)
+        SVC     SVCINL              ; INPUT LINE OF TEXT FROM CHANNEL
+        LDA     (U5),Y              ; READ FIRST CHARACTER OF INPUT
+        CMP     #$0D                ; EMPTY LINE?
+        BNE     PARSE_ARGS          ; NO: PARSE THE INPUT LINE
+        ASL     SVCENB              ; YES: DISABLE SVC HANDLER AND
+        RTS                         ;  RETURN TO CODOS
+
+; =============================================================================
+; PARSE_ARGS
+;
+; PARSES THE COMMAND-LINE ARGUMENTS LEFT BY SVC $0C / $05:
+;   1. DECODES THE START ADDRESS (HEX) VIA SVC $08.
+;   2. IF ONLY CR FOLLOWS, JUMPS TO DISASM_LOOP USING LAST START ADDRESS.
+;   3. DECODES OPTIONAL END ADDRESS (HEX).
+;   4. RECOGNISES 'L' (LINE COUNT, DECIMAL) AND 'P' (OUTPUT CHANNEL) OPTIONS.
+;   5. ON ANY PARSE ERROR JUMPS TO THE APPROPRIATE ERROR HANDLER.
+;
+; ON SUCCESSFUL PARSE, SETS UP:
+;   ZP_DISASM        = START ADDRESS
+;   ZP_END           = END ADDRESS (BIT7 SET IF IN USE)
+;   LINE_COUNT       = NUMBER OF LINES
+;   OUT_CHANNEL      = OUTPUT CHANNEL
+; =============================================================================
+PARSE_ARGS 
+        JSR     INIT_DEFAULTS       ; RESTORE DEFAULT LINE COUNT AND CHANNEL
+
+        SVC     SVCDCX              ; DECODE HEX ASCII STRING -> U0
+        BCS     PA_GOT_START        ; CARRY SET = VALID HEX VALUE DECODED
+        JMP     ERR_START_ADDR      ; NO VALID START ADDRESS -> ERROR
+
+PA_GOT_START 
+        PHA                         ; SAVE THE CHARACTER THAT TERMINATED THE DECODE
+        LDA     U0                  ; COPY DECODED ADDRESS LO
+        STA     ZP_DISASM           ; SAVE START ADDRESS
+        LDA     U0+1                ; DECODED ADDRESS HI
+        STA     ZP_DISASM+1
+        PLA
+        CMP     #$0D                ; ONLY CR AFTER START ADDRESS?
+        BNE     PA_TRY_END          ; NO: TRY TO PARSE END ADDRESS / OPTIONS
+PA_JMP_DISASM_LOOP 
+        JMP     DISASM_LOOP         ; YES: DISASSEMBLE FROM START ADDRESS
+
+PA_TRY_END 
+        SVC     SVCDCX              ; DECODE NEXT HEX FIELD -> U0
+        BCS     PA_GOT_END          ; CARRY SET = VALID END ADDRESS
+        CMP     #$0D                ; CR (NO END ADDRESS, NO OPTIONS)?
+        BEQ     PA_JMP_DISASM_LOOP  ; YES: START DISASSEMBLY
+        CMP     #'L'                ; 'L' = LINE-COUNT OPTION?
+        BEQ     PA_LINES
+        CMP     #'P'                ; 'P' = CHANNEL OPTION?
+        BEQ     PA_CHANNEL_OPT
+        JMP     ERR_END_ADDR        ; UNEXPECTED CHARACTER -> ERROR
+
+PA_LINES 
+        INY                         ; SKIP 'L'
+        SVC     SVCDCD              ; DECODE DECIMAL ASCII STRING -> U0
+        BCS     PA_GOT_LINES        ; CARRY SET = VALID DECIMAL VALUE
+        CMP     #$0D                ; END OF LINE?
+        BEQ     PA_JMP_DISASM_LOOP  ; YES: START DISASSEMBLY
+        BNE     PA_TRY_CHANNEL      ; EXTRA CHARACTERS -> ERROR
+
+PA_HEX_LINES 
+        SVC     SVCDCX              ; DECODE HEX ASCII STRING -> U0
+        BCC     PA_HEX_LINE_CHK     ; CARRY CLEAR = NO HEX DIGITS
+        JMP     ERR_TOO_MANY        ; CARRY SET = EXTRA HEX PARAMETER -> ERROR
+
+PA_HEX_LINE_CHK 
+        CMP     #$0D                ; END OF LINE?
+        BEQ     PA_JMP_DISASM_LOOP  ; YES: START DISASSEMBLY
+        JMP     ERR_TOO_MANY        ; EXTRA CONTENT -> ERROR
+
+PA_GOT_LINES 
+        PHA                         ; SAVE TERMINATOR
+        LDA     U0+1                ; HIGH BYTE OF LINE COUNT
+        BEQ     PA_STORE_LINES      ; ZERO -> FITS IN ONE BYTE, OK
+        PLA
+        JMP     ERR_LINES_LARGE     ; COUNT TOO LARGE -> ERROR
+
+PA_STORE_LINES 
+        LDA     U0                  ; LINE COUNT LOW BYTE
+        STA     LINE_COUNT          ; STORE AS ACTIVE LINE COUNT
+        PLA                         ; RESTORE TERMINATOR
+        CMP     #$0D                ; END OF LINE?
+        BEQ     PA_JMP_DISASM_LOOP  ; YES: START DISASSEMBLY
+        BNE     PA_TRY_CHANNEL      ; MORE OPTIONS FOLLOW
+
+PA_GOT_END 
+        PHA                         ; SAVE TERMINATOR
+        LDA     U0                  ; END ADDRESS LO
+        STA     ZP_END
+        LDA     U0+1                ; END ADDRESS HI
+        STA     ZP_END+1
+        LDA     #$80
+        STA     END_MODE_FLAG       ; SET END-ADDRESS MODE FLAG
+        PLA                         ; RESTORE TERMINATOR
+        CMP     #$0D                ; END OF LINE?
+        BNE     PA_TRY_CHANNEL      ; NO: TRY TO PARSE CHANNEL OPTION
+PA_JMP_DISASM_LOOP2 
+        JMP     DISASM_LOOP         ; YES: START DISASSEMBLY
+
+PA_TRY_CHANNEL 
+        SVC     SVCDCX              ; DECODE NEXT HEX FIELD
+        BCS     PA_GOT_CHAN_HEX     ; CARRY SET = DECODED A VALUE
+        CMP     #'P'                ; 'P' = CHANNEL OPTION?
+        BNE     PA_AFTER_CHAN
+
+PA_CHANNEL_OPT 
+        LDX     #$06                ; DEFAULT CHANNEL 6 FOR FILE OUTPUT
+        STX     OUT_CHANNEL
+        SVC     SVCASS              ; ASSIGN CHANNEL TO DEVICE OR FILE
+        INY                         ; ADVANCE PAST DEVICE SPECIFIER
+        JMP     PA_HEX_LINES        ; CONTINUE PARSING
+
+PA_AFTER_CHAN 
+        CMP     #$0D                ; END OF LINE?
+        BEQ     PA_JMP_DISASM_LOOP2 ; YES: START DISASSEMBLY
+        JMP     ERR_ILLEGAL_CHAN    ; EXTRA CONTENT -> ERROR
+
+PA_GOT_CHAN_HEX 
+        PHA                         ; SAVE ACCUMULATOR
+        LDA     U0+1                ; HIGH BYTE OF CHANNEL
+        BEQ     PA_CHK_CHAN_VAL
+PA_BAD_CHAN 
+        PLA                         ; RESTORE ACCUMULATOR
+        JMP     ERR_ILLEGAL_CHAN
+
+PA_CHK_CHAN_VAL 
+        LDA     U0                  ; CHANNEL NUMBER
+        CMP     #$0A                ; MUST BE < 10
+        BCS     PA_BAD_CHAN         ; NO: ERROR
+        STA     OUT_CHANNEL         ; STORE CHANNEL NUMBER
+        PLA                         ; RESTORE ACCUMULATOR
+        CMP     #$0D                ; END OF LINE?
+        BEQ     PA_JMP_DISASM_LOOP2 ; YES: START DISASSEMBLY
+        JMP     PA_HEX_LINES        ; NO: CONTINUE PARSING
+
+; =============================================================================
+; INIT_DEFAULTS
+;
+; RESETS THE LINE COUNT, END-MODE FLAG, AND OUTPUT CHANNEL TO THEIR DEFAULTS
+; BEFORE EACH NEW DISASSEMBLY COMMAND IS PARSED.
+; =============================================================================
+INIT_DEFAULTS 
+        LDA     DEFAULT_LINE_COUNT  ; DEFAULT LINES PER SCREEN
+        STA     LINE_COUNT
+        LDA     #$00
+        STA     END_MODE_FLAG       ; LINE-COUNT MODE (NOT END-ADDRESS)
+        LDA     #$02
+        STA     OUT_CHANNEL         ; DEFAULT OUTPUT CHANNEL: 2 (CONSOLE)
+        RTS
+
+; =============================================================================
+; DISASM_LOOP
+;
+; MAIN DISASSEMBLY LOOP.  DISASSEMBLES ONE INSTRUCTION PER ITERATION.
+;
+; IN LINE-COUNT MODE  (END_MODE_FLAG = $00): DECREMENTS LINE_COUNT; WHEN IT REACHES
+;   ZERO, PAUSES AND WAITS FOR A KEYPRESS:
+;     DC1/XON ($11)  -> CONTINUE FROM CURRENT ADDRESS
+;     ANYTHING ELSE  -> REPRINT THE PROMPT
+;
+; IN END-ADDRESS MODE (END_MODE_FLAG = $80): CONTINUES UNTIL THE CURRENT ADDRESS
+;   EXCEEDS ZP_END, THEN RETURNS TO THE PROMPT.
+; =============================================================================
+DISASM_LOOP 
+        LDA     LINE_COUNT          ; RESET THE 
+        STA     REMAINING_LINES     ;   REMAINING LINES COUNTER
+
+PAGE_LOOP 
+        JSR     DISASM_ONE_INSTR    ; DISASSEMBLE ONE INSTRUCTION
+        JSR     ADVANCE_PC          ; ADVANCE PC PAST INSTRUCTION BYTES
+        STA     ZP_DISASM           ; SAVE NEXT ADDRESS LO
+        STY     ZP_DISASM+1         ; SAVE NEXT ADDRESS HI
+
+        LDX     #$02
+        CPX     OUT_CHANNEL         ; ARE WE OUTPUTTING TO THE CONSOLE (CH 2)?
+        BEQ     PL_CHECK_MODE       ; YES: CHECK PAUSE CONDITION
+        LDA     #$00
+        SVC     SVCOUB              ; OUTPUT NULL BYTE ON NON-CONSOLE CHANNEL
+
+PL_CHECK_MODE 
+        BIT     END_MODE_FLAG       ; END-ADDRESS MODE?
+        BMI     PL_END_CHECK        ; YES: COMPARE AGAINST END ADDRESS
+
+        DEC     REMAINING_LINES     ; LINE-COUNT MODE: DECREMENT COUNTER
+        BNE     PAGE_LOOP           ; NOT ZERO: CONTINUE
+
+        ; COUNTER REACHED ZERO: PAUSE AND WAIT FOR KEYPRESS
+        LDX     #$01                ; CHANNEL 1 (KEYBOARD)
+        SVC     SVCINB              ; INPUT ONE CHARACTER FROM CHANNEL
+        CMP     CONTINUE_CHAR       ; DC1/XON ($11) = 'CONTINUE' KEY?
+        BEQ     DISASM_LOOP         ; YES: RE-FILL PAGE FROM CURRENT ADDRESS
+        LDA     #$0D                ; SEND CR BEFORE RETURNING TO PROMPT
+        JSR     OUTPUT_BYTE
+        JMP     PROMPT_AND_INPUT    ; BACK TO PROMPT
+
+PL_END_CHECK 
+        SEC
+        LDA     ZP_END              ; COMPARE CURRENT PC AGAINST END ADDRESS
+        SBC     ZP_DISASM
+        LDA     ZP_END+1
+        SBC     ZP_DISASM+1
+        BCS     PAGE_LOOP           ; STILL BEFORE END: CONTINUE
+        LDA     #$0D
+        JSR     OUTPUT_BYTE
+        JMP     PROMPT_AND_INPUT    ; PAST END: BACK TO PROMPT
+
+; =============================================================================
+; DISASM_ONE_INSTR
+;
+; DISASSEMBLES THE SINGLE INSTRUCTION AT (ZP_DISASM) AND WRITES A
+; FORMATTED LISTING LINE TO OUT_CHANNEL.
+;
+; OUTPUT FORMAT:
+;   AAAA  BB [BB [BB]]  MMM [OPERAND]
+;   WHERE AAAA = ADDRESS (4 HEX DIGITS), BB = RAW BYTES, MMM = MNEMONIC.
+;
+; STEPS:
+;   1. CALL EMIT_LINE_PREFIX TO OUTPUT CR + ADDRESS...
+;   2. OUTPUT THE ADDRESS (AAAA) AND RAW BYTES.
+;   3. PAD TO THE MNEMONIC COLUMN.
+;   4. DECODE AND OUTPUT THE 3-CHARACTER MNEMONIC FROM MNEMONIC.
+;   5. OUTPUT THE OPERAND (WITH ADDRESSING-MODE SUFFIXES).
+; =============================================================================
+DISASM_ONE_INSTR 
+        JSR     EMIT_LINE_PREFIX    ; OUTPUT CR + ADDRESS TO START THE LISTING LINE
+        LDX     #$00
+        LDA     (ZP_DISASM,X)       ; READ OPCODE BYTE
+        TAY                         ; SAVE OPCODE IN Y
+
+        ; DETERMINE OPERAND BYTE COUNT FROM OPCODE BITS
+        LSR     A
+        BCC     DOI_SMALL           ; BIT 0 CLEAR: USE SHORT PATH
+        LSR     A
+        BCS     DOI_SPECIAL         ; BITS 1:0 = 11 -> SPECIAL
+        CMP     #$22                ; $22 (AFTER 1 SHIFT) -> SPECIAL
+        BEQ     DOI_SPECIAL
+        AND     #$07
+        ORA     #$80
+DOI_SMALL 
+        LSR     A                   ; SHIFT TO GET BYTE-COUNT INDEX
+        TAX
+        LDA     OPFMT_TABLE,X       ; LOOK UP OPERAND FORMAT BYTE
+        BCS     DOI_USE_HI
+        LSR     A                   ; USE LOW NIBBLE
+        LSR     A
+        LSR     A
+        LSR     A
+DOI_USE_HI 
+        AND     #$0F                ; ISOLATE NIBBLE
+        BNE     DOI_STORE_FMT
+DOI_SPECIAL 
+        LDY     #$80                ; SPECIAL/UNKNOWN OPCODE
+        LDA     #$00
+DOI_STORE_FMT 
+        TAX                         ; X = FORMAT TABLE INDEX
+        LDA     ADDR_FMT_TABLE,X    ; LOAD ADDRESS-MODE FORMAT BYTE
+        STA     OPFMT_BYTE          ; SUFFIX-MASK + ARG-BYTE-COUNT
+        AND     #$03
+        STA     ARG_BYTE_COUNT      ; ARGUMENT BYTE COUNT (0/1/2)
+
+        ; RECONSTRUCT MNEMONIC INDEX IN Y (FROM SAVED OPCODE)
+        TYA                         ; RESTORE OPCODE
+        AND     #$8F                ; MASK TO RELEVANT BITS
+        TAX
+        TYA
+        LDY     #$03                ; PREPARE LOOP COUNTER FOR BIT EXTRACTION
+
+        CPX     #$8A                ; SPECIAL CASE: OPCODE = $8A (TXA)?
+        BEQ     DOI_SKIP_SHIFT
+DOI_SHIFT_LOOP 
+        LSR     A
+        BCC     DOI_SKIP_SHIFT      ; CARRY CLEAR: STOP SHIFTING
+        LSR     A
+DOI_SHIFT2  LSR     A
+        ORA     #$20
+        DEY
+        BNE     DOI_SHIFT2
+        INY
+DOI_SKIP_SHIFT 
+        DEY
+        BNE     DOI_SHIFT_LOOP
+
+        PHA                         ; SAVE MNEMONIC SUB-INDEX
+
+DOI_RAW_LOOP 
+        LDA     (ZP_DISASM),Y       ; READ INSTRUCTION BYTE AT OFFSET Y
+        JSR     EMIT_HEX_BYTE       ; OUTPUT AS 2 HEX DIGITS
+        LDX     #$01
+DOI_COL_LOOP 
+        JSR     EMIT_SPACES         ; PAD WITH SPACES BETWEEN FIELDS
+        CPY     ARG_BYTE_COUNT
+        INY
+        BCC     DOI_RAW_LOOP        ; MORE BYTES TO OUTPUT
+
+        LDX     #$03
+        CPY     #$03
+        BCC     DOI_COL_LOOP        ; PAD REMAINING COLUMNS
+
+        PLA                         ; RESTORE MNEMONIC SUB-INDEX
+        TAY
+
+        ; DECODE AND OUTPUT THE 3-CHARACTER MNEMONIC
+        LDA     MNEM_HI,Y           ; HIGH BYTE OF MNEMONIC WORD PAIR
+        STA     MNEMONIC            ; TEMP STORAGE FOR BIT EXTRACTION
+        LDA     MNEM_LO,Y           ; LOW BYTE
+        STA     MNEMONIC+1
+
+        ; EACH MNEMONIC CHARACTER IS ENCODED IN 5 BITS; ADD $3F FOR ASCII
+DOI_MNEM_LOOP 
+        LDA     #$00
+        LDY     #$05
+DOI_MNEM_SHIFT 
+        ASL     MNEMONIC+1          ; SHIFT MNEMONIC BITS LEFT
+        ROL     MNEMONIC
+        ROL     A
+        DEY
+        BNE     DOI_MNEM_SHIFT
+        ADC     #$3F                ; BIAS TO ASCII PRINTABLE RANGE
+        JSR     OUTPUT_BYTE         ; OUTPUT MNEMONIC CHARACTER
+        DEX
+        BNE     DOI_MNEM_LOOP       ; 3 CHARACTERS TOTAL
+
+        ; OUTPUT SPACE(S) BETWEEN MNEMONIC AND OPERAND
+        JSR     EMIT_1_SPACE
+
+        ; OUTPUT OPERAND: HEX VALUE WITH ADDRESSING-MODE SUFFIXES
+        LDX     #$06                ; SUFFIX LOOP COUNTER (6 BITS IN MASK)
+DOI_SUFFIX_LOOP 
+        CPX     #$03                ; AT THE OPERAND-VALUE POSITION?
+        BNE     DOI_NOT_VALUE
+        LDY     ARG_BYTE_COUNT      ; ANY ARGUMENT BYTES?
+        BEQ     DOI_NOT_VALUE       ; ZERO: NO OPERAND TO PRINT
+        LDA     #'$'
+        JSR     OUTPUT_BYTE         ; OUTPUT '$' PREFIX
+
+DOI_EMIT_OPERAND 
+        LDA     OPFMT_BYTE          ; CHECK OPERAND SIZE FLAG
+        CMP     #$E8                ; FLAG FOR 2-BYTE (ABSOLUTE) OPERAND
+        LDA     (ZP_DISASM),Y       ; READ OPERAND BYTE
+        BCS     DOI_EMIT_ABS_OPERAND ; 2-BYTE: OUTPUT HIGH THEN LOW
+        JSR     EMIT_HEX_BYTE       ; 1-BYTE: OUTPUT SINGLE HEX PAIR
+        DEY
+        BNE     DOI_EMIT_OPERAND    ; MORE BYTES
+
+DOI_NOT_VALUE 
+        ASL     OPFMT_BYTE          ; SHIFT OUT NEXT SUFFIX BIT
+        BCC     DOI_NEXT_SUFFIX     ; BIT WAS 0: NO SUFFIX
+        LDA     SUFFIX_CHARS,X      ; PRIMARY SUFFIX CHARACTER
+        JSR     OUTPUT_BYTE
+        LDA     SUFFIX_CHARS2,X     ; SECONDARY SUFFIX CHARACTER (0 = NONE)
+        BEQ     DOI_NEXT_SUFFIX
+        JSR     OUTPUT_BYTE
+
+DOI_NEXT_SUFFIX 
+        DEX
+        BNE     DOI_SUFFIX_LOOP
+        RTS
+
+; =============================================================================
+; DOI_EMIT_ABS_OPERAND
+;
+; EMITS A 2-BYTE (ABSOLUTE) OPERAND IN BIG-ENDIAN ORDER:
+;   1. CALLS ADVANCE_PC_BYTE TO STEP PAST THE LOW OPERAND BYTE AND RETRIEVE IT.
+;   2. SAVES THE LOW BYTE IN X AND INCREMENTS IT BY 1 TO STEP TO THE HIGH BYTE.
+;      IF THE LOW BYTE WRAPS ($FF -> $00) Y IS INCREMENTED TO CARRY INTO THE
+;      HIGH ADDRESS BYTE.
+;   3. FALLS THROUGH TO DOI_EMIT_HI_BYTE TO OUTPUT THE HIGH BYTE FROM Y.
+;
+; ON ENTRY: Y = OFFSET OF THE LOW OPERAND BYTE WITHIN (ZP_DISASM)
+;           A = LOW OPERAND BYTE (ALREADY READ BY CALLER)
+; ON EXIT : A = HIGH OPERAND BYTE (PASSED TO EMIT_ADDR_HEX)
+;           X = LOW  OPERAND BYTE + 1  (PASSED TO EMIT_ADDR_HEX)
+; =============================================================================
+DOI_EMIT_ABS_OPERAND 
+        JSR     ADVANCE_PC_BYTE     ; ADVANCE PC PAST LOW BYTE; RESULT IN A/Y
+        TAX                         ; X = LOW OPERAND BYTE
+        INX                         ; STEP TO HIGH-BYTE OFFSET
+        BNE     DOI_EMIT_HI_BYTE    ; NO PAGE CROSS
+        INY                         ; PAGE CROSS: INCREMENT HIGH ADDRESS BYTE
+
+; =============================================================================
+; DOI_EMIT_HI_BYTE
+;
+; TRANSFERS THE HIGH BYTE OF THE 2-BYTE OPERAND (HELD IN Y) TO A AND FALLS
+; THROUGH TO EMIT_ADDR_HEX, WHICH OUTPUTS THE FULL 16-BIT VALUE AS 4 HEX
+; DIGITS (HIGH BYTE FIRST, THEN LOW BYTE IN X).
+; =============================================================================
+DOI_EMIT_HI_BYTE 
+        TYA                         ; A = HIGH OPERAND BYTE
+        ; FALL THROUGH TO EMIT_ADDR_HEX
+
+; =============================================================================
+; EMIT_ADDR_HEX
+;
+; OUTPUTS A 16-BIT ADDRESS (HI BYTE IN A, LO BYTE IN X) AS 4 UPPERCASE HEX
+; DIGITS TO OUT_CHANNEL.  CALLS EMIT_HEX_BYTE TWICE.
+; =============================================================================
+EMIT_ADDR_HEX 
+        STX     SAVEX               ; SAVE LO BYTE
+        JSR     EMIT_HEX_BYTE       ; EMIT HI BYTE (A)
+        LDA     SAVEX               ; RESTORE LO BYTE
+        JMP     EMIT_HEX_BYTE       ; EMIT LO BYTE AND RETURN
+
+; =============================================================================
+; EMIT_LINE_PREFIX
+;
+; STARTS A NEW DISASSEMBLY OUTPUT LINE BY WRITING A CARRIAGE RETURN FOLLOWED
+; BY THE CURRENT DISASSEMBLY ADDRESS (4 UPPERCASE HEX DIGITS) TO OUT_CHANNEL.
+; CALLED ONCE PER INSTRUCTION AT THE TOP OF DISASM_ONE_INSTR.
+; =============================================================================
+EMIT_LINE_PREFIX 
+        LDX     OUT_CHANNEL         ; OUTPUT CHANNEL
+        LDA     #$0D                ; CARRIAGE RETURN
+        SVC     SVCOUB              ; OUTPUT BYTE ON CHANNEL
+        LDA     ZP_DISASM+1         ; ADDRESS HI BYTE
+        LDX     ZP_DISASM           ; ADDRESS LO BYTE
+        JSR     EMIT_ADDR_HEX       ; OUTPUT 4-DIGIT HEX ADDRESS
+
+; =============================================================================
+; EMIT_1_SPACE
+;
+; OUTPUTS ONE SPACE CHARACTER TO OUT_CHANNEL.
+; =============================================================================
+EMIT_1_SPACE 
+        LDX     #$01
+; FALLS THROUGH
+
+; =============================================================================
+; EMIT_SPACES
+;
+; OUTPUTS X SPACE CHARACTERS TO OUT_CHANNEL.
+; =============================================================================
+EMIT_SPACES 
+        LDA     #$20                ; SPACE CHARACTER
+        JSR     OUTPUT_BYTE
+        DEX
+        BNE     EMIT_SPACES
+        RTS
+
+; =============================================================================
+; ADVANCE_PC
+;
+; ADVANCES THE DISASSEMBLY POINTER (ZP_DISASM) BY ARG_BYTE_COUNT + 1
+; (THE OPCODE BYTE PLUS OPERAND BYTES).  RETURNS THE NEW ADDRESS IN A (LO)
+; AND Y (HI), WITH CARRY SET FOR PAGE-CROSS DETECTION.
+; =============================================================================
+ADVANCE_PC 
+        LDA     ARG_BYTE_COUNT      ; NUMBER OF OPERAND BYTES
+        SEC                         ; INCLUDE THE OPCODE ITSELF (+1)
+; FALLS THROUGH
+
+; =============================================================================
+; ADVANCE_PC_BYTE
+;
+; ADDS A + CARRY TO ZP_DISASM, RETURNING THE RESULT IN A/Y.
+; =============================================================================
+ADVANCE_PC_BYTE 
+        LDY     ZP_DISASM+1         ; LOAD CURRENT PC HI
+        TAX
+        BPL     APC_POS
+        DEY                         ; HANDLE PAGE BOUNDARY FOR NEGATIVE OFFSET
+APC_POS 
+        ADC     ZP_DISASM           ; ADD OFFSET TO LO BYTE
+        BCC     APC_DONE
+        INY                         ; CARRY: INCREMENT HI BYTE
+APC_DONE 
+        RTS
+
+; =============================================================================
+; OUTPUT_BYTE
+;
+; OUTPUTS THE BYTE IN A TO THE CHANNEL IN OUT_CHANNEL VIA SVC $04.
+; PRESERVES X.
+; =============================================================================
+OUTPUT_BYTE 
+        STX     SAVEX               ; SAVE X
+        LDX     OUT_CHANNEL         ; LOAD OUTPUT CHANNEL
+        SVC     SVCOUB              ; OUTPUT BYTE OVER CHANNEL
+        LDX     SAVEX               ; RESTORE X
+        RTS
+
+; =============================================================================
+; EMIT_HEX_BYTE
+;
+; ENCODES THE BYTE IN A AS A 2-DIGIT UPPERCASE HEXADECIMAL ASCII STRING AND
+; OUTPUTS IT TO OUT_CHANNEL VIA SVC $0A + SVC $07.
+; PRESERVES X AND Y.
+; =============================================================================
+EMIT_HEX_BYTE 
+        STY     SAVEY               ; SAVE Y
+        STX     SAVEX               ; SAVE X
+        LDY     #$00
+        STY     U0                  ; ZERO HI BYTE OF VALUE
+        STA     U0+1                ; STORE BYTE TO ENCODE IN LO
+        SVC     SVCENX              ; ENCODE 16-BIT VALUE TO HEX ASCII STRING
+        LDX     OUT_CHANNEL         ; OUTPUT CHANNEL
+        LDY     #$02                ; 2 HEX DIGITS TO OUTPUT
+        SVC     SVCOUS              ; OUTPUT STRING OF TEXT ON CHANNEL
+        LDY     SAVEY               ; RESTORE Y
+        LDX     SAVEX               ; RESTORE X
+        RTS
+
+; =============================================================================
+; OPFMT_TABLE
+;
+; 64-BYTE INTERMEDIATE LOOK-UP TABLE.
+; A 6-BIT KEY DERIVED FROM THE OPCODE IS USED TO INDEX THIS TABLE.
+; EACH BYTE ENCODES TWO PACKED 4-BIT FIELDS:
+;   HIGH NIBBLE -> INDEX INTO ADDR_FMT_TABLE (ADDRESSING/OPERAND FORMAT)
+;   LOW NIBBLE  -> INDEX INTO MNEM_HI / MNEM_LO (MNEMONIC IDENTIFIER)
+;
+; THE 6-BIT KEY IS CONSTRUCTED FROM BITS OF THE OPCODE AS FOLLOWS:
+;   KEY = (OPCODE >> 1) & $3F   FOR MOST OPCODES
+; WITH SPECIAL HANDLING FOR IMPLIED/ACCUMULATOR MODES.
+; =============================================================================
+OPFMT_TABLE 
+        .BYTE   $40, $02, $45, $03, $D0, $08, $40, $09
+        .BYTE   $30, $22, $45, $33, $D0, $08, $40, $09
+        .BYTE   $40, $02, $45, $33, $D0, $08, $40, $09
+        .BYTE   $40, $02, $45, $B3, $D0, $08, $40, $09
+        .BYTE   $00, $22, $44, $33, $D0, $8C, $44, $00
+        .BYTE   $11, $22, $44, $33, $D0, $8C, $44, $9A
+        .BYTE   $10, $22, $44, $33, $D0, $08, $40, $09
+        .BYTE   $10, $22, $44, $33, $D0, $08, $40, $09
+        .BYTE   $62, $13, $78, $A9
+
+; =============================================================================
+; ADDR_FMT_TABLE
+;
+; 13-BYTE ADDRESSING-MODE / OPERAND-FORMAT TABLE.
+; EACH BYTE ENCODES:
+;   BITS 7..2  SUFFIX-ENABLE MASK (6 BITS, ONE PER POSSIBLE SUFFIX IN LB689/LB68F)
+;   BITS 1..0  ARGUMENT BYTE COUNT:
+;                $00 = NO ARGUMENT   (1-BYTE INSTRUCTION)
+;                $01 = 1-BYTE ARG    (ZERO-PAGE / IMMEDIATE / BRANCH)
+;                $02 = 2-BYTE ARG    (ABSOLUTE ADDRESS)
+;                $03 = SPECIAL
+;
+; INDEX  ENCODED  ARG  SUFFIXES ACTIVE
+;   0    $00       0   NONE              (IMPLIED / ACCUMULATOR: NO OPERAND)
+;   1    $21       1   (#)               (IMMEDIATE:  #$XX)
+;   2    $01       1   NONE              (ZERO-PAGE:   $XX)
+;   3    $02       2   NONE              (ABSOLUTE:    $XXXX)
+;   4    $00       0   NONE              (ACCUMULATOR: A)
+;   5    $80       0   (A)               (ACCUMULATOR EXPLICIT: ASL A)
+;   6    $59       1   (,Y)(             (ZERO-PAGE INDIRECT Y: ($XX),Y)
+;   7    $4D       1   (,X)(             (ZERO-PAGE INDIRECT X: ($XX,X))
+;   8    $11       1   (,X)              (ZERO-PAGE,X: $XX,X)
+;   9    $12       1   (,Y)              (ZERO-PAGE,Y: $XX,Y)
+;  10    $06       2   (,X)              (ABSOLUTE,X: $XXXX,X)
+;  11    $4A       2   (,Y)(             (ABSOLUTE INDIRECT: ($XXXX))
+;  12    $05       2   (,Y)              (ABSOLUTE,Y: $XXXX,Y)
+; =============================================================================
+ADDR_FMT_TABLE 
+        .BYTE   $00                 ;  0  IMPLIED / ACCUMULATOR
+        .BYTE   $21                 ;  1  IMMEDIATE
+        .BYTE   $01                 ;  2  ZERO-PAGE
+        .BYTE   $02                 ;  3  ABSOLUTE
+        .BYTE   $00                 ;  4  ACCUMULATOR (EXPLICIT A)
+        .BYTE   $80                 ;  5  ACCUMULATOR (PRINT 'A')
+        .BYTE   $59                 ;  6  (ZP),Y
+        .BYTE   $4D                 ;  7  (ZP,X)
+        .BYTE   $11                 ;  8  ZP,X
+        .BYTE   $12                 ;  9  ZP,Y
+        .BYTE   $06                 ; 10  ABS,X
+        .BYTE   $4A                 ; 11  ABS INDIRECT
+        .BYTE   $05                 ; 12  ABS,Y
+
+; =============================================================================
+; SUFFIX_CHARS / SUFFIX_CHARS2
+;
+; TWO 7-BYTE ARRAYS PROVIDING THE ONE OR TWO CHARACTERS TO PRINT FOR EACH
+; ADDRESSING-MODE SUFFIX POSITION (INDEXED BY X = 6 DOWN TO 1 IN THE
+; SUFFIX OUTPUT LOOP).
+;
+; X   SUFFIX_CHARS[X]  SUFFIX_CHARS2[X]  OUTPUT
+; 6   $1D (SENTINEL)   $41 'A'           A           (ACCUMULATOR)
+; 5   $2C ','          $00               (NONE)       -> JUST ','
+; ...  WAIT, SEE ORIGINAL DATA. LET'S USE THE ORIGINAL BYTE VALUES AS-IS.
+;
+; CORRECTED FROM THE ACTUAL DATA:
+; X   SUFFIX_CHARS   SUFFIX_CHARS2   DISPLAYED
+; 6     $1D (UNUSED)   $41 'A'         A
+; 5     $2C ','        $59 'Y'         ,Y
+; 4     $29 ')'        $00             )
+; 3     $2C ','        $58 'X'         ,X
+; 2     $23 '#'        $00             #
+; 1     $28 '('        $00             (
+; =============================================================================
+SUFFIX_CHARS 
+        .BYTE   $1D                 ; X=6: (UNUSED PRIMARY; 'A' COMES FROM SUFFIX_CHARS2)
+        .BYTE   $2C                 ; X=5: ','
+        .BYTE   $29                 ; X=4: ')'
+        .BYTE   $2C                 ; X=3: ','
+        .BYTE   $23                 ; X=2: '#'
+        .BYTE   $28                 ; X=1: '('
+
+SUFFIX_CHARS2 
+        .BYTE   $41                 ; X=6: 'A'
+        .BYTE   $59                 ; X=5: 'Y'
+        .BYTE   $00                 ; X=4: (NONE)
+        .BYTE   $58                 ; X=3: 'X'
+        .BYTE   $00                 ; X=2: (NONE)
+        .BYTE   $00                 ; X=1: (NONE)
+        .BYTE   $00                 ; (PAD)
+
+; =============================================================================
+; MNEMONIC ENCODING TABLES
+;
+; TWO PARALLEL 64-BYTE ARRAYS, INDEXED BY THE MNEMONIC INDEX (0..63).
+; TOGETHER THEY FORM A 16-BIT VALUE PER MNEMONIC (MNEM_HI[I] << 8 | MNEM_LO[I]).
+;
+; EACH MNEMONIC CHARACTER IS STORED AS A 5-BIT BIASED VALUE:
+;   CHAR_VALUE = ASCII_CHAR - $3F
+;   E.G. 'B' = $42 -> $42 - $3F = 3
+;
+; THE THREE CHARACTERS OF A MNEMONIC ARE PACKED INTO 15 BITS (BITS 15..1);
+; BIT 0 IS UNUSED.  THE 16-BIT VALUE IS SPLIT ACROSS MNEM_HI (BITS 15..8)
+; AND MNEM_LO (BITS 7..0), AND THE THREE 5-BIT GROUPS ARE EXTRACTED BY
+; SHIFTING LEFT 5 BITS AT A TIME IN DISASM_ONE_INSTR.
+;
+; EXAMPLE - BRK ($1CD8):
+;   BITS 15..11 = 00011 ($03) -> $03 + $3F = $42 = 'B'
+;   BITS 10.. 6 = 10011 ($13) -> $13 + $3F = $52 = 'R'
+;   BITS  5.. 1 = 01100 ($0C) -> $0C + $3F = $4B = 'K'
+;
+; INDEX  MNEM_HI  MNEM_LO  MNEMONIC
+;    0    $1C      $D8      BRK
+;    1    $8A      $62      PHP
+;    2    $1C      $5A      BPL
+;    3    $23      $48      CLC
+;    4    $5D      $26      JSR
+;    5    $8B      $62      PLP
+;    6    $1B      $94      BMI
+;    7    $A1      $88      SEC
+;    8    $9D      $54      RTI
+;    9    $8A      $44      PHA
+;   10    $1D      $C8      BVC
+;   11    $23      $54      CLI
+;   12    $9D      $68      RTS
+;   13    $8B      $44      PLA
+;   14    $1D      $E8      BVS
+;   15    $A1      $94      SEI
+;   16    $00      $00      ???
+;   17    $29      $B4      DEY
+;   18    $19      $08      BCC
+;   19    $AE      $84      TYA
+;   20    $69      $74      LDY
+;   21    $A8      $B4      TAY
+;   22    $19      $28      BCS
+;   23    $23      $6E      CLV
+;   24    $24      $74      CPY
+;   25    $53      $F4      INY
+;   26    $1B      $CC      BNE
+;   27    $23      $4A      CLD
+;   28    $24      $72      CPX
+;   29    $53      $F2      INX
+;   30    $19      $A4      BEQ
+;   31    $A1      $8A      SED
+;   32    $00      $00      ???
+;   33    $1A      $AA      BIT
+;   34    $5B      $A2      JMP
+;   35    $5B      $A2      JMP (INDIRECT)
+;   36    $A5      $74      STY
+;   37    $69      $74      LDY
+;   38    $24      $74      CPY
+;   39    $24      $72      CPX
+;   40    $AE      $44      TXA
+;   41    $AE      $68      TXS
+;   42    $A8      $B2      TAX
+;   43    $AD      $32      TSX
+;   44    $29      $B2      DEX
+;   45    $00      $00      ???
+;   46    $7C      $22      NOP
+;   47    $00      $00      ???
+;   48    $15      $1A      ASL
+;   49    $9C      $1A      ROL
+;   50    $6D      $26      LSR
+;   51    $9C      $26      ROR
+;   52    $A5      $72      STX
+;   53    $69      $72      LDX
+;   54    $29      $88      DEC
+;   55    $53      $C8      INC
+;   56    $84      $C4      ORA
+;   57    $13      $CA      AND
+;   58    $34      $26      EOR
+;   59    $11      $48      ADC
+;   60    $A5      $44      STA
+;   61    $69      $44      LDA
+;   62    $23      $A2      CMP
+;   63    $A0      $C8      SBC
+; =============================================================================
+MNEM_HI 
+        .BYTE   $1C, $8A, $1C, $23, $5D, $8B, $1B, $A1
+        .BYTE   $9D, $8A, $1D, $23, $9D, $8B, $1D, $A1
+        .BYTE   $00, $29, $19, $AE, $69, $A8, $19, $23
+        .BYTE   $24, $53, $1B, $23, $24, $53, $19, $A1
+        .BYTE   $00, $1A, $5B, $5B, $A5, $69, $24, $24
+        .BYTE   $AE, $AE, $A8, $AD, $29, $00, $7C, $00
+        .BYTE   $15, $9C, $6D, $9C, $A5, $69, $29, $53
+        .BYTE   $84, $13, $34, $11, $A5, $69, $23, $A0
+
+MNEM_LO 
+        .BYTE   $D8, $62, $5A, $48, $26, $62, $94, $88
+        .BYTE   $54, $44, $C8, $54, $68, $44, $E8, $94
+        .BYTE   $00, $B4, $08, $84, $74, $B4, $28, $6E
+        .BYTE   $74, $F4, $CC, $4A, $72, $F2, $A4, $8A
+        .BYTE   $00, $AA, $A2, $A2, $74, $74, $74, $72
+        .BYTE   $44, $68, $B2, $32, $B2, $00, $22, $00
+        .BYTE   $1A, $1A, $26, $26, $72, $72, $88, $C8
+        .BYTE   $C4, $CA, $26, $48, $44, $44, $A2, $C8
+
+; =============================================================================
+; ERROR HANDLERS
+; =============================================================================
+
+; 'START ADDRESS ERROR'
+ERR_START_ADDR 
+        SVC     SVCOUM
+        .BYTE   $02
+        .BYTE   'START ADDRESS ERROR', $0D, $00
+        JMP     PROMPT_AND_INPUT
+
+; 'END ADDRESS ERROR'
+ERR_END_ADDR 
+        SVC     SVCOUM
+        .BYTE   $02
+        .BYTE   'END ADDRESS ERROR', $0D, $00
+        JMP     PROMPT_AND_INPUT
+
+; 'ERROR, TOO MANY PARAMETERS'
+ERR_PARAMS 
+ERR_TOO_MANY 
+        SVC     SVCOUM
+        .BYTE   $02
+        .BYTE   'ERROR, TOO MANY PARAMETERS', $0D, $00
+        JMP     PROMPT_AND_INPUT
+
+; '# OF LINES TOO LARGE'
+ERR_LINES_LARGE 
+        SVC     SVCOUM
+        .BYTE   $02
+        .BYTE   '# OF LINES TOO LARGE', $0D, $00
+        JMP     PROMPT_AND_INPUT
+
+; 'ILLEGAL CHANNEL NUMBER'
+ERR_ILLEGAL_CHAN 
+        SVC     SVCOUM
+        .BYTE   $02
+        .BYTE   'ILLEGAL CHANNEL NUMBER', $0D, $00
+        JMP     PROMPT_AND_INPUT
+
+; =============================================================================
+; SCRATCH / WORK BYTES
+; =============================================================================
+SAVEY       .BYTE   $00             ; SAVED Y SCRATCH (EMIT_HEX_BYTE)
+SAVEX       .BYTE   $00             ; SAVED X SCRATCH / LO-BYTE TEMP
+MNEMONIC    .WORD   $0000           ; MNEMONIC SHIFT REGISTER
+
+        .END
