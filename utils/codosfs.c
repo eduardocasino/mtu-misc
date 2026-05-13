@@ -552,7 +552,7 @@ static int copy_to_disk( disk_t *disk, uint8_t *buffer, char *filename, char *in
     memset( &header, 0, sizeof( header ) );
     memcpy( &header.dir_entry, dirent, sizeof( dir_entry_t ) );
     header.attr = 0x80;
-    header.dir_offset = 256 + ( block - 1 ) * 16 + 1;
+    header.dir_offset = 256 + (uint16_t)((void*)dirent - (void*)disk->dir_entry) + 1;
     header.size0 = (uint8_t) filesiz & 0xff;
     header.size1 = (uint8_t) ( filesiz >> 8 ) & 0xff;
     header.size2 = (uint8_t) ( filesiz >> 16 ) & 0xff;
@@ -560,8 +560,8 @@ static int copy_to_disk( disk_t *disk, uint8_t *buffer, char *filename, char *in
  
     if ( boot )
     {
-        header.dmaload = dma;
         header.finals = (uint8_t) ( (filesiz + CODOS_SECTOR_SIZE - 1) / CODOS_SECTOR_SIZE );
+        header.dmaload = dma;
         if ( 1 != fread( buffer, 6, 1, file ) )
         {
             fputs( "Bad system file.\n", stderr );

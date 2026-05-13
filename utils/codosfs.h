@@ -42,7 +42,7 @@ typedef enum {
 #define CODOS_SECTOR_SIZE 256
 
 #define NUM_BLOCKS 247
-#define NUM_FILES NUM_BLOCKS
+#define NUM_FILES 256
 #define SS_BLOCK_SIZE 2048
 #define DS_BLOCK_SIZE 4096
 
