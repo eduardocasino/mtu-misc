@@ -299,7 +299,7 @@ int imd_parse_disk_img( image_t *image )
         // printf( "track_start: %8.8X\n", image->track_map[head_no][image->current_track.imd.data.cylinder] );
 
         // Skip sector numbering, cylinder and head maps if present
-		ff = ftell( image->file ) + image->current_track.imd.data.sectors * ( 1 + sect_cyl_map ? 1 : 0 + sect_head_map ? 1 : 0 );
+		ff = ftell( image->file ) + image->current_track.imd.data.sectors * ( 1 + (sect_cyl_map ? 1 : 0) + (sect_head_map ? 1 : 0) );
 
         if ( fseek( image->file, ff, SEEK_SET ) )
         {
@@ -409,7 +409,7 @@ int imd_seek_track( image_t *image, uint8_t head, uint8_t cyl )
     // Load sector info (info is in track order, not sector order)
     // First, Skip sector cylinder and head maps if present
 
-    idx = ftell( image->file ) + image->current_track.imd.data.sectors * (sect_cyl_map ? 1 : 0 + sect_head_map ? 1 : 0 );
+    idx = ftell( image->file ) + image->current_track.imd.data.sectors * ( (sect_cyl_map ? 1 : 0) + (sect_head_map ? 1 : 0) );
 
     image->current_track.data_index = (uint32_t)idx;
 
@@ -658,23 +658,6 @@ static int imd_write_sectors( FILE *file, uint8_t sects, uint8_t *data, size_t s
     return 0;
 }
 
-static void imd_init_sector_map( uint8_t *smap, uint8_t track, uint8_t nsects, uint8_t interleave, uint8_t skew )
-{
-    uint8_t sect = 0;
-
-    for ( int ns = 0; ns < nsects; ++ns)
-    {
-        smap[sect] = (uint8_t) (ns + ( track * skew )) % nsects;
-        sect += interleave;
-        if ( sect >= nsects )
-        {
-            sect %= (nsects-1);
-        } 
-    }
-    
-    return;
-}
-
 int imd_new(
     image_t *image,
     bool packed,
@@ -690,6 +673,10 @@ int imd_new(
     int cyl, head;
     size_t sectsiz;
 
+    // Tracks the current physical position on the disk across track/head changes
+    // This replicates the PHYSECTOFF behavior from CODOS format.asm
+    int phys_sect = 0;
+
     assert( image->file != NULL );
 
     if ( imd_write_header( image->file ) )
@@ -702,8 +689,6 @@ int imd_new(
     trinfo.mode     = 3;                    // 500 kbps MFM
     trinfo.sectors  = nsects;
     trinfo.size     = bps;                  // 256 bytes
-
-    // Initialize first sector
 
     if ( packed )
     {
@@ -728,10 +713,45 @@ int imd_new(
             trinfo.cylinder = cyl;
             trinfo.head = head;
 
-            // Initialize sector map for each track
+            // CODOS Continuous Sector Mapping Logic
 
-            imd_init_sector_map( buffer, cyl, nsects, interleave, skew );
+            // Apply offsets when switching tracks/heads (except for the very first track)
+            if ( cyl != 0 || head != 0 )
+            {
+                if ( head == 1 ) {
+                    // Head switch: Add interleave to the last used physical position
+                    phys_sect = (phys_sect + interleave) % nsects;
+                } else {
+                    // Cylinder switch: Add skew to the last used physical position
+                    phys_sect = (phys_sect + skew) % nsects;
+                }
+            }
 
+            // Clear the sector map area of the buffer with a sentinel value (0xFF)
+            memset(buffer, 0xFF, nsects);
+
+            for ( int log_sect = 0; log_sect < nsects; ++log_sect )
+            {
+                // Linear collision resolution (equivalent to SETSECT in format.asm)
+                // If the physical slot is already taken, move to the next one.
+                while ( buffer[phys_sect] != 0xFF )
+                {
+                    phys_sect = (phys_sect + 1) % nsects;
+                }
+
+                // Place the logical sector ID in the physical slot
+                buffer[phys_sect] = (uint8_t)log_sect;
+
+                // Advance the physical pointer by the interleave factor for the next sector
+                // We don't advance after the last sector of the track to preserve
+                // the pointer for the next track's skew/interleave calculation.
+                if ( log_sect < nsects - 1 )
+                {
+                    phys_sect = (phys_sect + interleave) % nsects;
+                }
+            }
+
+            // Write the track info and the sector map + data to the file
             if ( imd_write_track_info( image->file, &trinfo, buffer ) )
             {
                 return -1;
