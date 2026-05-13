@@ -102,7 +102,7 @@ $(foreach ver,$(VERSIONS),$(eval images/codos$(ver).imd: build/$(ver)/codos.z bu
 	; ../utils/codosdsk format -y -p -s 2 -t 12 -v $(ver) -c build/$(ver)/codos.z -o build/$(ver)/overlays.bin images/codos$(ver).imd \
 	; for f in $(FILESYSTEM); do ../utils/codosdsk copy -a images/codos$(ver).imd build/$(ver)/$$$$f 0:$$$$f ; done))
 
-$(foreach ver,$(VERSIONS),$(eval $(addprefix build/$(ver)/,$(CODOSFILES)) &: $(addprefix build/$(ver)/,$(CODOSOBJS)) build/$(ver)/codos.cfg \
+$(foreach ver,$(VERSIONS),$(eval $(addprefix build/$(ver)/,$(CODOSFILES)) : $(addprefix build/$(ver)/,$(CODOSOBJS)) build/$(ver)/codos.cfg \
 	; echo "LD $$@" \
 	; $(LD) -C $$(@:.z=.cfg) -vm -m $(basename $$@).map -o $$@ $(addprefix build/$(ver)/,$(CODOSOBJS))))
 
